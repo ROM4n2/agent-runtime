@@ -41,6 +41,6 @@ credentials.json
 # Local workspace AI memory/data (not project source)
 .codebuddy/
 
+# Git worktrees (transient agent/subagent checkouts)
 .worktrees/
-.worktrees/
-.worktrees/
+
