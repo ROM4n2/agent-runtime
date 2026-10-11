@@ -1,0 +1,16 @@
+# agent-api work.log（HOT 层，append-only）
+# Schema 见 PROTOCOL.md §2；轮转规则见 §5
+#
+# 本文件初始不含事件，这是刻意的：work.log 是历史，第一条必须由真实 agent 按 §2 追加，
+# 写它自己的 model-id 与时间。模板一旦预置事件，每个新仓库就会凭空继承一条不属于自己的
+# 历史，还冒用了签名者的身份。事件形状看 PROTOCOL.md §2（不要照抄那里的示例值）。
+
+### 2026-10-11 22:01 | deepseek-v4.1-flash__hermes-agent | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec
+Bootstrap（dfs-bootstrap v0.2.0）完成，4 阶段：
+- Phase1 安全护栏：.gitignore 补齐 3 项缺失（config.local.yaml / *.env / credentials.json，已与 bootstrap.ps1 $requiredIgnores 对齐）；安装 2701B 秘密扫描 hook（替换旧 691B 薄版，新增敏感文件名 / keystore Magic 头部探测），LF 无 BOM，bash -n 通过。
+- Phase2 锚点：CLAUDE.md / .agent-rules.md / .cursorrules 已有工程规范锚点，未重复注入。
+- Phase3.5 WORKMEMORY：pwsh bootstrap.ps1 幂等脚手架 4 件套 + 向项目级文件注入 WORKMEMORY 锚点；agent 已从 README/.agent-context.md/11 份 ADR/git log 蒸馏 PROJECT_OVERVIEW.md 三段（项目定位 / 当前状态 / 6 条高频坑）。
+- Phase4 硬门：直接跑 bash .githooks/pre-commit，clean 树 exit 0；对抗探针——staged 假 OpenAI key exit 1（附行号归因）、staged .env exit 1（文件名拦截）；探针文件已 git reset + 删除，工作树复原。
+证据：go test ./... -count=1 全绿（40 func Test，exit 0）；go1.26.5。
+不做范围：未提交（用户未要求 commit）；未改任何 Go 源码；未动 config.yaml（本地密钥，gitignored）。
