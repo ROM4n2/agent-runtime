@@ -1,0 +1,121 @@
+{
+  "version": "1.0.0",
+  "plan_file": "D:/Code/VSCode_Go/agent-api/docs/implementation_plan_p2-observe.md",
+  "created_at": "2026-10-11T22:18:22.022036",
+  "last_updated": "2026-10-11T22:18:22.022036",
+  "total_tasks": 11,
+  "completed_count": 0,
+  "active_task_id": null,
+  "tasks": [
+    {
+      "id": "Task-1",
+      "title": "TaskStore 新增 Delete（接口 + 内存实现） [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
+      "status": "pending",
+      "implementer": "TDD Builder",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": "Task-2",
+      "title": "SQLStore 实现 Delete [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
+      "status": "pending",
+      "implementer": "TDD Builder",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": "Task-3",
+      "title": "Handler 在 Enqueue 失败时回收任务 [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
+      "status": "pending",
+      "implementer": "TDD Builder",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": "Task-4",
+      "title": "Worker 早期失败写入终态 [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
+      "status": "pending",
+      "implementer": "TDD Builder",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": "Task-5",
+      "title": "HTTP Server 超时配置 [Tier: 1-Light] [Mode: AFK] [Subagent: Solo]",
+      "status": "pending",
+      "implementer": "Solo",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": "Task-6",
+      "title": "TraceStep 类型与 JSON 契约 [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
+      "status": "pending",
+      "implementer": "TDD Builder",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": "Task-7",
+      "title": "有界环形缓冲 traceBuffer [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
+      "status": "pending",
+      "implementer": "TDD Builder",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": "Task-8",
+      "title": "runAgent 增加 step 回调 [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
+      "status": "pending",
+      "implementer": "TDD Builder",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": "Task-9",
+      "title": "Pool 持有 trace 并提供 Trace(id) [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
+      "status": "pending",
+      "implementer": "TDD Builder",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": "Task-10",
+      "title": "API 暴露 steps 字段 [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
+      "status": "pending",
+      "implementer": "TDD Builder",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": "Task-11",
+      "title": "Demo 渲染 Agent 轨迹 [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
+      "status": "pending",
+      "implementer": "TDD Builder",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
+    }
+  ]
+}
