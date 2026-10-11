@@ -132,3 +132,19 @@ func (s *SQLStore) Complete(ID, result string, err error) error {
 	}
 	return nil
 }
+
+// Delete 按 id 删除任务；id 不存在返回 ErrNotFound（与内存实现语义一致）。
+// 依赖 RowsAffected 判断是否命中，因为 DELETE 不命中是「成功删了 0 行」而非错误。
+func (s *SQLStore) Delete(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	res, err := s.db.Exec("DELETE FROM tasks WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

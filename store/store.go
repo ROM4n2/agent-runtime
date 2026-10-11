@@ -29,6 +29,9 @@ type TaskStore interface {
 	Update(id, status string) error
 	Get(id string) (Task, error)
 	Complete(id, result string, err error) error
+	// Delete 移除指定 id 的任务。id 不存在时返回 ErrNotFound，
+	// 与 Update/Complete 的语义一致——不存在的 id 不被静默忽略。
+	Delete(id string) error
 }
 
 // Store 是任务的并发安全容器。
@@ -143,4 +146,18 @@ func (s *Store) Get(ID string) (Task, error) {
 		return Task{}, ErrNotFound
 	}
 	return v, nil
+}
+
+// Delete 从 map 中移除指定 id 的任务。
+// id 不存在时返回 ErrNotFound——与 Update/Complete 一致，不静默成功。
+func (s *Store) Delete(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.tasks[id]; !ok {
+		return ErrNotFound
+	}
+	delete(s.tasks, id)
+
+	return nil
 }
