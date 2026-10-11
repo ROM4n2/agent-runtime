@@ -1,0 +1,11 @@
+# Shell hooks MUST keep LF regardless of core.autocrlf: a CRLF shebang
+# (#!/usr/bin/env bash\r) makes the kernel look for interpreter "bash\r",
+# so git cannot spawn the hook on Linux/macOS.
+.githooks/** text eol=lf
+
+# WORKMEMORY is an append-only UTF-8 event log written with LF; keep it LF so
+# event-count/rotation tooling and git diffs stay consistent.
+WORKMEMORY/** text eol=lf
+
+# Shell scripts generally
+*.sh text eol=lf
