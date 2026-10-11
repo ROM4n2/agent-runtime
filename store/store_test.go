@@ -115,3 +115,21 @@ func TestStore_Complete_Failed(t *testing.T) {
 		t.Errorf("Get 返回的 Result 不为空")
 	}
 }
+
+func TestStore_Delete(t *testing.T) {
+	s := NewStore()
+	id := s.Create("hello")
+
+	// 断言 1：删除已存在的任务成功，且 Get 之后返回 ErrNotFound
+	if err := s.Delete(id); err != nil {
+		t.Fatalf("Delete 返回的错误是 %v", err)
+	}
+	if _, err := s.Get(id); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("删除后 Get 应返回 ErrNotFound，实际是 %v", err)
+	}
+
+	// 断言 2：删除不存在的 id 返回 ErrNotFound
+	if err := s.Delete("不存在的id"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Delete 不存在的 id 应返回 ErrNotFound，实际是 %v", err)
+	}
+}
