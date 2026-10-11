@@ -71,10 +71,7 @@ func run() int {
 	h := api.NewHandler(s, p, conf.APIAuthKey)
 	mux := h.Routes()
 
-	srv := &http.Server{
-		Addr:    ":8080",
-		Handler: mux,
-	}
+	srv := newServer(mux)
 	errCh := make(chan error, 1) // 缓冲 1，goroutine 送完就走，不会泄露
 
 	go func() {
@@ -93,6 +90,19 @@ func run() int {
 		// 启动失败，也要走停机流程，但退出码要非 0
 		slog.Error("server error", slog.Any("error", err))
 		return 1
+	}
+}
+
+// newServer 构造 HTTP 服务器并配置超时，避免慢客户端长期占用连接：
+// ReadHeaderTimeout 限制请求头读取，WriteTimeout 限制响应写入，
+// IdleTimeout 限制 keep-alive 空闲连接存活时间。
+func newServer(handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              ":8080",
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 }
 
