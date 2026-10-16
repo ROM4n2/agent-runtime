@@ -94,6 +94,9 @@ func (h *Handler) HandleRun(w http.ResponseWriter, r *http.Request) {
 	// 此时该 ID 必须已经存在于 store 中。
 	id := h.store.Create(req.Prompt)
 	if err := h.pool.Enqueue(id); err != nil {
+		if delErr := h.store.Delete(id); delErr != nil {
+			slog.Error("reclaim task on enqueue failure", "task_id", id, "error", delErr)
+		}
 		// 队列满：显式 503，把背压交给客户端/网关，而非让连接挂死。
 		http.Error(w, "service unavailable: task queue is full", http.StatusServiceUnavailable)
 		return
