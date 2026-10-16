@@ -2,9 +2,9 @@
   "version": "1.0.0",
   "plan_file": "D:/Code/VSCode_Go/agent-api/docs/implementation_plan_p2-observe.md",
   "created_at": "2026-10-11T22:18:22.022036",
-  "last_updated": "2026-10-11T22:23:40.769188",
+  "last_updated": "2026-10-16T22:05:31.790414",
   "total_tasks": 11,
-  "completed_count": 3,
+  "completed_count": 5,
   "active_task_id": null,
   "tasks": [
     {
@@ -30,22 +30,22 @@
     {
       "id": "Task-3",
       "title": "Handler 在 Enqueue 失败时回收任务 [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
-      "status": "pending",
+      "status": "completed",
       "implementer": "TDD Builder",
-      "commit_hash": null,
-      "reviewer_verdict": null,
-      "started_at": null,
-      "completed_at": null
+      "commit_hash": "d90d0e4",
+      "reviewer_verdict": "PASS",
+      "started_at": "2026-10-16T21:51:50.435731",
+      "completed_at": "2026-10-16T22:05:31.680917"
     },
     {
       "id": "Task-4",
       "title": "Worker 早期失败写入终态 [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
-      "status": "pending",
+      "status": "completed",
       "implementer": "TDD Builder",
-      "commit_hash": null,
-      "reviewer_verdict": null,
-      "started_at": null,
-      "completed_at": null
+      "commit_hash": "c365448",
+      "reviewer_verdict": "PASS",
+      "started_at": "2026-10-16T21:51:50.554303",
+      "completed_at": "2026-10-16T22:05:31.790414"
     },
     {
       "id": "Task-5",
