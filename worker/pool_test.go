@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -185,5 +186,88 @@ func TestEnqueue_Full(t *testing.T) {
 
 	if err := p.Enqueue("extra"); !errors.Is(err, ErrQueueFull) {
 		t.Errorf("Enqueue on full queue = %v, want ErrQueueFull", err)
+	}
+}
+
+type mockTaskStore struct {
+	updateErr   error
+	getErr      error
+	completeErr error
+
+	completedID     string
+	completedResult string
+	completedErr    error
+	completeCalled  bool
+}
+
+func (m *mockTaskStore) Create(prompt string) string {
+	return "mock-id"
+}
+
+func (m *mockTaskStore) Update(id, status string) error {
+	if m.updateErr != nil {
+		return m.updateErr
+	}
+	return nil
+}
+
+func (m *mockTaskStore) Get(id string) (store.Task, error) {
+	if m.getErr != nil {
+		return store.Task{}, m.getErr
+	}
+	return store.Task{ID: id, Prompt: "mock prompt"}, nil
+}
+
+func (m *mockTaskStore) Complete(id, result string, err error) error {
+	m.completeCalled = true
+	m.completedID = id
+	m.completedResult = result
+	m.completedErr = err
+	return m.completeErr
+}
+
+func (m *mockTaskStore) Delete(id string) error {
+	return nil
+}
+
+func TestProcess_UpdateErrorSetsFailed(t *testing.T) {
+	mock := &mockTaskStore{
+		updateErr: errors.New("db update error"),
+	}
+	p := NewPool(1, time.Second, mock, fakeChatter{})
+	p.process("test-id")
+
+	if !mock.completeCalled {
+		t.Fatal("expected Complete to be called when Update fails, but it was not")
+	}
+	if mock.completedID != "test-id" {
+		t.Errorf("completed ID = %q, want %q", mock.completedID, "test-id")
+	}
+	if mock.completedErr == nil {
+		t.Fatal("expected non-nil error passed to Complete, got nil")
+	}
+	if !strings.Contains(mock.completedErr.Error(), "state transition failed") {
+		t.Errorf("completed error = %q, want containing %q", mock.completedErr.Error(), "state transition failed")
+	}
+}
+
+func TestProcess_GetErrorSetsFailed(t *testing.T) {
+	mock := &mockTaskStore{
+		getErr: errors.New("db get error"),
+	}
+	p := NewPool(1, time.Second, mock, fakeChatter{})
+	p.process("test-id")
+
+	if !mock.completeCalled {
+		t.Fatal("expected Complete to be called when Get fails, but it was not")
+	}
+	if mock.completedID != "test-id" {
+		t.Errorf("completed ID = %q, want %q", mock.completedID, "test-id")
+	}
+	if mock.completedErr == nil {
+		t.Fatal("expected non-nil error passed to Complete, got nil")
+	}
+	if !strings.Contains(mock.completedErr.Error(), "task state unavailable") {
+		t.Errorf("completed error = %q, want containing %q", mock.completedErr.Error(), "task state unavailable")
 	}
 }
