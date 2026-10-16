@@ -35,9 +35,13 @@ func TestTaskJSONContract(t *testing.T) {
 	if err := json.Unmarshal(getRec.Body.Bytes(), &raw); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"id", "status", "prompt", "result", "error"} {
+	for _, want := range []string{"id", "status", "prompt", "result", "error", "steps"} {
 		if _, ok := raw[want]; !ok {
 			t.Errorf("task JSON missing key %q; body = %s", want, getRec.Body.String())
 		}
+	}
+	stepsRaw := strings.TrimSpace(string(raw["steps"]))
+	if stepsRaw == "" || stepsRaw == "null" || !strings.HasPrefix(stepsRaw, "[") {
+		t.Errorf("task JSON steps must be a non-null JSON array, got: %s", stepsRaw)
 	}
 }

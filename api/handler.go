@@ -115,6 +115,11 @@ func (h *Handler) HandleRun(w http.ResponseWriter, r *http.Request) {
 
 }
 
+type taskWithTrace struct {
+	store.Task
+	Steps []worker.TraceStep `json:"steps"`
+}
+
 // HandleGet 返回任务当前状态，供调用方轮询。
 func (h *Handler) HandleGet(w http.ResponseWriter, r *http.Request) {
 	// {id} 由 mux 从路径中解析，不是查询参数
@@ -126,8 +131,19 @@ func (h *Handler) HandleGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	steps := []worker.TraceStep{}
+	if h.pool != nil {
+		if s := h.pool.Trace(id); s != nil {
+			steps = s
+		}
+	}
+	resp := taskWithTrace{
+		Task:  task,
+		Steps: steps,
+	}
+
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	err = json.NewEncoder(w).Encode(task)
+	err = json.NewEncoder(w).Encode(resp)
 	if err != nil {
 		slog.Error("encode response", "error", err)
 	}
