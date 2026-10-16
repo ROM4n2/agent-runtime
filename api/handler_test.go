@@ -118,9 +118,10 @@ func TestHandleGet_Found(t *testing.T) {
 		t.Errorf("code = %d, want 200", getRec.Code)
 	}
 
-	// 解析 body 中的 status
+	// 解析 body 中的 status 与 steps
 	var body struct {
-		Status string
+		Status string             `json:"status"`
+		Steps  []worker.TraceStep `json:"steps"`
 	}
 
 	err = json.NewDecoder(getRec.Body).Decode(&body)
@@ -130,6 +131,61 @@ func TestHandleGet_Found(t *testing.T) {
 
 	if body.Status == "" {
 		t.Errorf("status 为空")
+	}
+	if body.Steps == nil {
+		t.Errorf("steps 应当为非 nil 切片")
+	}
+}
+
+func TestHandleGet_WithTraceSteps(t *testing.T) {
+	s := store.NewStore()
+	p := worker.NewPool(1, 5*time.Second, s, fakeLLM{})
+	p.Start()
+	defer p.Stop()
+
+	h := NewHandler(s, p, "")
+	mux := h.Routes()
+
+	postReq := httptest.NewRequest("POST", "/run", strings.NewReader(`{"prompt":"hello agent"}`))
+	postRec := httptest.NewRecorder()
+	mux.ServeHTTP(postRec, postReq)
+
+	var resp map[string]string
+	if err := json.NewDecoder(postRec.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	id := resp["task_id"]
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		task, err := s.Get(id)
+		if err == nil && (task.Status == store.StatusDone || task.Status == store.StatusFailed) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("task did not finish in time")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	getReq := httptest.NewRequest("GET", "/tasks/"+id, nil)
+	getRec := httptest.NewRecorder()
+	mux.ServeHTTP(getRec, getReq)
+
+	if getRec.Code != http.StatusOK {
+		t.Fatalf("code = %d, want 200", getRec.Code)
+	}
+
+	var res struct {
+		ID     string             `json:"id"`
+		Status string             `json:"status"`
+		Steps  []worker.TraceStep `json:"steps"`
+	}
+	if err := json.NewDecoder(getRec.Body).Decode(&res); err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Steps) == 0 {
+		t.Errorf("expected non-empty steps, got %v", res.Steps)
 	}
 }
 
@@ -219,8 +275,18 @@ func TestDemoPage(t *testing.T) {
 	if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "text/html") {
 		t.Errorf("Content-Type = %q, want text/html", ct)
 	}
-	if !strings.Contains(rec.Body.String(), "agent-api") {
+	body := rec.Body.String()
+	if !strings.Contains(body, "agent-api") {
 		t.Errorf("demo body missing expected marker")
+	}
+	if !strings.Contains(body, `id="trace"`) {
+		t.Errorf("demo body missing id=\"trace\" container")
+	}
+	if strings.Contains(body, "innerHTML") {
+		t.Errorf("demo body contains forbidden innerHTML (must use safe DOM methods)")
+	}
+	if strings.Contains(body, "insertAdjacentHTML") {
+		t.Errorf("demo body contains forbidden insertAdjacentHTML (must use safe DOM methods)")
 	}
 }
 

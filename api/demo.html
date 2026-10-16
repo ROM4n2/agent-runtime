@@ -76,6 +76,20 @@
   .b-running { color: var(--accent); }
   .b-done { color: var(--ok); border-color: var(--ok); }
   .b-failed { color: var(--err); border-color: var(--err); }
+  .step {
+    font-family: monospace;
+    font-size: 13px;
+    margin: 4px 0;
+    padding: 6px 10px;
+    background: #0d0f14;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .step-kind { font-weight: 600; color: var(--accent); }
+  .step-tool { color: var(--warn); }
+  .step-detail { color: var(--text); margin-top: 2px; }
   a { color: var(--accent); }
 </style>
 </head>
@@ -100,6 +114,7 @@
       <label>结果</label>
       <div id="status" class="badge b-pending">空闲</div>
       <div id="out" class="out" style="margin-top:10px">—</div>
+      <div id="trace" class="trace" style="margin-top:10px"></div>
       <div id="meta" class="meta"></div>
     </div>
   </div>
@@ -146,6 +161,7 @@ async function poll(id, token, myRun) {
     const task = await getTask(id, token);
     if (myRun !== runId) return;
 
+    renderSteps(task.steps);
     setBadge(task.status);
     if (task.status === "done") {
       $("out").textContent = task.result || "(空)";
@@ -158,6 +174,40 @@ async function poll(id, token, myRun) {
     $("out").textContent = "状态：" + task.status + " …";
     await new Promise((r) => setTimeout(r, 1000));
     if (myRun !== runId) return;
+  }
+}
+
+function renderSteps(steps) {
+  const container = $("trace");
+  container.replaceChildren();
+  if (!Array.isArray(steps) || steps.length === 0) return;
+
+  for (const s of steps) {
+    const item = document.createElement("div");
+    item.className = "step";
+
+    const header = document.createElement("div");
+    const kind = document.createElement("span");
+    kind.className = "step-kind";
+    kind.textContent = (s.step != null ? "#" + s.step + " " : "") + (s.kind || "");
+    header.append(kind);
+
+    if (s.tool) {
+      const tool = document.createElement("span");
+      tool.className = "step-tool";
+      tool.textContent = " · " + s.tool;
+      header.append(tool);
+    }
+    item.append(header);
+
+    if (s.detail) {
+      const detail = document.createElement("div");
+      detail.className = "step-detail";
+      detail.textContent = s.detail;
+      item.append(detail);
+    }
+
+    container.append(item);
   }
 }
 
@@ -178,6 +228,7 @@ $("run").addEventListener("click", async () => {
   setBadge("pending");
   $("out").textContent = "提交中…";
   $("meta").textContent = "";
+  $("trace").replaceChildren();
 
   try {
     const id = await postRun(prompt, token);
