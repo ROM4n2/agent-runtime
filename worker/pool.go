@@ -89,6 +89,10 @@ func (p *Pool) process(id string) {
 	// 先置 running，让轮询方立刻看到状态推进
 	if err := p.tasks.Update(id, store.StatusRunning); err != nil {
 		slog.Error("worker: update task %s to running: %v", id, err)
+		metrics.IncFailed()
+		if err := p.tasks.Complete(id, "", errors.New("state transition failed")); err != nil {
+			slog.Error("worker: task %s complete failed: %v", id, err)
+		}
 		return
 	}
 
@@ -96,6 +100,10 @@ func (p *Pool) process(id string) {
 	task, err := p.tasks.Get(id)
 	if err != nil {
 		slog.Error("worker: get task %s: %v", id, err)
+		metrics.IncFailed()
+		if err := p.tasks.Complete(id, "", errors.New("task state unavailable")); err != nil {
+			slog.Error("worker: task %s complete failed: %v", id, err)
+		}
 		return
 	}
 
