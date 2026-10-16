@@ -14,3 +14,18 @@ Bootstrap（dfs-bootstrap v0.2.0）完成，4 阶段：
 - Phase4 硬门：直接跑 bash .githooks/pre-commit，clean 树 exit 0；对抗探针——staged 假 OpenAI key exit 1（附行号归因）、staged .env exit 1（文件名拦截）；探针文件已 git reset + 删除，工作树复原。
 证据：go test ./... -count=1 全绿（40 func Test，exit 0）；go1.26.5。
 不做范围：未提交（用户未要求 commit）；未改任何 Go 源码；未动 config.yaml（本地密钥，gitignored）。
+
+### 2026-10-16 22:38 | gemini-3.8-flash-high__hermes-agent | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec
+P2 实现计划（docs/implementation_plan_p2-observe.md）全量 11 项任务经严格 TDD + Maker-Checker 独立审查 + 逆向突变测试 100% 交付完成：
+- Wave 1: Task 1 + Task 2（TaskStore.Delete 接口与 Store / SQLStore 实现）、Task 5（newServer 配置 ReadHeaderTimeout 10s / WriteTimeout 30s / IdleTimeout 60s）。
+- Wave 2: Task 3（HandleRun 在 Enqueue 失败时 store.Delete 补偿清理防僵尸任务）、Task 4（Worker process 在 Update/Get 失败时写终态 Complete 并更新 metrics.IncFailed）。
+- Wave 3: Task 6（TraceStep 结构体与 5 个 Kind 常量，锁死 JSON 契约与 omitempty）、Task 7（并发安全 traceBuffer 有界环形缓冲，max 32 步，detail 512 字节截断，snapshot 防御性拷贝）。
+- Wave 4: Task 8（runAgent 注入 onStep 回调，上报 think/tool_call/tool_result/final/error，粗粒度脱敏）、Task 9（Pool 持有 traces 注册表，暴露并发安全只读快照 Trace(id)）。
+- Wave 5: Task 10（GET /tasks/{id} 扁平内嵌 taskWithTrace 暴露 steps 数组，保底为非 null [] 切片）、Task 11（Demo 页零 innerHTML 增量渲染轨迹，采用 replaceChildren + createElement + textContent 彻底杜绝 XSS）。
+物理证据门：
+- GOWORK=off go test ./... -count=1 全量测试通过（57 func Test，相比基线 40 个新增 17 个测试）。
+- GOWORK=off go test -race ./... -count=1 全 7 个包零竞态（exit 0）。
+- 全量构建与代码静态检查：GOWORK=off go build ./... && GOWORK=off go vet ./... 干净无警告。
+- 逆向突变全部由独立 Reviewer 子代理实测转红（exit 1）并在恢复后回绿，无假绿断言。
+- 执行台账 .vault-exec-ledger.json 11/11 COMPLETED (100.0%)，工作树干净。
