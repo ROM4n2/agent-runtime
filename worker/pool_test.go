@@ -271,3 +271,45 @@ func TestProcess_GetErrorSetsFailed(t *testing.T) {
 		t.Errorf("completed error = %q, want containing %q", mock.completedErr.Error(), "task state unavailable")
 	}
 }
+
+func TestPool_TraceAfterProcess(t *testing.T) {
+	s := store.NewStore()
+	p := NewPool(1, 5*time.Second, s, fakeChatter{0, nil})
+	p.Start()
+	defer p.Stop()
+
+	id := s.Create("what is the weather")
+	if err := p.Enqueue(id); err != nil {
+		t.Fatalf("enqueue failed: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		task, err := s.Get(id)
+		if err == nil && task.Status == store.StatusDone {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("task did not finish within deadline")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	steps := p.Trace(id)
+	if len(steps) == 0 {
+		t.Fatal("expected trace steps, got none")
+	}
+	last := steps[len(steps)-1]
+	if last.Kind != KindFinal {
+		t.Errorf("last step kind = %q, want %q", last.Kind, KindFinal)
+	}
+}
+
+func TestPool_TraceUnknownID(t *testing.T) {
+	s := store.NewStore()
+	p := NewPool(1, 5*time.Second, s, fakeChatter{0, nil})
+	steps := p.Trace("non-existent-id")
+	if steps != nil {
+		t.Errorf("expected nil trace for unknown ID, got %+v", steps)
+	}
+}

@@ -58,18 +58,32 @@ func defaultTools() (specs []llm.Tool, handlers map[string]toolHandler) {
 
 // runAgent 执行 think→call tool→observe 的多步循环，直到模型给出终态文本或步数耗尽。
 // exec 根据工具名执行本地实现，返回结果字符串（出错也返回字符串，让模型自行纠正）。
-func runAgent(ctx context.Context, c chatter, prompt string, tools []llm.Tool, exec func(llm.ToolCall) string) (string, error) {
+func runAgent(ctx context.Context, c chatter, prompt string, tools []llm.Tool, exec func(llm.ToolCall) string, onStep func(TraceStep)) (string, error) {
 	turns := []llm.Message{{Role: "user", Content: prompt}}
 
-	for step := 0; step < maxAgentSteps; step++ {
+	step := 0
+	emit := func(kind, tool, detail, callID string) {
+		if onStep != nil {
+			onStep(TraceStep{Step: step, Kind: kind, Tool: tool, Detail: detail, CallID: callID})
+		}
+	}
+
+	for ; step < maxAgentSteps; step++ {
 		// 上下文取消（停机/超时）会透传到每次 LLM 调用
 		resp, err := c.ChatWithTools(ctx, turns, tools)
 		if err != nil {
+			emit(KindError, "", "upstream error", "")
 			return "", err
+		}
+
+		// 每轮 LLM 返回后，若 resp.Content 不为空，emit think
+		if resp.Content != "" {
+			emit(KindThink, "", resp.Content, "")
 		}
 
 		// 没有工具调用 = 模型认为可以收尾，返回最终文本
 		if len(resp.ToolCalls) == 0 {
+			emit(KindFinal, "", resp.Content, "")
 			return resp.Content, nil
 		}
 
@@ -80,14 +94,18 @@ func runAgent(ctx context.Context, c chatter, prompt string, tools []llm.Tool, e
 			ToolCalls: resp.ToolCalls,
 		})
 		for _, tc := range resp.ToolCalls {
+			emit(KindToolCall, tc.Function.Name, tc.Function.Arguments, tc.ID)
+			res := exec(tc)
+			emit(KindToolResult, tc.Function.Name, res, tc.ID)
 			turns = append(turns, llm.Message{
 				Role:       "tool",
-				Content:    exec(tc),
+				Content:    res,
 				ToolCallID: tc.ID,
 			})
 		}
 	}
 
+	emit(KindError, "", "max steps exceeded", "")
 	return "", errors.New("agent exceeded max steps")
 }
 

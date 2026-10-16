@@ -37,6 +37,8 @@ type Pool struct {
 	llm      chatter
 	tools    []llm.Tool             // 注册给模型的工具描述
 	handlers map[string]toolHandler // 工具名 -> 本地执行器
+	tracesMu sync.Mutex
+	traces   map[string]*traceBuffer
 }
 
 func NewPool(size int, taskTimeout time.Duration, s store.TaskStore, client chatter) *Pool {
@@ -50,6 +52,7 @@ func NewPool(size int, taskTimeout time.Duration, s store.TaskStore, client chat
 		ctx:         ctx,
 		cancel:      cancel,
 		llm:         client,
+		traces:      make(map[string]*traceBuffer),
 	}
 	// 装配默认工具集（计算器、当前时间），让 worker 具备基础 agent 能力。
 	p.tools, p.handlers = defaultTools()
@@ -112,7 +115,12 @@ func (p *Pool) process(id string) {
 	taskCtx, cancel := context.WithTimeout(p.ctx, p.taskTimeout)
 	defer cancel()
 
-	res, err := runAgent(taskCtx, p.llm, task.Prompt, p.tools, p.execTool)
+	tb := newTraceBuffer(maxTraceSteps)
+	p.tracesMu.Lock()
+	p.traces[id] = tb
+	p.tracesMu.Unlock()
+
+	res, err := runAgent(taskCtx, p.llm, task.Prompt, p.tools, p.execTool, tb.append)
 	if err != nil {
 		// 错误全文只进日志：它携带上游响应体，可能含配额、账单等内部信息。
 		// task.Error 会经 GET /tasks/{id} 原样返回给调用方，因此只存粗粒度分类。
@@ -157,4 +165,16 @@ func (p *Pool) Enqueue(id string) error {
 	default:
 		return ErrQueueFull
 	}
+}
+
+// Trace 返回指定任务已记录的步骤快照。若任务不存在或尚未记录 trace，返回 nil。
+func (p *Pool) Trace(id string) []TraceStep {
+	p.tracesMu.Lock()
+	defer p.tracesMu.Unlock()
+
+	tb, ok := p.traces[id]
+	if !ok || tb == nil {
+		return nil
+	}
+	return tb.snapshot()
 }
