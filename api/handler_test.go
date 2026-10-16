@@ -6,6 +6,7 @@ import (
 	"agent-api/worker"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -220,5 +221,25 @@ func TestDemoPage(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "agent-api") {
 		t.Errorf("demo body missing expected marker")
+	}
+}
+
+func TestHandleRun_QueueFullNoZombie(t *testing.T) {
+	s := store.NewStore()
+	p := worker.NewPool(0, 30*time.Second, s, fakeLLM{})
+	h := NewHandler(s, p, "")
+	mux := h.Routes()
+
+	req := httptest.NewRequest("POST", "/run", strings.NewReader(`{"prompt":"test"}`))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("code = %d, want 503", rec.Code)
+	}
+
+	_, err := s.Get("1")
+	if !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("expected ErrNotFound for task 1 after enqueue failure, got err: %v", err)
 	}
 }
