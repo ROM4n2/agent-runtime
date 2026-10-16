@@ -30,6 +30,6 @@ func BenchmarkRunAgent(b *testing.B) {
 	tools, _ := defaultTools()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = runAgent(context.Background(), c, "hi", tools, func(tc llm.ToolCall) string { return "ok" })
+		_, _ = runAgent(context.Background(), c, "hi", tools, func(tc llm.ToolCall) string { return "ok" }, nil)
 	}
 }
