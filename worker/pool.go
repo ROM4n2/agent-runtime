@@ -1,23 +1,19 @@
 package worker
 
 import (
-	"agent-api/llm"
+	"agent-api/agent"
+	"agent-api/agent/tool"
 	"agent-api/metrics"
 	"agent-api/store"
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"sync"
 	"time"
 )
 
-// chatter 抽象 process 所需的 LLM 能力，
-// 使测试可以注入不发真实请求的实现。
-type chatter interface {
-	// ChatWithTools 发送带工具定义的对话，返回模型本轮回复（终态文本或工具调用）。
-	ChatWithTools(ctx context.Context, msgs []llm.Message, tools []llm.Tool) (*llm.AssistantTurn, error)
-}
+// ErrQueueFull 表示任务队列已满（所有 worker 忙且缓冲占满），Enqueue 因此快速失败。
+var ErrQueueFull = errors.New("task queue is full")
 
 // Pool 用固定数量的 worker goroutine 消费任务队列，
 // 以此限制同时在飞的 LLM 请求数——上游的限流和计费按并发量算。
@@ -34,14 +30,13 @@ type Pool struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 	wg       sync.WaitGroup
-	llm      chatter
-	tools    []llm.Tool             // 注册给模型的工具描述
-	handlers map[string]toolHandler // 工具名 -> 本地执行器
+	llm      agent.Chatter
+	tools    *tool.Registry
 	tracesMu sync.Mutex
-	traces   map[string]*traceBuffer
+	traces   map[string]*agent.TraceBuffer
 }
 
-func NewPool(size int, taskTimeout time.Duration, s store.TaskStore, client chatter) *Pool {
+func NewPool(size int, taskTimeout time.Duration, s store.TaskStore, client agent.Chatter) *Pool {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	p := Pool{
@@ -52,10 +47,9 @@ func NewPool(size int, taskTimeout time.Duration, s store.TaskStore, client chat
 		ctx:         ctx,
 		cancel:      cancel,
 		llm:         client,
-		traces:      make(map[string]*traceBuffer),
+		tools:       tool.DefaultRegistry(),
+		traces:      make(map[string]*agent.TraceBuffer),
 	}
-	// 装配默认工具集（计算器、当前时间），让 worker 具备基础 agent 能力。
-	p.tools, p.handlers = defaultTools()
 	return &p
 }
 
@@ -115,12 +109,12 @@ func (p *Pool) process(id string) {
 	taskCtx, cancel := context.WithTimeout(p.ctx, p.taskTimeout)
 	defer cancel()
 
-	tb := newTraceBuffer(maxTraceSteps)
+	tb := agent.NewTraceBuffer(agent.MaxTraceSteps)
 	p.tracesMu.Lock()
 	p.traces[id] = tb
 	p.tracesMu.Unlock()
 
-	res, err := runAgent(taskCtx, p.llm, task.Prompt, p.tools, p.execTool, tb.append)
+	res, err := agent.Run(taskCtx, p.llm, task.Prompt, p.tools, tb.Append)
 	if err != nil {
 		// 错误全文只进日志：它携带上游响应体，可能含配额、账单等内部信息。
 		// task.Error 会经 GET /tasks/{id} 原样返回给调用方，因此只存粗粒度分类。
@@ -139,22 +133,6 @@ func (p *Pool) process(id string) {
 	}
 }
 
-// execTool 按工具名执行本地实现；错误也转成字符串返回，让模型有机会自我纠正。
-func (p *Pool) execTool(tc llm.ToolCall) string {
-	h, ok := p.handlers[tc.Function.Name]
-	if !ok {
-		return "error: unknown tool " + tc.Function.Name
-	}
-	out, err := h(json.RawMessage(tc.Function.Arguments))
-	if err != nil {
-		return "error: " + err.Error()
-	}
-	return out
-}
-
-// ErrQueueFull 表示任务队列已满（所有 worker 忙且缓冲占满），Enqueue 因此快速失败。
-var ErrQueueFull = errors.New("task queue is full")
-
 // Enqueue 把任务 ID 送入队列。队列满（worker 全忙且缓冲已满）时立即返回
 // ErrQueueFull 而非阻塞 handler —— 让「异步」退化为「同步失败」而不是「同步等待」，
 // 调用方据此回 503，把背压显式交给客户端/网关，而非让 HTTP 连接挂死。
@@ -168,7 +146,7 @@ func (p *Pool) Enqueue(id string) error {
 }
 
 // Trace 返回指定任务已记录的步骤快照。若任务不存在或尚未记录 trace，返回 nil。
-func (p *Pool) Trace(id string) []TraceStep {
+func (p *Pool) Trace(id string) []agent.TraceStep {
 	p.tracesMu.Lock()
 	defer p.tracesMu.Unlock()
 
@@ -176,5 +154,5 @@ func (p *Pool) Trace(id string) []TraceStep {
 	if !ok || tb == nil {
 		return nil
 	}
-	return tb.snapshot()
+	return tb.Snapshot()
 }
