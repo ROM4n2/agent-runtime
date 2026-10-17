@@ -1,21 +1,18 @@
 package worker
 
-import "sync"
+import (
+	"agent-api/agent"
+	"sync"
+)
 
-type TraceStep struct {
-	Step   int    `json:"step"`
-	Kind   string `json:"kind"`
-	Tool   string `json:"tool,omitempty"`
-	Detail string `json:"detail,omitempty"`
-	CallID string `json:"call_id,omitempty"`
-}
+type TraceStep = agent.TraceStep
 
 const (
-	KindThink      = "think"
-	KindToolCall   = "tool_call"
-	KindToolResult = "tool_result"
-	KindFinal      = "final"
-	KindError      = "error"
+	KindThink      = agent.KindThink
+	KindToolCall   = agent.KindToolCall
+	KindToolResult = agent.KindToolResult
+	KindFinal      = agent.KindFinal
+	KindError      = agent.KindError
 )
 
 const maxTraceSteps = 32

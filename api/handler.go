@@ -5,9 +5,9 @@
 package api
 
 import (
+	"agent-api/agent"
 	"agent-api/metrics"
 	"agent-api/store"
-	"agent-api/worker"
 	"encoding/json"
 	"errors"
 	"io"
@@ -15,17 +15,23 @@ import (
 	"net/http"
 )
 
+// TaskRunner 定义 API 层所需的任务执行器接口（消费者定义接口）。
+type TaskRunner interface {
+	Enqueue(id string) error
+	Trace(id string) []agent.TraceStep
+}
+
 // Handler 持有处理请求所需的依赖，由 main 装配后注入。
 type Handler struct {
-	store store.TaskStore
-	pool  *worker.Pool
+	store  store.TaskStore
+	runner TaskRunner
 	// authKey 由 main 从 config 注入，不在 api 层读环境变量：
 	// 配置来源只有一个（main），测试才能直接注入不同密钥。
 	authKey string
 }
 
-func NewHandler(s store.TaskStore, p *worker.Pool, authKey string) *Handler {
-	return &Handler{store: s, pool: p, authKey: authKey}
+func NewHandler(s store.TaskStore, r TaskRunner, authKey string) *Handler {
+	return &Handler{store: s, runner: r, authKey: authKey}
 }
 
 // Routes 返回已注册全部路由的 mux。
@@ -93,7 +99,7 @@ func (h *Handler) HandleRun(w http.ResponseWriter, r *http.Request) {
 	// 先落库再入队：Enqueue 之后 worker 可能立刻开始处理，
 	// 此时该 ID 必须已经存在于 store 中。
 	id := h.store.Create(req.Prompt)
-	if err := h.pool.Enqueue(id); err != nil {
+	if err := h.runner.Enqueue(id); err != nil {
 		if delErr := h.store.Delete(id); delErr != nil {
 			slog.Error("reclaim task on enqueue failure", "task_id", id, "error", delErr)
 		}
@@ -117,7 +123,7 @@ func (h *Handler) HandleRun(w http.ResponseWriter, r *http.Request) {
 
 type taskWithTrace struct {
 	store.Task
-	Steps []worker.TraceStep `json:"steps"`
+	Steps []agent.TraceStep `json:"steps"`
 }
 
 // HandleGet 返回任务当前状态，供调用方轮询。
@@ -131,9 +137,9 @@ func (h *Handler) HandleGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	steps := []worker.TraceStep{}
-	if h.pool != nil {
-		if s := h.pool.Trace(id); s != nil {
+	steps := []agent.TraceStep{}
+	if h.runner != nil {
+		if s := h.runner.Trace(id); s != nil {
 			steps = s
 		}
 	}
