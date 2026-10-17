@@ -1,61 +1,81 @@
 {
   "version": "1.0.0",
-  "plan_file": "docs/implementation_plan_p3-decouple.md",
-  "created_at": "2026-10-17T00:45:27.265218",
-  "last_updated": "2026-10-17T15:17:39.350115",
-  "total_tasks": 5,
-  "completed_count": 5,
+  "plan_file": "docs/implementation_plan_p4-audit-remediation.md",
+  "created_at": "2026-10-17T18:00:00.820428",
+  "last_updated": "2026-10-17T18:00:00.820428",
+  "total_tasks": 7,
+  "completed_count": 0,
   "active_task_id": null,
   "tasks": [
     {
       "id": "Task-1",
-      "title": "独立工具系统 agent/tool [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
-      "status": "completed",
-      "implementer": "TDD Builder",
-      "commit_hash": "ac90dfa",
-      "reviewer_verdict": "PASS",
-      "started_at": "2026-10-17T14:38:51.408904",
-      "completed_at": "2026-10-17T14:45:58.817940"
+      "title": "结构化日志传参修复与 503 重试退避头 [Tier: 1-Light] [Mode: AFK] [Role: Solo Builder]",
+      "status": "pending",
+      "implementer": "TDD",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
     },
     {
       "id": "Task-2",
-      "title": "独立认知内核 agent [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
-      "status": "completed",
-      "implementer": "TDD Builder",
-      "commit_hash": "b6c9ac6",
-      "reviewer_verdict": "PASS",
-      "started_at": "2026-10-17T14:46:39.657183",
-      "completed_at": "2026-10-17T14:54:39.287559"
+      "title": "Trace 缓存容量淘汰与 UTF-8 安全截断 [Tier: 2-Standard] [Mode: AFK] [Role: TDD Builder]",
+      "status": "pending",
+      "implementer": "TDD",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
     },
     {
       "id": "Task-3",
-      "title": "API 依赖倒置与 TaskRunner 消费者接口 [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
-      "status": "completed",
-      "implementer": "TDD Builder",
-      "commit_hash": "f399d93",
-      "reviewer_verdict": "PASS",
-      "started_at": "2026-10-17T14:55:07.491072",
-      "completed_at": "2026-10-17T15:04:03.550266"
+      "title": "两阶段优雅停机与任务队列排空 [Tier: 2-Standard] [Mode: AFK] [Role: TDD Builder]",
+      "status": "pending",
+      "implementer": "TDD",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
     },
     {
       "id": "Task-4",
-      "title": "并发池 worker 纯化与大杂烩清理 [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
-      "status": "completed",
-      "implementer": "TDD Builder",
-      "commit_hash": "608e7f0",
-      "reviewer_verdict": "PASS",
-      "started_at": "2026-10-17T15:04:53.222614",
-      "completed_at": "2026-10-17T15:15:47.428218"
+      "title": "细化任务异常落库分类 [Tier: 2-Standard] [Mode: AFK] [Role: TDD Builder]",
+      "status": "pending",
+      "implementer": "TDD",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
     },
     {
       "id": "Task-5",
-      "title": "架构防线门禁与全仓回归 [Tier: 1-Light] [Mode: AFK] [Subagent: Solo]",
-      "status": "completed",
-      "implementer": "Solo",
-      "commit_hash": "5f6c0c9",
-      "reviewer_verdict": "SELF-VERIFIED",
-      "started_at": "2026-10-17T15:16:14.668454",
-      "completed_at": "2026-10-17T15:17:39.350115"
+      "title": "环境变量与传输层超时解耦 [Tier: 2-Standard] [Mode: AFK] [Role: TDD Builder]",
+      "status": "pending",
+      "implementer": "TDD",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": "Task-6",
+      "title": "SQLite 原生自增主键消除全表扫描 [Tier: 2-Standard] [Mode: AFK] [Role: TDD Builder]",
+      "status": "pending",
+      "implementer": "TDD",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "id": "Task-7",
+      "title": "全仓回归与物理证据门禁 [Tier: 1-Light] [Mode: AFK] [Role: Solo Builder]",
+      "status": "pending",
+      "implementer": "TDD",
+      "commit_hash": null,
+      "reviewer_verdict": null,
+      "started_at": null,
+      "completed_at": null
     }
   ]
 }
