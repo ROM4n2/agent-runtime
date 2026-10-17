@@ -29,3 +29,17 @@ P2 实现计划（docs/implementation_plan_p2-observe.md）全量 11 项任务�
 - 全量构建与代码静态检查：GOWORK=off go build ./... && GOWORK=off go vet ./... 干净无警告。
 - 逆向突变全部由独立 Reviewer 子代理实测转红（exit 1）并在恢复后回绿，无假绿断言。
 - 执行台账 .vault-exec-ledger.json 11/11 COMPLETED (100.0%)，工作树干净。
+
+### 2026-10-17 15:18 | gemini-3.8-flash-high__hermes-agent | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec
+ADR-0013 架构解耦与领域正名实施计划（docs/implementation_plan_p3-decouple.md）全部 5 项任务通过自适应三挡变速箱（Gear 1/2）与独立 Maker-Checker 审核 100% 交付完成：
+- Task 1 (Tier 2): 抽取独立工具系统 agent/tool，定义 Tool 接口与 Registry 注册表；calculate 工具内置纯 AST 递归下降 evalArithmetic 算术引擎，current_time 支持 IANA 时区与优雅降级；Errors-As-Messages 原则杜绝 panic；Reviewer 逆向突变门禁验证 PASS（commit 4252f96）。
+- Task 2 (Tier 2): 抽取独立认知内核 agent，正名 ReAct 核心循环 Run 与 Chatter 接口；TraceStep 与并发安全有界环形缓冲 TraceBuffer，严格脱敏 KindError 为 "upstream error" / "max steps exceeded" 杜绝密钥泄漏；Reviewer 逆向突变门禁验证 PASS（commit 9a59b0a）。
+- Task 3 (Tier 2): API 层推行依赖倒置（DIP），api/handler.go 声明消费者接口 TaskRunner 并彻底剔除对 worker 包的直接 import；增加 fakeTaskRunner 轻量单元测试；保持对外 JSON steps 契约不变；Reviewer 逆向突变门禁验证 PASS（commit 47c48b1）。
+- Task 4 (Tier 2): 并发池 worker 纯化为纯粹的 Job Concurrency Executor，注入 agent.Chatter、*tool.Registry 与 map[string]*agent.TraceBuffer；物理删除旧 worker/agent*.go 与 worker/trace*.go 冗余文件，彻底消除大杂烩与死代码；Reviewer 逆向突变门禁验证 PASS（commit 72eb76f）。
+- Task 5 (Tier 1 Solo): 编写 api/architecture_barrier_test.go 架构防线静态门禁，严禁 api 源码包含 "agent-api/worker" 与 worker. 符号；逆向突变注入 worker import 确定性转红（exit 1）；完成全仓 9 包回归与 -race 竞态检查通过（commit 5f6c0c9）。
+物理证据门：
+- 自动化测试用例数达 111 个（GOWORK=off go test -v ./... -count=1 | grep '=== RUN'）。
+- GOWORK=off go test -race ./... -count=1 全仓 9 个包全部 PASS，0 数据竞争。
+- GOWORK=off go build ./... && GOWORK=off go vet ./... 干净无警告无报错。
+- .vault-exec-ledger.json 5/5 COMPLETED (100.0%)，分支 refactor/agent-kernel-decouple 干净。

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"agent-api/agent"
 	"agent-api/llm"
 	"agent-api/store"
 	"agent-api/worker"
@@ -18,6 +19,81 @@ type fakeLLM struct{}
 
 func (fakeLLM) ChatWithTools(ctx context.Context, msgs []llm.Message, tools []llm.Tool) (*llm.AssistantTurn, error) {
 	return &llm.AssistantTurn{Content: "fake response"}, nil
+}
+
+type fakeTaskRunner struct {
+	enqueued []string
+	traces   map[string][]agent.TraceStep
+}
+
+func (f *fakeTaskRunner) Enqueue(id string) error {
+	f.enqueued = append(f.enqueued, id)
+	return nil
+}
+
+func (f *fakeTaskRunner) Trace(id string) []agent.TraceStep {
+	return f.traces[id]
+}
+
+func TestHandler_WithMockTaskRunner(t *testing.T) {
+	s := store.NewStore()
+	fakeRunner := &fakeTaskRunner{
+		traces: make(map[string][]agent.TraceStep),
+	}
+	h := NewHandler(s, fakeRunner, "")
+	mux := h.Routes()
+
+	// 1. 测试 HandleRun 正常入队并返回 202
+	postReq := httptest.NewRequest("POST", "/run", strings.NewReader(`{"prompt":"mock test"}`))
+	postRec := httptest.NewRecorder()
+	mux.ServeHTTP(postRec, postReq)
+
+	if postRec.Code != http.StatusAccepted {
+		t.Fatalf("run code = %d, want 202", postRec.Code)
+	}
+	var postResp map[string]string
+	if err := json.NewDecoder(postRec.Body).Decode(&postResp); err != nil {
+		t.Fatal(err)
+	}
+	taskID := postResp["task_id"]
+	if taskID == "" {
+		t.Fatalf("empty task_id")
+	}
+	if len(fakeRunner.enqueued) != 1 || fakeRunner.enqueued[0] != taskID {
+		t.Errorf("expected enqueued task_id %q, got %v", taskID, fakeRunner.enqueued)
+	}
+
+	// 2. 测试 HandleGet 返回 fake trace steps
+	fakeRunner.traces[taskID] = []agent.TraceStep{
+		{Step: 1, Kind: agent.KindThink, Detail: "thinking"},
+		{Step: 2, Kind: agent.KindFinal, Detail: "done"},
+	}
+
+	getReq := httptest.NewRequest("GET", "/tasks/"+taskID, nil)
+	getRec := httptest.NewRecorder()
+	mux.ServeHTTP(getRec, getReq)
+
+	if getRec.Code != http.StatusOK {
+		t.Fatalf("get code = %d, want 200", getRec.Code)
+	}
+
+	var getResp struct {
+		ID     string            `json:"id"`
+		Status string            `json:"status"`
+		Steps  []agent.TraceStep `json:"steps"`
+	}
+	if err := json.NewDecoder(getRec.Body).Decode(&getResp); err != nil {
+		t.Fatal(err)
+	}
+	if len(getResp.Steps) != 2 {
+		t.Fatalf("expected 2 trace steps, got %d", len(getResp.Steps))
+	}
+	if getResp.Steps[0].Kind != agent.KindThink || getResp.Steps[0].Detail != "thinking" {
+		t.Errorf("unexpected step 0: %+v", getResp.Steps[0])
+	}
+	if getResp.Steps[1].Kind != agent.KindFinal || getResp.Steps[1].Detail != "done" {
+		t.Errorf("unexpected step 1: %+v", getResp.Steps[1])
+	}
 }
 
 func newTestMux() (*http.ServeMux, *store.Store) {
@@ -120,8 +196,8 @@ func TestHandleGet_Found(t *testing.T) {
 
 	// 解析 body 中的 status 与 steps
 	var body struct {
-		Status string             `json:"status"`
-		Steps  []worker.TraceStep `json:"steps"`
+		Status string            `json:"status"`
+		Steps  []agent.TraceStep `json:"steps"`
 	}
 
 	err = json.NewDecoder(getRec.Body).Decode(&body)
@@ -177,9 +253,9 @@ func TestHandleGet_WithTraceSteps(t *testing.T) {
 	}
 
 	var res struct {
-		ID     string             `json:"id"`
-		Status string             `json:"status"`
-		Steps  []worker.TraceStep `json:"steps"`
+		ID     string            `json:"id"`
+		Status string            `json:"status"`
+		Steps  []agent.TraceStep `json:"steps"`
 	}
 	if err := json.NewDecoder(getRec.Body).Decode(&res); err != nil {
 		t.Fatal(err)

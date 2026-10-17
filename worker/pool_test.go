@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"agent-api/agent"
 	"agent-api/llm"
 	"agent-api/store"
 	"context"
@@ -300,8 +301,8 @@ func TestPool_TraceAfterProcess(t *testing.T) {
 		t.Fatal("expected trace steps, got none")
 	}
 	last := steps[len(steps)-1]
-	if last.Kind != KindFinal {
-		t.Errorf("last step kind = %q, want %q", last.Kind, KindFinal)
+	if last.Kind != agent.KindFinal {
+		t.Errorf("last step kind = %q, want %q", last.Kind, agent.KindFinal)
 	}
 }
 

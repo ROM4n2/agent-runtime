@@ -2,60 +2,60 @@
   "version": "1.0.0",
   "plan_file": "docs/implementation_plan_p3-decouple.md",
   "created_at": "2026-10-17T00:45:27.265218",
-  "last_updated": "2026-10-17T00:45:27.265218",
+  "last_updated": "2026-10-17T15:17:39.350115",
   "total_tasks": 5,
-  "completed_count": 0,
+  "completed_count": 5,
   "active_task_id": null,
   "tasks": [
     {
       "id": "Task-1",
       "title": "独立工具系统 agent/tool [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
-      "status": "pending",
+      "status": "completed",
       "implementer": "TDD Builder",
-      "commit_hash": null,
-      "reviewer_verdict": null,
-      "started_at": null,
-      "completed_at": null
+      "commit_hash": "ac90dfa",
+      "reviewer_verdict": "PASS",
+      "started_at": "2026-10-17T14:38:51.408904",
+      "completed_at": "2026-10-17T14:45:58.817940"
     },
     {
       "id": "Task-2",
       "title": "独立认知内核 agent [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
-      "status": "pending",
+      "status": "completed",
       "implementer": "TDD Builder",
-      "commit_hash": null,
-      "reviewer_verdict": null,
-      "started_at": null,
-      "completed_at": null
+      "commit_hash": "b6c9ac6",
+      "reviewer_verdict": "PASS",
+      "started_at": "2026-10-17T14:46:39.657183",
+      "completed_at": "2026-10-17T14:54:39.287559"
     },
     {
       "id": "Task-3",
       "title": "API 依赖倒置与 TaskRunner 消费者接口 [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
-      "status": "pending",
+      "status": "completed",
       "implementer": "TDD Builder",
-      "commit_hash": null,
-      "reviewer_verdict": null,
-      "started_at": null,
-      "completed_at": null
+      "commit_hash": "f399d93",
+      "reviewer_verdict": "PASS",
+      "started_at": "2026-10-17T14:55:07.491072",
+      "completed_at": "2026-10-17T15:04:03.550266"
     },
     {
       "id": "Task-4",
       "title": "并发池 worker 纯化与大杂烩清理 [Tier: 2-Standard] [Mode: AFK] [Subagent: TDD Builder]",
-      "status": "pending",
+      "status": "completed",
       "implementer": "TDD Builder",
-      "commit_hash": null,
-      "reviewer_verdict": null,
-      "started_at": null,
-      "completed_at": null
+      "commit_hash": "608e7f0",
+      "reviewer_verdict": "PASS",
+      "started_at": "2026-10-17T15:04:53.222614",
+      "completed_at": "2026-10-17T15:15:47.428218"
     },
     {
       "id": "Task-5",
       "title": "架构防线门禁与全仓回归 [Tier: 1-Light] [Mode: AFK] [Subagent: Solo]",
-      "status": "pending",
+      "status": "completed",
       "implementer": "Solo",
-      "commit_hash": null,
-      "reviewer_verdict": null,
-      "started_at": null,
-      "completed_at": null
+      "commit_hash": "5f6c0c9",
+      "reviewer_verdict": "SELF-VERIFIED",
+      "started_at": "2026-10-17T15:16:14.668454",
+      "completed_at": "2026-10-17T15:17:39.350115"
     }
   ]
 }

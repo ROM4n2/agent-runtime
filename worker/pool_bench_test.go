@@ -1,7 +1,8 @@
 package worker
 
 import (
-	"agent-api/llm"
+	"agent-api/agent"
+	"agent-api/agent/tool"
 	"agent-api/store"
 	"context"
 	"testing"
@@ -27,9 +28,9 @@ func BenchmarkPoolEnqueue(b *testing.B) {
 // 隔离掉 LLM 网络与 worker 调度，只看 think→observe 循环本身。
 func BenchmarkRunAgent(b *testing.B) {
 	c := fakeChatter{0, nil}
-	tools, _ := defaultTools()
+	reg := tool.DefaultRegistry()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = runAgent(context.Background(), c, "hi", tools, func(tc llm.ToolCall) string { return "ok" }, nil)
+		_, _ = agent.Run(context.Background(), c, "hi", reg, nil)
 	}
 }
