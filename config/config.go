@@ -32,11 +32,22 @@ func Load(path string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	timeoutSec := fileCfg.TaskTimeoutSeconds
+	if envTimeout := os.Getenv("TASK_TIMEOUT_SECONDS"); envTimeout != "" {
+		v, err := strconv.Atoi(envTimeout)
+		if err != nil {
+			return Config{}, fmt.Errorf("config: invalid TASK_TIMEOUT_SECONDS %q: %w", envTimeout, err)
+		}
+		if v < 0 {
+			return Config{}, fmt.Errorf("config: TASK_TIMEOUT_SECONDS cannot be negative: %d", v)
+		}
+		timeoutSec = v
+	}
 	return Config{
 		DeepSeekAPIKey:     firstNonEmpty(os.Getenv("DEEPSEEK_API_KEY"), fileCfg.DeepSeekAPIKey),
 		APIAuthKey:         firstNonEmpty(os.Getenv("API_AUTH_KEY"), fileCfg.APIAuthKey),
 		DbPath:             firstNonEmpty(os.Getenv("DB_PATH"), fileCfg.DbPath),
-		TaskTimeoutSeconds: fileCfg.TaskTimeoutSeconds,
+		TaskTimeoutSeconds: timeoutSec,
 	}, nil
 }
 
