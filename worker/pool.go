@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -182,7 +183,17 @@ func (p *Pool) process(id string) {
 		slog.Error("worker: task failed", "task_id", id, "error", err)
 
 		metrics.IncFailed() // 终态：在飞数 -1，失败数 +1
-		if err := p.tasks.Complete(id, "", errors.New("upstream error")); err != nil {
+		var termErr error
+		if errors.Is(taskCtx.Err(), context.DeadlineExceeded) {
+			termErr = errors.New("task timeout")
+		} else if errors.Is(taskCtx.Err(), context.Canceled) {
+			termErr = errors.New("server shutdown")
+		} else if strings.Contains(err.Error(), "max steps") {
+			termErr = errors.New("max steps exceeded")
+		} else {
+			termErr = errors.New("upstream error")
+		}
+		if err := p.tasks.Complete(id, "", termErr); err != nil {
 			slog.Error("worker: task complete failed", "task_id", id, "error", err)
 		}
 		return

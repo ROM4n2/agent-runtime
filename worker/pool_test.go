@@ -489,6 +489,81 @@ func TestEnqueue_Stopping(t *testing.T) {
 	}
 }
 
+type loopingToolChatter struct{}
+
+func (l loopingToolChatter) ChatWithTools(ctx context.Context, msgs []llm.Message, tools []llm.Tool) (*llm.AssistantTurn, error) {
+	return &llm.AssistantTurn{
+		ToolCalls: []llm.ToolCall{
+			{
+				ID:       "call_loop",
+				Type:     "function",
+				Function: llm.ToolCallFn{Name: "calculate", Arguments: `{"expression":"1+1"}`},
+			},
+		},
+	}, nil
+}
+
+func TestWorker_TaskTimeout(t *testing.T) {
+	s := store.NewStore()
+	p := NewPool(1, 20*time.Millisecond, s, cancellableChatter{delay: 100 * time.Millisecond})
+	p.Start()
+	defer p.Stop()
+
+	id := s.Create("task-timeout")
+	if err := p.Enqueue(id); err != nil {
+		t.Fatalf("enqueue failed: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		task, err := s.Get(id)
+		if err == nil && (task.Status == store.StatusFailed || task.Status == store.StatusDone) {
+			if task.Status != store.StatusFailed {
+				t.Fatalf("task status = %q, want %q", task.Status, store.StatusFailed)
+			}
+			if task.Error != "task timeout" {
+				t.Fatalf("task error = %q, want %q", task.Error, "task timeout")
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("task did not finish in time")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestWorker_MaxStepsExceeded(t *testing.T) {
+	s := store.NewStore()
+	p := NewPool(1, 5*time.Second, s, loopingToolChatter{})
+	p.Start()
+	defer p.Stop()
+
+	id := s.Create("task-loop")
+	if err := p.Enqueue(id); err != nil {
+		t.Fatalf("enqueue failed: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		task, err := s.Get(id)
+		if err == nil && (task.Status == store.StatusFailed || task.Status == store.StatusDone) {
+			if task.Status != store.StatusFailed {
+				t.Fatalf("task status = %q, want %q", task.Status, store.StatusFailed)
+			}
+			if task.Error != "max steps exceeded" {
+				t.Fatalf("task error = %q, want %q", task.Error, "max steps exceeded")
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("task did not finish in time")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+
 
 
 
