@@ -11,6 +11,7 @@ func isolateEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("DEEPSEEK_API_KEY", "")
 	t.Setenv("API_AUTH_KEY", "")
+	t.Setenv("TASK_TIMEOUT_SECONDS", "")
 }
 
 func writeCfg(t *testing.T, content string) string {
@@ -111,5 +112,27 @@ func TestLoad_NonIntTimeoutRejected(t *testing.T) {
 	p := writeCfg(t, "task_timeout_seconds: notanint\n")
 	if _, err := Load(p); err == nil {
 		t.Error("非整数 task_timeout_seconds 应报错")
+	}
+}
+
+func TestLoad_EnvOverridesTaskTimeout(t *testing.T) {
+	isolateEnv(t)
+	p := writeCfg(t, "task_timeout_seconds: 10\n")
+	t.Setenv("TASK_TIMEOUT_SECONDS", "45")
+
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TaskTimeoutSeconds != 45 {
+		t.Errorf("TaskTimeoutSeconds = %d, want 45", cfg.TaskTimeoutSeconds)
+	}
+}
+
+func TestLoad_InvalidEnvTimeoutRejected(t *testing.T) {
+	isolateEnv(t)
+	t.Setenv("TASK_TIMEOUT_SECONDS", "invalid")
+	if _, err := Load(""); err == nil {
+		t.Error("invalid TASK_TIMEOUT_SECONDS should return error")
 	}
 }

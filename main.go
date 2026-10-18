@@ -63,6 +63,7 @@ func run() int {
 	if taskTimeout <= 0 {
 		taskTimeout = 30 * time.Second
 	}
+	cfg.HTTPTimeout = taskTimeout
 	p := worker.NewPool(3, taskTimeout, s, llm.NewClient(cfg))
 
 	p.Start()
