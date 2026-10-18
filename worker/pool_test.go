@@ -348,3 +348,147 @@ func TestPool_TracesBoundedCapacity(t *testing.T) {
 	}
 }
 
+func TestShutdown_DrainsQueuedTasks(t *testing.T) {
+	s := store.NewStore()
+	p := NewPool(1, 30*time.Second, s, fakeChatter{delay: 100 * time.Millisecond})
+	p.Start()
+
+	id1 := s.Create("task-1")
+	if err := p.Enqueue(id1); err != nil {
+		t.Fatalf("enqueue task-1 failed: %v", err)
+	}
+
+	// 等待 task-1 变为 running 状态，确保 worker 已经被该任务占用
+	deadline := time.Now().Add(time.Second)
+	for {
+		task, err := s.Get(id1)
+		if err == nil && task.Status == store.StatusRunning {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("task-1 1s 内未进入 running 状态")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	// 此时 worker 忙于执行 task-1，Enqueue 一个新任务进入队列排队
+	id2 := s.Create("task-2")
+	if err := p.Enqueue(id2); err != nil {
+		t.Fatalf("enqueue task-2 failed: %v", err)
+	}
+
+	// 启动 goroutine 执行 Stop(context.Background())
+	stopDone := make(chan error, 1)
+	go func() {
+		stopDone <- p.Stop(context.Background())
+	}()
+
+	select {
+	case err := <-stopDone:
+		if err != nil {
+			t.Fatalf("p.Stop returned error: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("p.Stop 3s 内未完成")
+	}
+
+	// 耗时任务 task-1 应正常完成
+	t1, err := s.Get(id1)
+	if err != nil {
+		t.Fatalf("get task-1: %v", err)
+	}
+	if t1.Status != store.StatusDone {
+		t.Errorf("task-1 status = %q, want %q", t1.Status, store.StatusDone)
+	}
+
+	// 队列中排队的任务 task-2 状态应被更新为 StatusFailed，错误为 "server shutdown"
+	t2, err := s.Get(id2)
+	if err != nil {
+		t.Fatalf("get task-2: %v", err)
+	}
+	if t2.Status != store.StatusFailed {
+		t.Errorf("task-2 status = %q, want %q", t2.Status, store.StatusFailed)
+	}
+	if t2.Error != "server shutdown" {
+		t.Errorf("task-2 error = %q, want %q", t2.Error, "server shutdown")
+	}
+
+	// 验证 store 中不再有残留的 pending 任务
+	for _, id := range []string{id1, id2} {
+		tk, err := s.Get(id)
+		if err != nil {
+			t.Errorf("get task %s: %v", id, err)
+			continue
+		}
+		if tk.Status == store.StatusPending {
+			t.Errorf("task %s remained in pending state", id)
+		}
+	}
+}
+
+type cancellableChatter struct {
+	delay time.Duration
+}
+
+func (c cancellableChatter) ChatWithTools(ctx context.Context, msgs []llm.Message, tools []llm.Tool) (*llm.AssistantTurn, error) {
+	select {
+	case <-time.After(c.delay):
+		return &llm.AssistantTurn{Content: "response"}, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func TestShutdown_TimeoutCancelsInFlightTask(t *testing.T) {
+	s := store.NewStore()
+	p := NewPool(1, 30*time.Second, s, cancellableChatter{delay: 2 * time.Second})
+	p.Start()
+
+	id := s.Create("task-slow")
+	if err := p.Enqueue(id); err != nil {
+		t.Fatalf("enqueue failed: %v", err)
+	}
+
+	// 等待 task 变为 running
+	deadline := time.Now().Add(time.Second)
+	for {
+		task, err := s.Get(id)
+		if err == nil && task.Status == store.StatusRunning {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("task did not enter running state in time")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	err := p.Stop(timeoutCtx)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("Stop err = %v, want context.DeadlineExceeded", err)
+	}
+
+	task, err := s.Get(id)
+	if err != nil {
+		t.Fatalf("get task: %v", err)
+	}
+	if task.Status != store.StatusFailed {
+		t.Errorf("task status = %q, want %q", task.Status, store.StatusFailed)
+	}
+}
+
+func TestEnqueue_Stopping(t *testing.T) {
+	s := store.NewStore()
+	p := NewPool(1, time.Second, s, fakeChatter{0, nil})
+	p.stopping.Store(true)
+
+	if err := p.Enqueue("any"); !errors.Is(err, ErrQueueFull) {
+		t.Errorf("Enqueue when stopping = %v, want ErrQueueFull", err)
+	}
+}
+
+
+
+
