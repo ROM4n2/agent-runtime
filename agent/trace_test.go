@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestTraceStep_JSONContract(t *testing.T) {
@@ -159,3 +160,68 @@ func TestTraceBuffer_ConcurrentAppend(t *testing.T) {
 		t.Errorf("expected final snapshot length 32, got %d", len(snap))
 	}
 }
+
+func TestTraceBuffer_UTF8SafeTruncation(t *testing.T) {
+	testCases := []struct {
+		name   string
+		prefix int
+	}{
+		{name: "boundary in 2nd byte of 3-byte rune", prefix: 511},
+		{name: "boundary in 3rd byte of 3-byte rune", prefix: 510},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			buf := NewTraceBuffer(32)
+			detail := strings.Repeat("a", tc.prefix) + "测试"
+			buf.Append(TraceStep{
+				Step:   1,
+				Kind:   KindThink,
+				Detail: detail,
+			})
+
+			snap := buf.Snapshot()
+			if len(snap) != 1 {
+				t.Fatalf("expected 1 step, got %d", len(snap))
+			}
+			got := snap[0].Detail
+			if !utf8.ValidString(got) {
+				t.Errorf("step.Detail is not valid UTF-8: %q", got)
+			}
+			if strings.HasSuffix(got, "\ufffd") {
+				t.Errorf("step.Detail ends with replacement character: %q", got)
+			}
+			if len(got) > MaxTraceDetail {
+				t.Errorf("step.Detail len %d exceeds MaxTraceDetail %d", len(got), MaxTraceDetail)
+			}
+		})
+	}
+}
+
+func TestTraceBuffer_SlidingWindowPreservesCapacity(t *testing.T) {
+	const capacity = 5
+	buf := NewTraceBuffer(capacity)
+
+	for i := 0; i < 10; i++ {
+		buf.Append(TraceStep{
+			Step:   i,
+			Kind:   KindThink,
+			Detail: fmt.Sprintf("step %d", i),
+		})
+		if c := cap(buf.steps); c != capacity {
+			t.Fatalf("step %d: expected cap %d, got %d (capacity changed during sliding)", i, capacity, c)
+		}
+	}
+
+	snap := buf.Snapshot()
+	if len(snap) != capacity {
+		t.Fatalf("expected snapshot len %d, got %d", capacity, len(snap))
+	}
+	if snap[0].Step != 5 {
+		t.Errorf("expected oldest remaining step to be 5, got %d", snap[0].Step)
+	}
+	if snap[capacity-1].Step != 9 {
+		t.Errorf("expected newest step to be 9, got %d", snap[capacity-1].Step)
+	}
+}
+
