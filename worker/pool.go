@@ -85,10 +85,10 @@ func (p *Pool) worker() {
 func (p *Pool) process(id string) {
 	// 先置 running，让轮询方立刻看到状态推进
 	if err := p.tasks.Update(id, store.StatusRunning); err != nil {
-		slog.Error("worker: update task %s to running: %v", id, err)
+		slog.Error("worker: update task to running failed", "task_id", id, "error", err)
 		metrics.IncFailed()
 		if err := p.tasks.Complete(id, "", errors.New("state transition failed")); err != nil {
-			slog.Error("worker: task %s complete failed: %v", id, err)
+			slog.Error("worker: task complete failed", "task_id", id, "error", err)
 		}
 		return
 	}
@@ -96,10 +96,10 @@ func (p *Pool) process(id string) {
 	// 队列里只传了 ID，prompt 的权威副本在 store 中
 	task, err := p.tasks.Get(id)
 	if err != nil {
-		slog.Error("worker: get task %s: %v", id, err)
+		slog.Error("worker: get task failed", "task_id", id, "error", err)
 		metrics.IncFailed()
 		if err := p.tasks.Complete(id, "", errors.New("task state unavailable")); err != nil {
-			slog.Error("worker: task %s complete failed: %v", id, err)
+			slog.Error("worker: task complete failed", "task_id", id, "error", err)
 		}
 		return
 	}
@@ -118,18 +118,18 @@ func (p *Pool) process(id string) {
 	if err != nil {
 		// 错误全文只进日志：它携带上游响应体，可能含配额、账单等内部信息。
 		// task.Error 会经 GET /tasks/{id} 原样返回给调用方，因此只存粗粒度分类。
-		slog.Error("worker: task %s failed: %v", id, err)
+		slog.Error("worker: task failed", "task_id", id, "error", err)
 
 		metrics.IncFailed() // 终态：在飞数 -1，失败数 +1
 		if err := p.tasks.Complete(id, "", errors.New("upstream error")); err != nil {
-			slog.Error("worker: task %s complete failed: %v", id, err)
+			slog.Error("worker: task complete failed", "task_id", id, "error", err)
 		}
 		return
 	}
 
 	metrics.IncDone() // 终态：在飞数 -1，完成数 +1
 	if err := p.tasks.Complete(id, res, nil); err != nil {
-		slog.Error("worker: task %s complete failed: %v", id, err)
+		slog.Error("worker: task complete failed", "task_id", id, "error", err)
 	}
 }
 
