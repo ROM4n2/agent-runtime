@@ -9,6 +9,7 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -23,39 +24,45 @@ const DefaultMaxTraces = 1000
 type Pool struct {
 	// 缓冲区大小等于 worker 数：满了 Enqueue 会阻塞调用方（HTTP handler），
 	// 使异步退化为同步。生产上应改为 select+default 快速失败或换持久化队列。
-	queue       chan string
-	tasks       store.TaskStore
-	size        int
-	taskTimeout time.Duration // 单次任务 LLM 调用上限，超时即失败
+	queue            chan string
+	tasks            store.TaskStore
+	size             int
+	taskTimeout      time.Duration // 单次任务 LLM 调用上限，超时即失败
 	// ctx/cancel 是关闭信号的广播机制：Stop 一次 cancel，
 	// 所有 worker 与派生出去的请求 ctx 同时收到通知。
 	// 用 cancel 而非 close(queue)，避免向已关闭 channel 发送导致 panic。
-	ctx        context.Context
-	cancel     context.CancelFunc
-	wg         sync.WaitGroup
-	llm        agent.Chatter
-	tools      *tool.Registry
-	tracesMu   sync.Mutex
-	traces     map[string]*agent.TraceBuffer
-	maxTraces  int
-	traceOrder []string
+	ctx              context.Context
+	cancel           context.CancelFunc
+	stopWorkerCtx    context.Context
+	stopWorkerCancel context.CancelFunc
+	stopping         atomic.Bool
+	wg               sync.WaitGroup
+	llm              agent.Chatter
+	tools            *tool.Registry
+	tracesMu         sync.Mutex
+	traces           map[string]*agent.TraceBuffer
+	maxTraces        int
+	traceOrder       []string
 }
 
 func NewPool(size int, taskTimeout time.Duration, s store.TaskStore, client agent.Chatter) *Pool {
 	ctx, cancel := context.WithCancel(context.Background())
+	stopWorkerCtx, stopWorkerCancel := context.WithCancel(context.Background())
 
 	p := Pool{
-		size:        size,
-		taskTimeout: taskTimeout,
-		tasks:       s,
-		queue:       make(chan string, size),
-		ctx:         ctx,
-		cancel:      cancel,
-		llm:         client,
-		tools:       tool.DefaultRegistry(),
-		traces:      make(map[string]*agent.TraceBuffer),
-		maxTraces:   DefaultMaxTraces,
-		traceOrder:  make([]string, 0, 64),
+		size:             size,
+		taskTimeout:      taskTimeout,
+		tasks:            s,
+		queue:            make(chan string, size),
+		ctx:              ctx,
+		cancel:           cancel,
+		stopWorkerCtx:    stopWorkerCtx,
+		stopWorkerCancel: stopWorkerCancel,
+		llm:              client,
+		tools:            tool.DefaultRegistry(),
+		traces:           make(map[string]*agent.TraceBuffer),
+		maxTraces:        DefaultMaxTraces,
+		traceOrder:       make([]string, 0, 64),
 	}
 	return &p
 }
@@ -67,9 +74,44 @@ func (p *Pool) Start() {
 	}
 }
 
-func (p *Pool) Stop() {
-	p.cancel()
-	p.wg.Wait()
+func (p *Pool) Stop(ctxs ...context.Context) error {
+	var ctx context.Context
+	if len(ctxs) > 0 && ctxs[0] != nil {
+		ctx = ctxs[0]
+	} else {
+		ctx = context.Background()
+	}
+	p.stopping.Store(true)
+	p.stopWorkerCancel() // 通知空闲 worker 退出循环，正在 process 的 worker 会跑完当前任务
+
+	// 等待所有 worker 退出（或 ctx 超时）
+	done := make(chan struct{})
+	go func() {
+		p.wg.Wait()
+		close(done)
+	}()
+
+	var waitErr error
+	select {
+	case <-done:
+	case <-ctx.Done():
+		waitErr = ctx.Err()
+		p.cancel() // 停机预算耗尽，强制取消仍在飞的任务
+		<-done     // 等待 worker 收到 cancel 后退出
+	}
+
+	// 排空队列中残留未消费的任务，标定明确终态，消除 pending 僵尸任务
+	for {
+		select {
+		case id := <-p.queue:
+			metrics.IncFailed()
+			if err := p.tasks.Complete(id, "", errors.New("server shutdown")); err != nil {
+				slog.Error("worker: complete drained task failed", "task_id", id, "error", err)
+			}
+		default:
+			return waitErr
+		}
+	}
 }
 
 // worker 是常驻 goroutine：循环抢队列里的任务，直到收到关闭信号。
@@ -78,10 +120,16 @@ func (p *Pool) worker() {
 	defer p.wg.Done()
 	for {
 		select {
+		case <-p.stopWorkerCtx.Done():
+			return
+		default:
+		}
+
+		select {
 		case id := <-p.queue:
 			p.process(id)
 
-		case <-p.ctx.Done():
+		case <-p.stopWorkerCtx.Done():
 			return
 		}
 	}
@@ -146,10 +194,13 @@ func (p *Pool) process(id string) {
 	}
 }
 
-// Enqueue 把任务 ID 送入队列。队列满（worker 全忙且缓冲已满）时立即返回
+// Enqueue 把任务 ID 送入队列。队列满（worker 全忙且缓冲已满）或正在停机时立即返回
 // ErrQueueFull 而非阻塞 handler —— 让「异步」退化为「同步失败」而不是「同步等待」，
 // 调用方据此回 503，把背压显式交给客户端/网关，而非让 HTTP 连接挂死。
 func (p *Pool) Enqueue(id string) error {
+	if p.stopping.Load() {
+		return ErrQueueFull
+	}
 	select {
 	case p.queue <- id:
 		return nil
