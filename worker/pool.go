@@ -8,47 +8,62 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 // ErrQueueFull 表示任务队列已满（所有 worker 忙且缓冲占满），Enqueue 因此快速失败。
 var ErrQueueFull = errors.New("task queue is full")
 
+// DefaultMaxTraces 限制 Pool 维护的最大 Trace 数量，超出时 FIFO 淘汰。
+const DefaultMaxTraces = 1000
+
 // Pool 用固定数量的 worker goroutine 消费任务队列，
 // 以此限制同时在飞的 LLM 请求数——上游的限流和计费按并发量算。
 type Pool struct {
 	// 缓冲区大小等于 worker 数：满了 Enqueue 会阻塞调用方（HTTP handler），
 	// 使异步退化为同步。生产上应改为 select+default 快速失败或换持久化队列。
-	queue       chan string
-	tasks       store.TaskStore
-	size        int
-	taskTimeout time.Duration // 单次任务 LLM 调用上限，超时即失败
+	queue            chan string
+	tasks            store.TaskStore
+	size             int
+	taskTimeout      time.Duration // 单次任务 LLM 调用上限，超时即失败
 	// ctx/cancel 是关闭信号的广播机制：Stop 一次 cancel，
 	// 所有 worker 与派生出去的请求 ctx 同时收到通知。
 	// 用 cancel 而非 close(queue)，避免向已关闭 channel 发送导致 panic。
-	ctx      context.Context
-	cancel   context.CancelFunc
-	wg       sync.WaitGroup
-	llm      agent.Chatter
-	tools    *tool.Registry
-	tracesMu sync.Mutex
-	traces   map[string]*agent.TraceBuffer
+	ctx              context.Context
+	cancel           context.CancelFunc
+	stopWorkerCtx    context.Context
+	stopWorkerCancel context.CancelFunc
+	stopping         atomic.Bool
+	wg               sync.WaitGroup
+	llm              agent.Chatter
+	tools            *tool.Registry
+	tracesMu         sync.Mutex
+	traces           map[string]*agent.TraceBuffer
+	maxTraces        int
+	traceOrder       []string
 }
 
 func NewPool(size int, taskTimeout time.Duration, s store.TaskStore, client agent.Chatter) *Pool {
 	ctx, cancel := context.WithCancel(context.Background())
+	stopWorkerCtx, stopWorkerCancel := context.WithCancel(context.Background())
 
 	p := Pool{
-		size:        size,
-		taskTimeout: taskTimeout,
-		tasks:       s,
-		queue:       make(chan string, size),
-		ctx:         ctx,
-		cancel:      cancel,
-		llm:         client,
-		tools:       tool.DefaultRegistry(),
-		traces:      make(map[string]*agent.TraceBuffer),
+		size:             size,
+		taskTimeout:      taskTimeout,
+		tasks:            s,
+		queue:            make(chan string, size),
+		ctx:              ctx,
+		cancel:           cancel,
+		stopWorkerCtx:    stopWorkerCtx,
+		stopWorkerCancel: stopWorkerCancel,
+		llm:              client,
+		tools:            tool.DefaultRegistry(),
+		traces:           make(map[string]*agent.TraceBuffer),
+		maxTraces:        DefaultMaxTraces,
+		traceOrder:       make([]string, 0, 64),
 	}
 	return &p
 }
@@ -60,9 +75,44 @@ func (p *Pool) Start() {
 	}
 }
 
-func (p *Pool) Stop() {
-	p.cancel()
-	p.wg.Wait()
+func (p *Pool) Stop(ctxs ...context.Context) error {
+	var ctx context.Context
+	if len(ctxs) > 0 && ctxs[0] != nil {
+		ctx = ctxs[0]
+	} else {
+		ctx = context.Background()
+	}
+	p.stopping.Store(true)
+	p.stopWorkerCancel() // 通知空闲 worker 退出循环，正在 process 的 worker 会跑完当前任务
+
+	// 等待所有 worker 退出（或 ctx 超时）
+	done := make(chan struct{})
+	go func() {
+		p.wg.Wait()
+		close(done)
+	}()
+
+	var waitErr error
+	select {
+	case <-done:
+	case <-ctx.Done():
+		waitErr = ctx.Err()
+		p.cancel() // 停机预算耗尽，强制取消仍在飞的任务
+		<-done     // 等待 worker 收到 cancel 后退出
+	}
+
+	// 排空队列中残留未消费的任务，标定明确终态，消除 pending 僵尸任务
+	for {
+		select {
+		case id := <-p.queue:
+			metrics.IncFailed()
+			if err := p.tasks.Complete(id, "", errors.New("server shutdown")); err != nil {
+				slog.Error("worker: complete drained task failed", "task_id", id, "error", err)
+			}
+		default:
+			return waitErr
+		}
+	}
 }
 
 // worker 是常驻 goroutine：循环抢队列里的任务，直到收到关闭信号。
@@ -71,10 +121,16 @@ func (p *Pool) worker() {
 	defer p.wg.Done()
 	for {
 		select {
+		case <-p.stopWorkerCtx.Done():
+			return
+		default:
+		}
+
+		select {
 		case id := <-p.queue:
 			p.process(id)
 
-		case <-p.ctx.Done():
+		case <-p.stopWorkerCtx.Done():
 			return
 		}
 	}
@@ -85,10 +141,10 @@ func (p *Pool) worker() {
 func (p *Pool) process(id string) {
 	// 先置 running，让轮询方立刻看到状态推进
 	if err := p.tasks.Update(id, store.StatusRunning); err != nil {
-		slog.Error("worker: update task %s to running: %v", id, err)
+		slog.Error("worker: update task to running failed", "task_id", id, "error", err)
 		metrics.IncFailed()
 		if err := p.tasks.Complete(id, "", errors.New("state transition failed")); err != nil {
-			slog.Error("worker: task %s complete failed: %v", id, err)
+			slog.Error("worker: task complete failed", "task_id", id, "error", err)
 		}
 		return
 	}
@@ -96,10 +152,10 @@ func (p *Pool) process(id string) {
 	// 队列里只传了 ID，prompt 的权威副本在 store 中
 	task, err := p.tasks.Get(id)
 	if err != nil {
-		slog.Error("worker: get task %s: %v", id, err)
+		slog.Error("worker: get task failed", "task_id", id, "error", err)
 		metrics.IncFailed()
 		if err := p.tasks.Complete(id, "", errors.New("task state unavailable")); err != nil {
-			slog.Error("worker: task %s complete failed: %v", id, err)
+			slog.Error("worker: task complete failed", "task_id", id, "error", err)
 		}
 		return
 	}
@@ -111,32 +167,51 @@ func (p *Pool) process(id string) {
 
 	tb := agent.NewTraceBuffer(agent.MaxTraceSteps)
 	p.tracesMu.Lock()
+	if p.maxTraces > 0 && len(p.traces) >= p.maxTraces && len(p.traceOrder) > 0 {
+		oldest := p.traceOrder[0]
+		p.traceOrder = p.traceOrder[1:]
+		delete(p.traces, oldest)
+	}
 	p.traces[id] = tb
+	p.traceOrder = append(p.traceOrder, id)
 	p.tracesMu.Unlock()
 
 	res, err := agent.Run(taskCtx, p.llm, task.Prompt, p.tools, tb.Append)
 	if err != nil {
 		// 错误全文只进日志：它携带上游响应体，可能含配额、账单等内部信息。
 		// task.Error 会经 GET /tasks/{id} 原样返回给调用方，因此只存粗粒度分类。
-		slog.Error("worker: task %s failed: %v", id, err)
+		slog.Error("worker: task failed", "task_id", id, "error", err)
 
 		metrics.IncFailed() // 终态：在飞数 -1，失败数 +1
-		if err := p.tasks.Complete(id, "", errors.New("upstream error")); err != nil {
-			slog.Error("worker: task %s complete failed: %v", id, err)
+		var termErr error
+		if errors.Is(taskCtx.Err(), context.DeadlineExceeded) {
+			termErr = errors.New("task timeout")
+		} else if errors.Is(taskCtx.Err(), context.Canceled) {
+			termErr = errors.New("server shutdown")
+		} else if strings.Contains(err.Error(), "max steps") {
+			termErr = errors.New("max steps exceeded")
+		} else {
+			termErr = errors.New("upstream error")
+		}
+		if err := p.tasks.Complete(id, "", termErr); err != nil {
+			slog.Error("worker: task complete failed", "task_id", id, "error", err)
 		}
 		return
 	}
 
 	metrics.IncDone() // 终态：在飞数 -1，完成数 +1
 	if err := p.tasks.Complete(id, res, nil); err != nil {
-		slog.Error("worker: task %s complete failed: %v", id, err)
+		slog.Error("worker: task complete failed", "task_id", id, "error", err)
 	}
 }
 
-// Enqueue 把任务 ID 送入队列。队列满（worker 全忙且缓冲已满）时立即返回
+// Enqueue 把任务 ID 送入队列。队列满（worker 全忙且缓冲已满）或正在停机时立即返回
 // ErrQueueFull 而非阻塞 handler —— 让「异步」退化为「同步失败」而不是「同步等待」，
 // 调用方据此回 503，把背压显式交给客户端/网关，而非让 HTTP 连接挂死。
 func (p *Pool) Enqueue(id string) error {
+	if p.stopping.Load() {
+		return ErrQueueFull
+	}
 	select {
 	case p.queue <- id:
 		return nil

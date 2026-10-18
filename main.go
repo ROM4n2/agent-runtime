@@ -63,10 +63,10 @@ func run() int {
 	if taskTimeout <= 0 {
 		taskTimeout = 30 * time.Second
 	}
+	cfg.HTTPTimeout = taskTimeout
 	p := worker.NewPool(3, taskTimeout, s, llm.NewClient(cfg))
 
 	p.Start()
-	defer p.Stop()
 
 	h := api.NewHandler(s, p, conf.APIAuthKey)
 	mux := h.Routes()
@@ -84,11 +84,12 @@ func run() int {
 	select {
 	case <-ctx.Done():
 		// 收到信号，正常停机
-		return shutdown(srv)
+		return shutdown(srv, p)
 
 	case err := <-errCh:
 		// 启动失败，也要走停机流程，但退出码要非 0
-		slog.Error("server error", slog.Any("error", err))
+		slog.Error("server error", "error", err)
+		_ = p.Stop()
 		return 1
 	}
 }
@@ -106,15 +107,21 @@ func newServer(handler http.Handler) *http.Server {
 	}
 }
 
-func shutdown(srv *http.Server) int {
+func shutdown(srv *http.Server, p *worker.Pool) int {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	slog.Info("shutting down server")
-
+	exitCode := 0
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		slog.Error("server shutdown error", slog.Any("error", err))
-		return 1
+		slog.Error("server shutdown error", "error", err)
+		exitCode = 1
 	}
-	return 0
+
+	// 停机预算完整传递给 worker pool，允许在飞任务跑完剩余时间
+	if err := p.Stop(shutdownCtx); err != nil {
+		slog.Error("worker pool shutdown error", "error", err)
+		exitCode = 1
+	}
+	return exitCode
 }

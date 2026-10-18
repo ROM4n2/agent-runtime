@@ -379,6 +379,10 @@ func TestHandleRun_QueueFullNoZombie(t *testing.T) {
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Errorf("code = %d, want 503", rec.Code)
 	}
+	resp := rec.Result()
+	if got := resp.Header.Get("Retry-After"); got != "1" {
+		t.Errorf("expected Retry-After: 1, got %q", got)
+	}
 
 	_, err := s.Get("1")
 	if !errors.Is(err, store.ErrNotFound) {

@@ -103,7 +103,8 @@ func (h *Handler) HandleRun(w http.ResponseWriter, r *http.Request) {
 		if delErr := h.store.Delete(id); delErr != nil {
 			slog.Error("reclaim task on enqueue failure", "task_id", id, "error", delErr)
 		}
-		// 队列满：显式 503，把背压交给客户端/网关，而非让连接挂死。
+		// 队列满：显式 503，并下发 Retry-After 头指示客户端退避 1 秒
+		w.Header().Set("Retry-After", "1")
 		http.Error(w, "service unavailable: task queue is full", http.StatusServiceUnavailable)
 		return
 	}

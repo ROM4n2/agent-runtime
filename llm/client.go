@@ -53,17 +53,22 @@ type Client struct {
 }
 
 type Config struct {
-	APIKey  string
-	BaseURL string
-	Model   string
+	APIKey      string
+	BaseURL     string
+	Model       string
+	HTTPTimeout time.Duration
 }
 
 func NewClient(cfg Config) *Client {
+	timeout := cfg.HTTPTimeout
+	if timeout <= 0 {
+		timeout = 60 * time.Second
+	}
 	return &Client{
 		apiKey:  cfg.APIKey,
 		baseURL: cfg.BaseURL,
 		model:   cfg.Model,
-		http:    &http.Client{Timeout: 60 * time.Second},
+		http:    &http.Client{Timeout: timeout},
 	}
 }
 

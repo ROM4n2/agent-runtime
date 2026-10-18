@@ -86,3 +86,15 @@ func TestChat_Timeout(t *testing.T) {
 	}
 
 }
+
+func TestNewClient_HTTPTimeout(t *testing.T) {
+	cDefault := NewClient(Config{})
+	if cDefault.http.Timeout != 60*time.Second {
+		t.Errorf("default http.Timeout = %v, want 60s", cDefault.http.Timeout)
+	}
+
+	cCustom := NewClient(Config{HTTPTimeout: 15 * time.Second})
+	if cCustom.http.Timeout != 15*time.Second {
+		t.Errorf("custom http.Timeout = %v, want 15s", cCustom.http.Timeout)
+	}
+}
