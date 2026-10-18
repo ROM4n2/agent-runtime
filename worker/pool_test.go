@@ -6,6 +6,7 @@ import (
 	"agent-api/store"
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -314,3 +315,36 @@ func TestPool_TraceUnknownID(t *testing.T) {
 		t.Errorf("expected nil trace for unknown ID, got %+v", steps)
 	}
 }
+
+func TestPool_TracesBoundedCapacity(t *testing.T) {
+	s := store.NewStore()
+	p := NewPool(1, time.Second, s, fakeChatter{0, nil})
+	p.maxTraces = 5
+
+	var ids []string
+	for i := 0; i < 10; i++ {
+		id := s.Create(fmt.Sprintf("task-%d", i))
+		ids = append(ids, id)
+		p.process(id)
+	}
+
+	p.tracesMu.Lock()
+	defer p.tracesMu.Unlock()
+
+	if len(p.traces) > 5 {
+		t.Fatalf("expected len(p.traces) <= 5, got %d", len(p.traces))
+	}
+
+	for i := 0; i < 5; i++ {
+		if _, ok := p.traces[ids[i]]; ok {
+			t.Errorf("expected oldest task %s to be evicted, but still present in traces", ids[i])
+		}
+	}
+
+	for i := 5; i < 10; i++ {
+		if _, ok := p.traces[ids[i]]; !ok {
+			t.Errorf("expected recent task %s to be present in traces, but was evicted", ids[i])
+		}
+	}
+}
+

@@ -15,6 +15,9 @@ import (
 // ErrQueueFull 表示任务队列已满（所有 worker 忙且缓冲占满），Enqueue 因此快速失败。
 var ErrQueueFull = errors.New("task queue is full")
 
+// DefaultMaxTraces 限制 Pool 维护的最大 Trace 数量，超出时 FIFO 淘汰。
+const DefaultMaxTraces = 1000
+
 // Pool 用固定数量的 worker goroutine 消费任务队列，
 // 以此限制同时在飞的 LLM 请求数——上游的限流和计费按并发量算。
 type Pool struct {
@@ -27,13 +30,15 @@ type Pool struct {
 	// ctx/cancel 是关闭信号的广播机制：Stop 一次 cancel，
 	// 所有 worker 与派生出去的请求 ctx 同时收到通知。
 	// 用 cancel 而非 close(queue)，避免向已关闭 channel 发送导致 panic。
-	ctx      context.Context
-	cancel   context.CancelFunc
-	wg       sync.WaitGroup
-	llm      agent.Chatter
-	tools    *tool.Registry
-	tracesMu sync.Mutex
-	traces   map[string]*agent.TraceBuffer
+	ctx        context.Context
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup
+	llm        agent.Chatter
+	tools      *tool.Registry
+	tracesMu   sync.Mutex
+	traces     map[string]*agent.TraceBuffer
+	maxTraces  int
+	traceOrder []string
 }
 
 func NewPool(size int, taskTimeout time.Duration, s store.TaskStore, client agent.Chatter) *Pool {
@@ -49,6 +54,8 @@ func NewPool(size int, taskTimeout time.Duration, s store.TaskStore, client agen
 		llm:         client,
 		tools:       tool.DefaultRegistry(),
 		traces:      make(map[string]*agent.TraceBuffer),
+		maxTraces:   DefaultMaxTraces,
+		traceOrder:  make([]string, 0, 64),
 	}
 	return &p
 }
@@ -111,7 +118,13 @@ func (p *Pool) process(id string) {
 
 	tb := agent.NewTraceBuffer(agent.MaxTraceSteps)
 	p.tracesMu.Lock()
+	if p.maxTraces > 0 && len(p.traces) >= p.maxTraces && len(p.traceOrder) > 0 {
+		oldest := p.traceOrder[0]
+		p.traceOrder = p.traceOrder[1:]
+		delete(p.traces, oldest)
+	}
 	p.traces[id] = tb
+	p.traceOrder = append(p.traceOrder, id)
 	p.tracesMu.Unlock()
 
 	res, err := agent.Run(taskCtx, p.llm, task.Prompt, p.tools, tb.Append)

@@ -1,6 +1,9 @@
 package agent
 
-import "sync"
+import (
+	"sync"
+	"unicode/utf8"
+)
 
 // TraceStep 表示 Agent 执行过程中的单步记录。
 type TraceStep struct {
@@ -46,12 +49,18 @@ func (b *TraceBuffer) Append(s TraceStep) {
 	defer b.mu.Unlock()
 
 	if len(s.Detail) > MaxTraceDetail {
-		s.Detail = s.Detail[:MaxTraceDetail]
+		cutoff := MaxTraceDetail
+		for cutoff > 0 && !utf8.RuneStart(s.Detail[cutoff]) {
+			cutoff--
+		}
+		s.Detail = s.Detail[:cutoff]
 	}
 	if b.max > 0 && len(b.steps) >= b.max {
-		b.steps = b.steps[1:]
+		copy(b.steps, b.steps[1:])
+		b.steps[len(b.steps)-1] = s
+	} else {
+		b.steps = append(b.steps, s)
 	}
-	b.steps = append(b.steps, s)
 }
 
 // Snapshot 返回当前缓冲步骤的深拷贝切片。
