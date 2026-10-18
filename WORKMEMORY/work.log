@@ -43,3 +43,19 @@ ADR-0013 架构解耦与领域正名实施计划（docs/implementation_plan_p3-d
 - GOWORK=off go test -race ./... -count=1 全仓 9 个包全部 PASS，0 数据竞争。
 - GOWORK=off go build ./... && GOWORK=off go vet ./... 干净无警告无报错。
 - .vault-exec-ledger.json 5/5 COMPLETED (100.0%)，分支 refactor/agent-kernel-decouple 干净。
+
+### 2026-10-18 13:45 | gemini-3.8-flash-high__hermes-agent | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec
+P4 生产级体检缺陷加固计划（docs/implementation_plan_p4-audit-remediation.md）全部 7 项任务经严格 TDD + 独立 Maker-Checker 审核 + 逆向突变门禁 100% 交付完成：
+- Task 1 (Tier 2 Escalated): 规范化 worker/pool.go 中全部 7 处 slog.Error 传参为结构化键值对（"task_id", id, "error", err），消除日志索引动态键爆炸；api/handler.go 在队列满 503 时显式下发 Retry-After: 1 响应头；Reviewer 突变门禁 PASS（commit 2ac7269）。
+- Task 2 (Tier 2): worker.Pool 引入 DefaultMaxTraces = 1000 有界 FIFO 驱逐机制，消除长周期运行 OOM 隐患；agent/trace.go 采用 unicode/utf8.RuneStart 字符边界安全回退截断，杜绝 \ufffd 乱码；切片滑动采用 copy 原地平移覆盖，保持底层数组 capacity 恒定无额外堆扩容；Reviewer 突变门禁 PASS（commit f61a7e4）。
+- Task 3 (Tier 2): 重构两阶段优雅停机与任务队列排空（main.go 与 worker/pool.go）；引入 stopping atomic.Bool 与 stopWorkerCtx/Cancel；第一阶段优先停止新任务消费，30s 停机上下文预算传递给在飞长任务；第二阶段排空队列积压任务并显式标记 StatusFailed (server shutdown)，彻底解决在飞任务毫秒被掐与排队僵尸任务遗留；Reviewer 突变门禁 PASS（commit 3895337）。
+- Task 4 (Tier 2): 细化任务异常终态落库分类；区分 context.DeadlineExceeded -> "task timeout"、context.Canceled -> "server shutdown"、"max steps exceeded" 与 "upstream error"，兼顾外部脱敏与可观测性真实根因归因；Reviewer 突变门禁 PASS（commit f13e436）。
+- Task 5 (Tier 2): config/config.go 补齐 TASK_TIMEOUT_SECONDS 环境变量读取与非负整数校验（环境变量优先于 config.yaml）；llm/client.go 引入 Config.HTTPTimeout，解耦传输层 HTTP 客户端与业务层超时，main.go 启动装配注入；Reviewer 突变门禁 PASS（commit 328b2b7）。
+- Task 6 (Tier 2): store/sql.go 建表 DDL 迁移为 id INTEGER PRIMARY KEY AUTOINCREMENT；Create 彻底移除 SELECT COALESCE(MAX(CAST(id AS INTEGER)), 0) 全表扫描，利用 res.LastInsertId() 实现 O(1) 无锁扫描自增主键，消除全表扫描写锁阻塞（写吞吐恢复至微秒级）；Reviewer 突变门禁 PASS（commit 3721623）。
+- Task 7 (Tier 1 Solo): 全仓回归与物理证据门禁验证；82 个自动化测试全部 PASS；-race 竞态检测 9 个包 0 数据竞争；构建与 vet 0 警告；静态架构防线与 pre-commit 密钥扫描全部绿灯；台账 7/7 COMPLETED (100.0%)。
+物理证据门：
+- GOWORK=off go test -race ./... -count=1 全 9 包全部 PASS（82 func Test，0 data races）。
+- GOWORK=off go build ./... && GOWORK=off go vet ./... 干净无报错。
+- bash .githooks/pre-commit 扫描 exit 0。
+- .vault-exec-ledger.json 7/7 COMPLETED (100.0%)，分支 fix/audit-findings-remediation。
