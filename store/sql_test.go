@@ -113,3 +113,25 @@ func TestSQLStore_Delete(t *testing.T) {
 		t.Fatalf("Delete 不存在的 id 应返回 ErrNotFound, got %v", err)
 	}
 }
+
+func TestSQLStore_AutoIncrementID(t *testing.T) {
+	s := newSQLStore(t)
+	id1 := s.Create("task 1")
+	id2 := s.Create("task 2")
+	id3 := s.Create("task 3")
+	if id1 != "1" || id2 != "2" || id3 != "3" {
+		t.Fatalf("expected IDs 1, 2, 3, got %q, %q, %q", id1, id2, id3)
+	}
+
+	// 删除最大的 id3
+	if err := s.Delete(id3); err != nil {
+		t.Fatalf("Delete id3: %v", err)
+	}
+
+	// 原旧代码如果执行 SELECT MAX，此时表里只有 1 和 2，MAX 为 2，新建任务会重用 id 3！
+	// 原生 AUTOINCREMENT 会记录 sqlite_sequence，新建任务必须生成 id 4！
+	id4 := s.Create("task 4")
+	if id4 != "4" {
+		t.Fatalf("expected AUTOINCREMENT ID 4 after deleting max id 3, got %q (old code reused max+1)", id4)
+	}
+}

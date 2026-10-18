@@ -13,8 +13,7 @@ import (
 // SQLStore 用嵌入式 SQLite 持久化任务，进程重启后任务不丢。
 //
 // 写操作整体串行（mu）：SQLite 同一时刻只允许一个写者，
-// 并发写会直接报 "database is locked"；用 mu 把写串行化后，既避免该错误，
-// 也保证 Create 里"取最大 id+1"的读-改-写不被打断。
+// 并发写会直接报 "database is locked"；用 mu 把写串行化后避免该错误。
 // 读操作不加 mu，配合 WAL 模式可与写并发，互不阻塞。
 type SQLStore struct {
 	db   *sql.DB
@@ -39,7 +38,7 @@ func NewSQLStore(path string) (*SQLStore, error) {
 		return nil, err
 	}
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS tasks (
-		id     TEXT PRIMARY KEY,
+		id     INTEGER PRIMARY KEY AUTOINCREMENT,
 		status TEXT NOT NULL,
 		prompt TEXT NOT NULL,
 		result TEXT NOT NULL DEFAULT '',
@@ -56,24 +55,26 @@ func (s *SQLStore) Close() error {
 	return s.db.Close()
 }
 
-// Create 在 mu 保护下取当前最大 id+1 作为新 id，写入 pending 任务并返回。
+// Create 写入 pending 任务并由 SQLite 原生自增主键生成 id 返回。
 // 极端情况下写入失败返回空串，调用方会据此让该次提交失败而非静默丢失。
 func (s *SQLStore) Create(prompt string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	var n int
-	_ = s.db.QueryRow("SELECT COALESCE(MAX(CAST(id AS INTEGER)), 0) FROM tasks").Scan(&n)
-	id := strconv.Itoa(n + 1)
-
-	if _, err := s.db.Exec(
-		"INSERT INTO tasks (id, status, prompt) VALUES (?, ?, ?)",
-		id, StatusPending, prompt,
-	); err != nil {
-		slog.Error("sqlstore: create", "id", id, "error", err)
+	res, err := s.db.Exec(
+		"INSERT INTO tasks (status, prompt) VALUES (?, ?)",
+		StatusPending, prompt,
+	)
+	if err != nil {
+		slog.Error("sqlstore: create", "error", err)
 		return ""
 	}
-	return id
+	lastID, err := res.LastInsertId()
+	if err != nil {
+		slog.Error("sqlstore: last insert id", "error", err)
+		return ""
+	}
+	return strconv.FormatInt(lastID, 10)
 }
 
 // Get 按 id 读取任务；不存在返回 ErrNotFound（与内存实现语义一致）。
