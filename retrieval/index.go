@@ -5,7 +5,7 @@
 //
 // 依赖方向单向向上（vault LAYERED-ARCHITECTURE §3 / ADR-0013）：
 // 本包只消费 database/sql 与 modernc.org/sqlite（含同模块 vec 子包），
-// Task 5 起经 EmbedderFunc 消费 llm 的嵌入能力；agent/worker/api 不得反向 import
+// Task 5 起经 llm.Embedder 接口消费 llm 的嵌入能力；agent/worker/api 不得反向 import
 // （architecture_test.go 静态门禁把守）。
 package retrieval
 
@@ -18,23 +18,21 @@ import (
 	"os"
 	"time"
 
+	"agent-runtime/llm"
+
 	_ "modernc.org/sqlite"
 	_ "modernc.org/sqlite/vec"
 )
 
-// EmbedderFunc 把一批文本嵌入为定长 float32 向量（dim 由配置方保证一致）。
-//
-// 占位说明：llm.Embedder 接口要到 Task 5 才在 llm 包落地，
-// 本任务先用本包定义的函数类型自足占位，避免依赖尚未存在的类型；
-// Task 5 由装配层把 llm.Client 的 Embed 适配成本函数类型注入，字段语义不变。
-type EmbedderFunc func(ctx context.Context, texts []string) ([][]float32, error)
-
 // Options 配置索引打开方式。
 // Embedder 为 nil 或 EmbedDim<=0 → 纯词法模式：不建 vec0 表，
 // 无 embedding 凭证时显式走 lexical（ADR-0017 决策 3，禁静默降级）。
+// EmbedModel 参与 embed_cache 键（SHA-256(model|dim|text)）：换模型必须换向量，
+// 与 llm.Config.EmbedModel 同值，由装配层（Task 8）从同一份 config 传入。
 type Options struct {
-	Embedder EmbedderFunc
-	EmbedDim int
+	Embedder   llm.Embedder
+	EmbedModel string
+	EmbedDim   int
 }
 
 // Index 是检索索引句柄：持有独立数据库连接，后续 Task 4+ 在其上构建/检索。
@@ -338,6 +336,9 @@ func insertChunk(ctx context.Context, tx *sql.Tx, c chunkRow, version string) er
 }
 
 // clearIndex 在同一事务内清空旧索引：删 FTS 索引 + 内容表（外接内容表两者都清才算全量重建）。
+// vec0 表存在时（EmbedDim>0 建的库）同步清空 doc_vec：doc_vec 的 rowid 与 doc_chunk.chunk_id
+// 对齐，只删内容表会留下无主向量行（孤儿行会被 Task 6 的 KNN 检索误命中）。
+// 按 sqlite_master 物理存在性决策而非内存 opts：库可能以 EmbedDim>0 创建、后以 EmbedDim<=0 重开。
 func (idx *Index) clearIndex(ctx context.Context) error {
 	tx, err := idx.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -350,7 +351,29 @@ func (idx *Index) clearIndex(ctx context.Context) error {
 	if _, err := tx.ExecContext(ctx, "DELETE FROM doc_chunk"); err != nil {
 		return err
 	}
+	vecExists, err := tableExists(ctx, tx, "doc_vec")
+	if err != nil {
+		return err
+	}
+	if vecExists {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM doc_vec"); err != nil {
+			return err
+		}
+	}
 	return tx.Commit()
+}
+
+// tableExists 检查库中是否存在名为 name 的表/视图（含 vec0 虚拟表，其 sqlite_master type 为 table）。
+func tableExists(ctx context.Context, tx *sql.Tx, name string) (bool, error) {
+	var n string
+	err := tx.QueryRowContext(ctx, "SELECT name FROM sqlite_master WHERE name = ?", name).Scan(&n)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // writeCorpusMeta 在同一事务内把 corpus_meta 更新为单行新指纹（CHECK(singleton=1) 钉死单行）。
