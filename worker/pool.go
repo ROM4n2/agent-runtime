@@ -1,10 +1,10 @@
 package worker
 
 import (
-	"agent-api/agent"
-	"agent-api/agent/tool"
-	"agent-api/metrics"
-	"agent-api/store"
+	"agent-runtime/agent"
+	"agent-runtime/agent/tool"
+	"agent-runtime/metrics"
+	"agent-runtime/store"
 	"context"
 	"errors"
 	"fmt"

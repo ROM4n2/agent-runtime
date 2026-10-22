@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"agent-api/store"
-	"agent-api/worker"
+	"agent-runtime/store"
+	"agent-runtime/worker"
 )
 
 // TestIntegrationRunToPoll 跑通「提交 → 异步执行 → 轮询至完成」全链路，

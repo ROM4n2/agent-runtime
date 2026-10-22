@@ -1,4 +1,4 @@
-module agent-api
+module agent-runtime
 
 go 1.26.5
 

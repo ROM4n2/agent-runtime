@@ -16,8 +16,8 @@ func TestArchitectureBarrier_APIDoesNotImportWorker(t *testing.T) {
 			t.Fatalf("failed to read %s: %v", p, err)
 		}
 		text := string(content)
-		if strings.Contains(text, `"agent-api/worker"`) {
-			t.Errorf("architecture violation: %s must NOT import \"agent-api/worker\"", p)
+		if strings.Contains(text, `"agent-runtime/worker"`) {
+			t.Errorf("architecture violation: %s must NOT import \"agent-runtime/worker\"", p)
 		}
 		if strings.Contains(text, "worker.") {
 			t.Errorf("architecture violation: %s must NOT reference worker symbols directly", p)

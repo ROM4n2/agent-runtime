@@ -1,10 +1,10 @@
 package api
 
 import (
-	"agent-api/agent"
-	"agent-api/llm"
-	"agent-api/store"
-	"agent-api/worker"
+	"agent-runtime/agent"
+	"agent-runtime/llm"
+	"agent-runtime/store"
+	"agent-runtime/worker"
 	"context"
 	"encoding/json"
 	"errors"
@@ -378,7 +378,7 @@ func TestDemoPage(t *testing.T) {
 		t.Errorf("Content-Type = %q, want text/html", ct)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "agent-api") {
+	if !strings.Contains(body, "agent-runtime") {
 		t.Errorf("demo body missing expected marker")
 	}
 	if !strings.Contains(body, `id="trace"`) {

@@ -1,8 +1,8 @@
 package api
 
 import (
-	"agent-api/agent"
-	"agent-api/store"
+	"agent-runtime/agent"
+	"agent-runtime/store"
 	"bufio"
 	"errors"
 	"net/http"

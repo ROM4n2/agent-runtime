@@ -1,9 +1,9 @@
 package worker
 
 import (
-	"agent-api/agent"
-	"agent-api/agent/tool"
-	"agent-api/store"
+	"agent-runtime/agent"
+	"agent-runtime/agent/tool"
+	"agent-runtime/store"
 	"context"
 	"testing"
 	"time"

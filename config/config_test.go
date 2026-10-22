@@ -83,14 +83,14 @@ func TestLoad_MalformedLineRejected(t *testing.T) {
 func TestLoad_DbPathAndTimeoutParsed(t *testing.T) {
 	isolateEnv(t)
 	t.Setenv("DB_PATH", "")
-	p := writeCfg(t, "db_path: agent-api.db\ntask_timeout_seconds: 8\n")
+	p := writeCfg(t, "db_path: agent-runtime.db\ntask_timeout_seconds: 8\n")
 
 	cfg, err := Load(p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.DbPath != "agent-api.db" {
-		t.Errorf("DbPath = %q, want agent-api.db", cfg.DbPath)
+	if cfg.DbPath != "agent-runtime.db" {
+		t.Errorf("DbPath = %q, want agent-runtime.db", cfg.DbPath)
 	}
 	if cfg.TaskTimeoutSeconds != 8 {
 		t.Errorf("TaskTimeoutSeconds = %d, want 8", cfg.TaskTimeoutSeconds)

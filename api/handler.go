@@ -5,9 +5,9 @@
 package api
 
 import (
-	"agent-api/agent"
-	"agent-api/metrics"
-	"agent-api/store"
+	"agent-runtime/agent"
+	"agent-runtime/metrics"
+	"agent-runtime/store"
 	"context"
 	"encoding/json"
 	"errors"

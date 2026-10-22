@@ -1,9 +1,9 @@
 package worker
 
 import (
-	"agent-api/agent"
-	"agent-api/llm"
-	"agent-api/store"
+	"agent-runtime/agent"
+	"agent-runtime/llm"
+	"agent-runtime/store"
 	"context"
 	"errors"
 	"fmt"

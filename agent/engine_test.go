@@ -1,8 +1,8 @@
 package agent
 
 import (
-	"agent-api/agent/tool"
-	"agent-api/llm"
+	"agent-runtime/agent/tool"
+	"agent-runtime/llm"
 	"context"
 	"errors"
 	"strings"

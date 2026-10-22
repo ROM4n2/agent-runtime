@@ -1,4 +1,4 @@
-# Agent API
+# Agent Runtime
 
 异步任务 + Worker Pool + LLM Agent 的 Go 后端服务。客户端提交 prompt，服务异步调用 DeepSeek：
 worker 以 **think → call tool → observe** 的多步循环执行 agent（内置 `calculate` / `current_time` 工具），
@@ -59,7 +59,7 @@ go run .
 ```yaml
 deepseek_api_key: "sk-你的key"
 api_auth_key: "你的服务端密钥"
-db_path: ""   # 可选：填 SQLite 文件路径（如 agent-api.db）即启用持久化，留空用内存存储
+db_path: ""   # 可选：填 SQLite 文件路径（如 agent-runtime.db）即启用持久化，留空用内存存储
 ```
 
 没有配置文件也没设环境变量时，服务会打印错误并以退出码 1 退出。
@@ -67,8 +67,8 @@ db_path: ""   # 可选：填 SQLite 文件路径（如 agent-api.db）即启用�
 ### Docker
 
 ```powershell
-docker build -t agent-api .
-docker run -e DEEPSEEK_API_KEY=sk-你的key -e API_AUTH_KEY=你的服务端密钥 -p 8080:8080 agent-api
+docker build -t agent-runtime .
+docker run -e DEEPSEEK_API_KEY=sk-你的key -e API_AUTH_KEY=你的服务端密钥 -p 8080:8080 agent-runtime
 ```
 
 ### 验证
@@ -148,7 +148,7 @@ go test -bench=. -benchmem ./worker/   # 基准测试
 ## Project Structure
 
 ```
-agent-api/
+agent-runtime/
 ├── main.go            # 入口：环境变量 → 组装依赖 → 启动服务
 ├── api/               # HTTP 层
 │   ├── handler.go     # 路由注册：/run、/tasks/{id}、/healthz、/metrics、/

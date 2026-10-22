@@ -1,9 +1,9 @@
 package main
 
 import (
-	"agent-api/llm"
-	"agent-api/store"
-	"agent-api/worker"
+	"agent-runtime/llm"
+	"agent-runtime/store"
+	"agent-runtime/worker"
 	"context"
 	"net/http"
 	"testing"

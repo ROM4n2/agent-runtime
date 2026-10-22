@@ -1,12 +1,12 @@
 package main
 
 import (
-	"agent-api/api"
-	"agent-api/config"
-	"agent-api/llm"
-	"agent-api/metrics"
-	"agent-api/store"
-	"agent-api/worker"
+	"agent-runtime/api"
+	"agent-runtime/config"
+	"agent-runtime/llm"
+	"agent-runtime/metrics"
+	"agent-runtime/store"
+	"agent-runtime/worker"
 	"context"
 	"errors"
 	"log/slog"
