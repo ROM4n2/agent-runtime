@@ -578,3 +578,8 @@
 | Task 5 Options.EmbedModel 字段 | 新增（预授权清单外） | 缓存键强制含 model 而 Embedder 接口无 Model()；比改接口更小（CRV 判定最小必要）；Task 8 装配从同一 config 分送 |
 | Task 5 TTL 惰性删除无独立断言 | 未补 | 过期行永不被服务 + 容量 evict 兜底；**trigger：触碰 embed.go 缓存逻辑时补 COUNT(*) 断言（CRV 黄卡 1）** |
 | Task 5 FIFO 秒级并列 | 未改 | created_at 秒级精度同秒并列任取，有界性不受影响；**trigger：缓存淘汰行为异常时引入单调序号列（CRV 黄卡 2）** |
+| Task 6 hybrid 写入时机 | 事务外批量嵌入 → 事务内写 doc_vec（原计划"事务内调 embedTexts"） | 实测写事务内调 embedTexts 必 SQLITE_BUSY（embed_cache 另连接抢 WAL 写锁）；原子性不变量（doc_chunk/doc_fts/doc_vec 同事务）保持，缓存非不变量成员 |
+| Task 6 查询形态不对称 | 词法 JOIN doc_chunk / 向量两步 KNN | 原理性强制：vec0 的 LIMIT/k 必须绑定 KNN 扫描本身（JOIN 形态驱动报错）；词法改两步是性能换装饰性对称（YAGNI） |
+| Task 6 tokenBudget=0 语义 | 保留最高分一条 + Truncated=true | 计划 RED 步骤原文"保留头部"即此语义（CRV 裁定计划合规）；优于空集（"无命中"与"零预算"不可区分） |
+| Task 6 Hit.Score 三量纲 | 注释说明（bm25 负/vec0 距离/RRF 融合分） | 导出字段跨模式不可比；**trigger：Task 7 出口只序列化融合分口径（CRV 黄卡）** |
+| Task 5 gofmt 遗留 | orchestrator 跑 gofmt -w retrieval/embed_test.go 修复 | Task 5 CPE 报告的 TestVecCodec_RoundTrip doc comment 缩进（Go 1.19+ 规则），零逻辑变更 |

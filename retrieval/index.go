@@ -201,14 +201,16 @@ func (idx *Index) CheckFresh(ctx context.Context, corpusDir string) error {
 	return nil
 }
 
-// Rebuild 幂等地把 corpusDir 构建为 FTS5 可检索索引（ADR-0017 决策 6）：
+// Rebuild 幂等地把 corpusDir 构建为可检索索引（ADR-0017 决策 6）：
 //  1. 语料目录不存在/非目录 → 返回永久错误（启动失败，不静默）；
 //  2. 计算目录内容指纹，与 corpus_meta 已建版本比对，相同即跳过（见 BuildReport 语义）；
 //  3. 否则全量重建：清空旧索引 → 分块事务批量 INSERT（每 ≤ChunkBatchSize 个一提交，
 //     事务间检查 ctx 取消）→ 成功后更新 corpus_meta 指纹。
 //
-// 崩溃半成品靠指纹不符触发下次重建（corpus_meta 仍记旧指纹）。本任务只建词法通道，
-// 不碰 doc_vec（vec0 由 Task 6 负责）。
+// 词法通道（doc_chunk + doc_fts）恒建；向量通道（doc_vec）仅在 hybrid 就绪时
+// （Embedder 非 nil 且 EmbedDim>0）随同一批分块事务写入，见 flush 内的说明。
+//
+// 崩溃半成品靠指纹不符触发下次重建（corpus_meta 仍记旧指纹）。
 func (idx *Index) Rebuild(ctx context.Context, corpusDir string) (BuildReport, error) {
 	info, err := os.Stat(corpusDir)
 	if err != nil {
@@ -261,14 +263,39 @@ func (idx *Index) rebuildChunks(ctx context.Context, corpusDir, fingerprint stri
 		if len(pending) == 0 {
 			return nil
 		}
+		// hybrid 通道（Task 6）：先把本批 chunk 文本嵌成向量，再随分块事务落库。
+		// 嵌入必须在开事务之前：embedTexts 内部经 idx.db 另开连接写 embed_cache，
+		// 事务内调用会与写事务抢 WAL 写锁，直接 SQLITE_BUSY（实测复现，非理论风险）。
+		// doc_vec 写入仍与 doc_chunk/doc_fts 同事务，原子性不变量不变。
+		var vecs [][]float32
+		if idx.hybridEnabled() {
+			texts := make([]string, len(pending))
+			for i, c := range pending {
+				// 与 insertChunk 写 doc_fts 的同一字符串：向量与词法必须同源，
+				// 否则两路召回会对不上同一个 chunk。
+				texts[i] = c.text
+			}
+			var err error
+			vecs, err = idx.embedTexts(ctx, texts)
+			if err != nil {
+				return err
+			}
+		}
 		tx, err := idx.db.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}
 		defer tx.Rollback() // 已 Commit 后 Rollback 返回 ErrTxDone，可安全忽略
-		for _, c := range pending {
-			if err := insertChunk(ctx, tx, c, fingerprint); err != nil {
+		for i, c := range pending {
+			rowid, err := insertChunk(ctx, tx, c, fingerprint)
+			if err != nil {
 				return err
+			}
+			// 向量行 rowid = chunk_id，与 doc_chunk 对齐（clearIndex 依赖该不变量）。
+			if vecs != nil {
+				if err := insertChunkVec(ctx, tx, rowid, vecs[i]); err != nil {
+					return err
+				}
 			}
 		}
 		if err := tx.Commit(); err != nil {
@@ -318,26 +345,36 @@ func (idx *Index) rebuildChunks(ctx context.Context, corpusDir, fingerprint stri
 	return report, nil
 }
 
-// insertChunk 在事务内插入一条分块到 doc_chunk，并同步写入外接内容 FTS 索引 doc_fts。
+// insertChunk 在事务内插入一条分块到 doc_chunk，并同步写入外接内容 FTS 索引 doc_fts，
+// 返回新建行的 chunk_id（hybrid 通道据此写 doc_vec，rowid 与 chunk_id 对齐）。
 // doc_fts 用 content=doc_chunk 外接内容表：显式提供 rowid(=chunk_id) 与要索引的文本（原文）。
-func insertChunk(ctx context.Context, tx *sql.Tx, c chunkRow, version string) error {
+func insertChunk(ctx context.Context, tx *sql.Tx, c chunkRow, version string) (int64, error) {
 	res, err := tx.ExecContext(ctx,
 		"INSERT INTO doc_chunk(doc_id, source, span_start, span_end, text, corpus_version) VALUES (?, ?, ?, ?, ?, ?)",
 		c.docID, c.source, c.spanStart, c.spanEnd, c.text, version)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	rowid, err := res.LastInsertId()
 	if err != nil {
-		return err
+		return 0, err
 	}
-	_, err = tx.ExecContext(ctx, "INSERT INTO doc_fts(rowid, text) VALUES (?, ?)", rowid, c.text)
+	if _, err := tx.ExecContext(ctx, "INSERT INTO doc_fts(rowid, text) VALUES (?, ?)", rowid, c.text); err != nil {
+		return 0, err
+	}
+	return rowid, nil
+}
+
+// insertChunkVec 在事务内把一条 chunk 的向量写入 doc_vec（rowid = chunk_id）。
+// 仅在 hybrid 就绪时调用：纯词法库没有 doc_vec 表，写了会 "no such table"。
+func insertChunkVec(ctx context.Context, tx *sql.Tx, rowid int64, vec []float32) error {
+	_, err := tx.ExecContext(ctx, "INSERT INTO doc_vec(rowid, embedding) VALUES (?, ?)", rowid, encodeVec(vec))
 	return err
 }
 
 // clearIndex 在同一事务内清空旧索引：删 FTS 索引 + 内容表（外接内容表两者都清才算全量重建）。
 // vec0 表存在时（EmbedDim>0 建的库）同步清空 doc_vec：doc_vec 的 rowid 与 doc_chunk.chunk_id
-// 对齐，只删内容表会留下无主向量行（孤儿行会被 Task 6 的 KNN 检索误命中）。
+// 对齐，只删内容表会留下无主向量行（孤儿行会被 KNN 检索误命中）。
 // 按 sqlite_master 物理存在性决策而非内存 opts：库可能以 EmbedDim>0 创建、后以 EmbedDim<=0 重开。
 func (idx *Index) clearIndex(ctx context.Context) error {
 	tx, err := idx.db.BeginTx(ctx, nil)

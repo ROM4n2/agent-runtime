@@ -253,7 +253,8 @@ func TestEmbedTexts_NilEmbedder(t *testing.T) {
 }
 
 // TestVecCodec_RoundTrip 钉死 []float32 ↔ BLOB little-endian 的单一编解码实现：
-//  round-trip 精确无损；1.0f 的字节序为 00 00 80 3F（与 vec0 BLOB 布局一致）。
+//
+//	round-trip 精确无损；1.0f 的字节序为 00 00 80 3F（与 vec0 BLOB 布局一致）。
 func TestVecCodec_RoundTrip(t *testing.T) {
 	orig := []float32{0, 1.5, -2.25, 3.14159, 1e-30, -1e30}
 	got := dencodeVec(encodeVec(orig))
@@ -275,18 +276,18 @@ func TestRebuild_ClearsDocVec(t *testing.T) {
 	corpus := t.TempDir()
 	writeDoc(t, corpus, "a.md", "检索系统设计")
 
-	// 第一轮 Rebuild：doc_chunk + doc_fts 一致落库（insertChunk 同事务保不变量）。
+	// 第一轮 Rebuild：doc_chunk + doc_fts 一致落库（insertChunk 同事务保不变量），
+	// 且 hybrid 写入路径（Task 6）真实地在 doc_vec 留下与 chunk_id 对齐的向量行——
+	// 本用例写就时这里还是手工模拟残留，现在由生产路径直接产生，故只断言前置条件。
 	if _, err := idx.Rebuild(context.Background(), corpus); err != nil {
 		t.Fatalf("first Rebuild: %v", err)
 	}
-
-	// 模拟 Task 6 嵌入通道的残留：doc_vec 行 rowid 与 doc_chunk.chunk_id 对齐。
-	var chunkID int64
-	if err := idx.db.QueryRow("SELECT chunk_id FROM doc_chunk LIMIT 1").Scan(&chunkID); err != nil {
-		t.Fatalf("query chunk_id: %v", err)
+	var before int
+	if err := idx.db.QueryRow("SELECT COUNT(*) FROM doc_vec").Scan(&before); err != nil {
+		t.Fatalf("count doc_vec after first rebuild: %v", err)
 	}
-	if _, err := idx.db.Exec("INSERT INTO doc_vec(rowid, embedding) VALUES (?, ?)", chunkID, encodeVec([]float32{1, 2, 3, 4})); err != nil {
-		t.Fatalf("insert doc_vec: %v", err)
+	if before == 0 {
+		t.Fatal("hybrid Rebuild must leave doc_vec rows (precondition for the clear assertion)")
 	}
 
 	// 改动语料 → 指纹变化 → 第二轮 Rebuild 真正执行 clearIndex。
@@ -295,11 +296,25 @@ func TestRebuild_ClearsDocVec(t *testing.T) {
 		t.Fatalf("second Rebuild: %v", err)
 	}
 
+	// 重建后 doc_vec 必须与新的 chunk 数一致（Task 6 起 Rebuild 会写新向量），
+	// 且不存在指向已删 chunk 的孤儿行——旧 rowid 必须随 clearIndex 一起消失。
+	var chunks int
+	if err := idx.db.QueryRow("SELECT COUNT(*) FROM doc_chunk").Scan(&chunks); err != nil {
+		t.Fatalf("count doc_chunk: %v", err)
+	}
 	var n int
 	if err := idx.db.QueryRow("SELECT COUNT(*) FROM doc_vec").Scan(&n); err != nil {
 		t.Fatalf("count doc_vec: %v", err)
 	}
-	if n != 0 {
-		t.Errorf("doc_vec rows = %d after rebuild, want 0 (orphan vector rows must be cleared)", n)
+	if n != chunks {
+		t.Errorf("doc_vec rows = %d after rebuild, want %d (one vector per new chunk)", n, chunks)
+	}
+	var aligned int
+	if err := idx.db.QueryRow(
+		"SELECT COUNT(*) FROM doc_vec v JOIN doc_chunk c ON c.chunk_id = v.rowid").Scan(&aligned); err != nil {
+		t.Fatalf("count aligned: %v", err)
+	}
+	if aligned != n {
+		t.Errorf("aligned doc_vec rows = %d, want %d (orphan vector rows must be cleared)", aligned, n)
 	}
 }
