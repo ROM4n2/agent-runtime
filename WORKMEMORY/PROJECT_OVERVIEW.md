@@ -1,4 +1,4 @@
-# PROJECT_OVERVIEW — agent-api
+# PROJECT_OVERVIEW — agent-runtime
 
 > 60 秒项目 primer。新 agent 的第二读（读完 work.log 事件流之前先建立全局认知）。
 > 维护规则：bootstrap 时由 agent 从代码库提炼生成初稿；此后每次 WORK_END / 交接后刷新。
@@ -17,6 +17,7 @@
 ## 当前状态
 
 - P1/P2/P3/P4 完整交付（ADR-0012 轨迹可观测性、ADR-0013 架构解耦、P4 生产级审计缺陷加固全部落地）。
+- **下一步（已立项、未实施）**：ADR-0017 检索能力以工具形式接入（`search_docs` + SQLite 索引 + span 引用），验收物是对照评测表；实施前先写 ADR-0018 评测口径。
 - 测试基线：`GOWORK=off go test -race ./... -count=1` 全绿（102 个 `func Test`，0 数据竞争）。
 - 架构领域分层：
   - `agent/tool`: 独立工具系统与 Tool 注册表（内置纯 AST 算术引擎与时区工具，Errors-As-Messages 规范）；
