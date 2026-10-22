@@ -7,6 +7,7 @@ import (
 	"agent-api/store"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -17,6 +18,9 @@ import (
 // ErrQueueFull 表示任务队列已满（所有 worker 忙且缓冲占满），Enqueue 因此快速失败。
 var ErrQueueFull = errors.New("task queue is full")
 
+// ErrTaskNotRunning 表示取消请求未命中在飞任务（任务未开始、已终态或不存在）。
+var ErrTaskNotRunning = errors.New("task is not running")
+
 // DefaultMaxTraces 限制 Pool 维护的最大 Trace 数量，超出时 FIFO 淘汰。
 const DefaultMaxTraces = 1000
 
@@ -25,10 +29,10 @@ const DefaultMaxTraces = 1000
 type Pool struct {
 	// 缓冲区大小等于 worker 数：满了 Enqueue 会阻塞调用方（HTTP handler），
 	// 使异步退化为同步。生产上应改为 select+default 快速失败或换持久化队列。
-	queue            chan string
-	tasks            store.TaskStore
-	size             int
-	taskTimeout      time.Duration // 单次任务 LLM 调用上限，超时即失败
+	queue       chan string
+	tasks       store.TaskStore
+	size        int
+	taskTimeout time.Duration // 单次任务 LLM 调用上限，超时即失败
 	// ctx/cancel 是关闭信号的广播机制：Stop 一次 cancel，
 	// 所有 worker 与派生出去的请求 ctx 同时收到通知。
 	// 用 cancel 而非 close(queue)，避免向已关闭 channel 发送导致 panic。
@@ -44,6 +48,9 @@ type Pool struct {
 	traces           map[string]*agent.TraceBuffer
 	maxTraces        int
 	traceOrder       []string
+	// inFlight 保存每个在飞任务的取消句柄（taskID -> context.CancelCauseFunc），
+	// 支撑外部 POST /tasks/{id}/cancel 主动抢占：直接物理中断上游 HTTP 调用。
+	inFlight sync.Map
 }
 
 func NewPool(size int, taskTimeout time.Duration, s store.TaskStore, client agent.Chatter) *Pool {
@@ -160,10 +167,19 @@ func (p *Pool) process(id string) {
 		return
 	}
 
-	// 从 p.ctx 派生（而非 Background）：既有单次期限，
-	// 又能在 Stop 时随父 ctx 一起取消在飞的请求，不必干等超时。
-	taskCtx, cancel := context.WithTimeout(p.ctx, p.taskTimeout)
-	defer cancel()
+	// 从 p.ctx 派生：继承停机广播，同时携带可归因的取消 cause。
+	// 外层 WithCancelCause 让「用户主动取消」与「停机取消 / 超时」可精确区分，
+	// 内层 WithTimeout 保留单次任务期限（子 ctx 超时优先暴露 DeadlineExceeded）。
+	parentCtx, cancelCause := context.WithCancelCause(p.ctx)
+	// 先登记句柄再派生超时子 ctx：即使取消请求落在两行之间，
+	// 超时子 ctx 也会从已带 cause 的父 ctx 继承取消原因，不丢抢占。
+	p.inFlight.Store(id, cancelCause)
+	taskCtx, cancelTimeout := context.WithTimeout(parentCtx, p.taskTimeout)
+	defer func() {
+		p.inFlight.Delete(id)
+		cancelTimeout()
+		cancelCause(nil) // 释放资源；不覆盖已完成任务的既有取消原因
+	}()
 
 	tb := agent.NewTraceBuffer(agent.MaxTraceSteps)
 	p.tracesMu.Lock()
@@ -183,14 +199,21 @@ func (p *Pool) process(id string) {
 		slog.Error("worker: task failed", "task_id", id, "error", err)
 
 		metrics.IncFailed() // 终态：在飞数 -1，失败数 +1
+		cause := context.Cause(taskCtx)
+		var userCancel *userCancelCause
 		var termErr error
-		if errors.Is(taskCtx.Err(), context.DeadlineExceeded) {
+		switch {
+		case errors.As(cause, &userCancel):
+			// 主动抢占：保留用户给的 reason，但由服务端统一前缀，
+			// 不让调用方伪造任意错误文案。
+			termErr = fmt.Errorf("canceled: %s", userCancel.reason)
+		case errors.Is(taskCtx.Err(), context.DeadlineExceeded):
 			termErr = errors.New("task timeout")
-		} else if errors.Is(taskCtx.Err(), context.Canceled) {
+		case errors.Is(taskCtx.Err(), context.Canceled):
 			termErr = errors.New("server shutdown")
-		} else if strings.Contains(err.Error(), "max steps") {
+		case strings.Contains(err.Error(), "max steps"):
 			termErr = errors.New("max steps exceeded")
-		} else {
+		default:
 			termErr = errors.New("upstream error")
 		}
 		if err := p.tasks.Complete(id, "", termErr); err != nil {
@@ -230,4 +253,59 @@ func (p *Pool) Trace(id string) []agent.TraceStep {
 		return nil
 	}
 	return tb.Snapshot()
+}
+
+// Subscribe 订阅指定任务的增量 TraceStep（供 SSE 流式推送）。
+// 返回当前快照、增量通道、退订函数与是否命中；任务尚未被 worker 领单时 ok=false，
+// 调用方可退化为轮询等待任务进入 running。
+func (p *Pool) Subscribe(id string) (snapshot []agent.TraceStep, events <-chan agent.TraceStep, cancel func(), ok bool) {
+	p.tracesMu.Lock()
+	tb := p.traces[id]
+	p.tracesMu.Unlock()
+
+	if tb == nil {
+		return nil, nil, func() {}, false
+	}
+	snapshot, events, cancel = tb.Subscribe()
+	return snapshot, events, cancel, true
+}
+
+// userCancelCause 是用户主动取消的因果标记，用于与超时/停机取消精确区分。
+type userCancelCause struct {
+	reason string
+}
+
+func (c *userCancelCause) Error() string {
+	return "user canceled: " + c.reason
+}
+
+// Cancel 主动抢占指定在飞任务：通过 context 因果链物理中断正在进行的上游调用。
+// 任务不在飞（未开始、已终态或不存在）时返回 ErrTaskNotRunning，由 API 层映射为 409。
+func (p *Pool) Cancel(id, reason string) error {
+	v, ok := p.inFlight.Load(id)
+	if !ok {
+		return ErrTaskNotRunning
+	}
+	cancel, ok := v.(context.CancelCauseFunc)
+	if !ok || cancel == nil {
+		return ErrTaskNotRunning
+	}
+	cancel(&userCancelCause{reason: reason})
+	return nil
+}
+
+// EnqueueWait 阻塞式入队，用于崩溃恢复时重灌 pending 积压：
+// 既不丢任务（队列满时等待空位），也不无限挂死（停机或 ctx 取消即返回）。
+func (p *Pool) EnqueueWait(ctx context.Context, id string) error {
+	if p.stopping.Load() {
+		return ErrQueueFull
+	}
+	select {
+	case p.queue <- id:
+		return nil
+	case <-p.stopWorkerCtx.Done():
+		return ErrQueueFull
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

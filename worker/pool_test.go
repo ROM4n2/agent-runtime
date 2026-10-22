@@ -232,6 +232,10 @@ func (m *mockTaskStore) Delete(id string) error {
 	return nil
 }
 
+func (m *mockTaskStore) RecoverTasks(ctx context.Context) ([]string, int, error) {
+	return nil, 0, nil
+}
+
 func TestProcess_UpdateErrorSetsFailed(t *testing.T) {
 	mock := &mockTaskStore{
 		updateErr: errors.New("db update error"),
@@ -562,8 +566,3 @@ func TestWorker_MaxStepsExceeded(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 }
-
-
-
-
-

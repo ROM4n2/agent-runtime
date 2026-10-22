@@ -5,7 +5,9 @@
 package store
 
 import (
+	"context"
 	"errors"
+	"sort"
 	"strconv"
 	"sync"
 )
@@ -21,6 +23,10 @@ const (
 // 调用方应当用 errors.Is 判断，而不是比较字符串。
 var ErrNotFound = errors.New("task not found")
 
+// ErrMsgServerRestart 是崩溃恢复时为「僵尸 running」写入的终态文案，
+// 与优雅停机的 "server shutdown" 区分：它代表上次进程非正常死亡。
+const ErrMsgServerRestart = "server restarted unexpectedly"
+
 // TaskStore 是任务存储的抽象接口：内存 Store 与 SQLite SQLStore 都实现它。
 // 用接口而非具体类型，是为了让 main 按配置在两种后端间切换
 // （ADR-0010：SQLite 持久化可插拔，默认内存）。
@@ -32,6 +38,10 @@ type TaskStore interface {
 	// Delete 移除指定 id 的任务。id 不存在时返回 ErrNotFound，
 	// 与 Update/Complete 的语义一致——不存在的 id 不被静默忽略。
 	Delete(id string) error
+	// RecoverTasks 启动补偿：pending 按提交顺序返回以便重新入队，
+	// 僵尸 running（进程非正常死亡的残留）批量标记为 failed。
+	// 返回的 recoveredRunning 是被标记失败的任务数。
+	RecoverTasks(ctx context.Context) (pendingIDs []string, recoveredRunning int, err error)
 }
 
 // Store 是任务的并发安全容器。
@@ -160,4 +170,41 @@ func (s *Store) Delete(id string) error {
 	delete(s.tasks, id)
 
 	return nil
+}
+
+// RecoverTasks 在启动阶段修复内存状态：返回 pending 任务（按自增 ID 升序），
+// 并把残留的 running（仅可能来自进程重启后未清理）标定为失败。
+// 内存实现本身重启即丢失，此方法主要为与 SQLStore 保持同一接口语义。
+func (s *Store) RecoverTasks(ctx context.Context) ([]string, int, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var pending []string
+	recovered := 0
+	for id, task := range s.tasks {
+		switch task.Status {
+		case StatusPending:
+			pending = append(pending, id)
+		case StatusRunning:
+			task.Status = StatusFailed
+			task.Error = ErrMsgServerRestart
+			s.tasks[id] = task
+			recovered++
+		}
+	}
+
+	sort.Slice(pending, func(i, j int) bool {
+		a, errA := strconv.Atoi(pending[i])
+		b, errB := strconv.Atoi(pending[j])
+		if errA != nil || errB != nil {
+			return pending[i] < pending[j]
+		}
+		return a < b
+	})
+
+	return pending, recovered, nil
 }

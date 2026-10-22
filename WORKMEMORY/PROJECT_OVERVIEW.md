@@ -17,13 +17,19 @@
 ## 当前状态
 
 - P1/P2/P3/P4 完整交付（ADR-0012 轨迹可观测性、ADR-0013 架构解耦、P4 生产级审计缺陷加固全部落地）。
-- 测试基线：`GOWORK=off go test -race ./... -count=1` 全绿（82 个 `func Test`，0 数据竞争）。
+- 测试基线：`GOWORK=off go test -race ./... -count=1` 全绿（102 个 `func Test`，0 数据竞争）。
 - 架构领域分层：
   - `agent/tool`: 独立工具系统与 Tool 注册表（内置纯 AST 算术引擎与时区工具，Errors-As-Messages 规范）；
   - `agent`: 纯粹认知内核（ReAct `Run` 循环、`Chatter` 接口、`TraceStep` 步骤与有界环形缓冲 `TraceBuffer`）；
   - `api`: 纯粹 HTTP 适配器与装配层，依赖倒置使用 `TaskRunner` 消费者接口，有自动化架构防线静态门禁阻断反向依赖；
   - `worker`: 纯粹 Job Concurrency Executor，两阶段优雅停机 + 队列排空 + 细化异常终态归因。
 - 生产加固能力：
+  - **主动抢占取消**：`POST /tasks/{id}/cancel` + `Pool.inFlight` 句柄表 + `context.WithCancelCause`
+    物理中断上游 HTTP 调用；未在飞任务返回 409；取消原因脱敏后落 `task.error`（ADR-0014）。
+  - **掉电崩溃恢复**：`TaskStore.RecoverTasks` 启动扫描，pending 按 ID 升序阻塞重灌、
+    僵尸 running 标记 `server restarted unexpectedly`；SQL 实现全程事务（ADR-0015）。
+  - **SSE 实时步进**：`GET /tasks/{id}/events`，`TraceBuffer` 快照+增量非阻塞广播，
+    终态推送 `event: done`，与轮询接口并存；清除 ResponseController 写截止时间（ADR-0016）。
   - Trace 缓存容量淘汰（1000 上限 FIFO 驱逐，消除 OOM 泄漏）；UTF-8 Rune 安全边界截断；
   - 两阶段优雅停机：HTTP 关闭后将 30s 超时预算传递给在飞 Worker，退出时排空队列积压任务标记 `server shutdown`；
   - 队列满 503 时显式下发 `Retry-After: 1` 响应头；
@@ -43,3 +49,9 @@
 - **改 hook 后 git 报 `cannot spawn .githooks/pre-commit`** → 编辑器重加 UTF-8 BOM 弄坏 shebang → `tail -c +4 .githooks/pre-commit > tmp && mv tmp` 去 BOM（安装脚本亦强制无 BOM UTF-8）。
 - **`config.yaml` 改了不生效 / 被静默忽略** → 优先级与解析范围误解 → 环境变量 > `config.yaml`；只接受扁平 `key: value`，嵌套或未知 key 直接启动失败（不静默）；文件 gitignored，示例是 `config.yaml.example`。
 - **并发写 map 崩溃** → 直接读写 `s.tasks` → 一律走 `Create/Update/Complete/Get` 方法（整段持锁，`Get` 返回副本）；终态只由 `Store.Complete` 裁决。
+- **SSE 连接 30s 被服务器掐断** → `http.Server.WriteTimeout` 同样作用于流式响应 →
+  handler 内 `http.NewResponseController(w).SetWriteDeadline(time.Time{})` 清除写截止时间（不支持时忽略）。
+- **订阅者慢导致任务执行被拖死** → 持锁同步投递到无缓冲通道 → `TraceBuffer.Append` 对订阅通道
+  `select`+`default` 非阻塞投递，慢消费者只丢自己的增量，终态再用快照对账补齐。
+- **崩溃恢复重灌 pending 时再次丢任务** → 队列容量只有 worker 数，直接 `Enqueue` 会满即失败 →
+  新增 `Pool.EnqueueWait(ctx,id)` 阻塞等待空位，停机/ctx 取消时中止且任务保持 pending 待下次恢复。

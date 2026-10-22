@@ -4,6 +4,7 @@ import (
 	"agent-api/api"
 	"agent-api/config"
 	"agent-api/llm"
+	"agent-api/metrics"
 	"agent-api/store"
 	"agent-api/worker"
 	"context"
@@ -66,7 +67,20 @@ func run() int {
 	cfg.HTTPTimeout = taskTimeout
 	p := worker.NewPool(3, taskTimeout, s, llm.NewClient(cfg))
 
+	// 启动补偿（Crash-Recovery / Rehydration）：先把上次进程残留的状态机修复完，
+	// 再开始消费与对外提供服务，消除「幽灵 running」与「遗失 pending」。
+	pendingIDs, recoveredRunning, err := s.RecoverTasks(ctx)
+	if err != nil {
+		slog.Error("recover tasks", "error", err)
+		return 1
+	}
+	if recoveredRunning > 0 {
+		slog.Warn("recovered interrupted tasks marked failed", "count", recoveredRunning)
+	}
+
 	p.Start()
+	// pending 可能超过队列容量，阻塞式重灌放到后台，不阻塞 HTTP 监听启动。
+	enqueueRecovered(ctx, p, pendingIDs)
 
 	h := api.NewHandler(s, p, conf.APIAuthKey)
 	mux := h.Routes()
@@ -92,6 +106,27 @@ func run() int {
 		_ = p.Stop()
 		return 1
 	}
+}
+
+// enqueueRecovered 把崩溃恢复得到的 pending 任务重新灌入 worker 队列。
+// 使用 EnqueueWait 而不是 Enqueue：积压超过队列容量时等待空位，而不是
+// 静默丢弃（那会再次制造掉电丢任务）。若停机或 ctx 取消则中止，剩余任务
+// 仍为 pending，下次启动会再次被恢复。
+func enqueueRecovered(ctx context.Context, p *worker.Pool, ids []string) {
+	if len(ids) == 0 {
+		return
+	}
+	// 这些任务在上个进程已提交过：只恢复在飞 gauge，不重复计 submitted。
+	metrics.IncRecovered(len(ids))
+	go func() {
+		for _, id := range ids {
+			if err := p.EnqueueWait(ctx, id); err != nil {
+				slog.Error("rehydrate: enqueue pending task failed", "task_id", id, "error", err)
+				return
+			}
+		}
+		slog.Info("rehydrate: pending tasks requeued", "count", len(ids))
+	}()
 }
 
 // newServer 构造 HTTP 服务器并配置超时，避免慢客户端长期占用连接：

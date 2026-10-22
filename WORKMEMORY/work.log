@@ -59,3 +59,24 @@ P4 生产级体检缺陷加固计划（docs/implementation_plan_p4-audit-remedia
 - GOWORK=off go build ./... && GOWORK=off go vet ./... 干净无报错。
 - bash .githooks/pre-commit 扫描 exit 0。
 - .vault-exec-ledger.json 7/7 COMPLETED (100.0%)，分支 fix/audit-findings-remediation。
+
+### 2026-10-22 18:30 | unknown-model__pi-coding-agent | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec
+演进路线三项任务全部交付（来源：D:\大学文件\Chance\agent-api-演进路线与面试深挖防御指南.md）：
+- 任务1 主动取消：worker.Pool 新增 inFlight sync.Map + context.WithCancelCause 物理中断；Pool.Cancel/ErrTaskNotRunning；POST /tasks/{id}/cancel（404/409/202，reason 白名单脱敏）；process 用 context.Cause + errors.As 精确归因 canceled/timeout/shutdown/upstream（ADR-0014）。
+- 任务2 崩溃恢复：TaskStore.RecoverTasks 接口，内存与 SQL 双实现（SQL 事务内查 pending + 批量标死 running，error=server restarted unexpectedly）；main 在监听前补偿，新增 Pool.EnqueueWait 阻塞重灌 pending，后台 goroutine 不阻塞启动（ADR-0015）。
+- 任务3 SSE：TraceBuffer.Subscribe 原子快照+增量，Append 非阻塞广播，cancel 幂等；Pool.Subscribe；GET /tasks/{id}/events（step/done、keepalive、清除 WriteTimeout、终态快照对账）；保留轮询（ADR-0016）。
+物理证据：go build ./... && go vet ./... 干净；go test -race ./... -count=1 全 9 包 PASS；func Test 82→101（-v 145 RUN 含子测试），0 data race。
+不做范围：未改 demo.html（仍轮询）；未提交 commit（用户未要求）；未改 config/LLM 层。
+身份待确认：当前 harness 无法读取 model-id，事件头暂记 unknown-model，请用户校正。
+
+### 2026-10-22 18:45 | unknown-model__pi-coding-agent | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec
+勘误上一条：补 metrics.IncRecovered（恢复 pending 时补回 running gauge + agent_tasks_recovered counter，避免重启后 gauge 变负）并新增 1 个 metrics 测试，func Test 实际为 102 而非 101。
+复核：go build/go vet 干净；go test -race ./... -count=1 全 9 包 PASS。
+
+### 2026-10-22 19:10 | deepseek-flash__pi-coding-agent | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec, git
+身份校正：本次会话模型确认为 DeepSeek-flash（此前两条事件头的 unknown-model 由本条覆盖）。
+行尾噪声治理：.gitattributes 新增 `* text=auto eol=lf`，工作区全部文本文件归一为 LF；此前 33 个「已修改」文件中 18 个实为 CRLF 假 diff，归一后内容零差异。
+交付提交：任务1 主动取消 / 任务2 崩溃恢复 / 任务3 SSE，随后 push 至 origin/master。

@@ -8,17 +8,26 @@ import (
 	"agent-api/agent"
 	"agent-api/metrics"
 	"agent-api/store"
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
+	"time"
+	"unicode"
 )
 
 // TaskRunner 定义 API 层所需的任务执行器接口（消费者定义接口）。
 type TaskRunner interface {
 	Enqueue(id string) error
 	Trace(id string) []agent.TraceStep
+	// Cancel 主动抢占在飞任务；任务不在飞时返回非 nil error。
+	Cancel(id, reason string) error
+	// Subscribe 订阅任务实时步进；任务尚未被 worker 领单时 ok=false。
+	Subscribe(id string) (snapshot []agent.TraceStep, events <-chan agent.TraceStep, cancel func(), ok bool)
 }
 
 // Handler 持有处理请求所需的依赖，由 main 装配后注入。
@@ -64,6 +73,9 @@ func (h *Handler) Routes() *http.ServeMux {
 	mux.Handle("POST /run", wrap(http.HandlerFunc(h.HandleRun)))
 	// 路径是复数 tasks，与 HandleGet 的取值 r.PathValue("id") 配套
 	mux.Handle("GET /tasks/{id}", wrap(http.HandlerFunc(h.HandleGet)))
+	// 主动抢占取消（用户点击「停止生成」）与 SSE 实时步进推送。
+	mux.Handle("POST /tasks/{id}/cancel", wrap(http.HandlerFunc(h.HandleCancel)))
+	mux.Handle("GET /tasks/{id}/events", wrap(http.HandlerFunc(h.HandleEvents)))
 	return mux
 }
 
@@ -153,5 +165,245 @@ func (h *Handler) HandleGet(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(resp)
 	if err != nil {
 		slog.Error("encode response", "error", err)
+	}
+}
+
+// maxCancelReasonLen 限制用户传入取消原因的长度，避免把超长/带控制字符的文案
+// 持久进 task.error 并回显给其他客户端。
+const maxCancelReasonLen = 64
+
+// sanitizeCancelReason 只保留字母/数字/下划线/中划线与点，过滤换行等控制字符；
+// 全部非法时回落为 "user_aborted"。
+func sanitizeCancelReason(in string) string {
+	in = strings.TrimSpace(in)
+	var b strings.Builder
+	for _, r := range in {
+		if b.Len() >= maxCancelReasonLen {
+			break
+		}
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-' || r == '.' {
+			b.WriteRune(r)
+		}
+	}
+	if b.Len() == 0 {
+		return "user_aborted"
+	}
+	return b.String()
+}
+
+// HandleCancel 主动抢占在飞任务：POST /tasks/{id}/cancel（body 可选 {"reason":"..."}）。
+//
+// 已终态 / 尚未被 worker 领单的任务返回 409：取消只能作用于「此刻真的在跑」的任务，
+// 静默成功会掩盖客户端对状态机的误判。
+func (h *Handler) HandleCancel(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	if _, err := h.store.Get(id); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			http.Error(w, "task not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	reason := sanitizeCancelReason(req.Reason)
+	if err := h.runner.Cancel(id, reason); err != nil {
+		http.Error(w, "task is not running", http.StatusConflict)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusAccepted)
+	if err := json.NewEncoder(w).Encode(map[string]string{"id": id, "status": "canceling"}); err != nil {
+		slog.Error("encode response", "error", err)
+	}
+}
+
+func isTerminalStatus(status string) bool {
+	return status == store.StatusDone || status == store.StatusFailed
+}
+
+// writeSSE 写一帧 SSE（event + JSON data）并立刻 Flush，确保低延迟逐帧到达客户端。
+func writeSSE(w http.ResponseWriter, flusher http.Flusher, event string, data any) error {
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, payload); err != nil {
+		return err
+	}
+	flusher.Flush()
+	return nil
+}
+
+// HandleEvents 以 text/event-stream 实时推送任务步进与终态：
+// GET /tasks/{id}/events。与原 GET /tasks/{id} 轮询接口并存（向下兼容）。
+//
+// 帧格式：
+//
+//	event: step    data: {"step":..,"kind":"think",...}
+//	event: done    data: {"id":..,"status":"done|failed",...}
+//
+// 已终态任务直接回放 Trace 快照后推送 done，不挂起连接。
+func (h *Handler) HandleEvents(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	task, err := h.store.Get(id)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			http.Error(w, "task not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	// SSE 是长连接：清除 Server.WriteTimeout 的写截止时间，否则 30s 后被切断。
+	// httptest.Recorder 等实现不支持时忽略（ErrNotSupported），不影响主流程。
+	rc := http.NewResponseController(w)
+	_ = rc.SetWriteDeadline(time.Time{})
+
+	hdr := w.Header()
+	hdr.Set("Content-Type", "text/event-stream")
+	hdr.Set("Cache-Control", "no-cache")
+	hdr.Set("Connection", "keep-alive")
+	hdr.Set("X-Accel-Buffering", "no") // 告知 Nginx 等反代不要缓冲
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	h.streamEvents(w, flusher, id, task, r.Context())
+}
+
+func (h *Handler) streamEvents(w http.ResponseWriter, flusher http.Flusher, id string, task store.Task, ctx context.Context) {
+	var (
+		events      <-chan agent.TraceStep
+		unsubscribe func()
+		sent        int
+	)
+	defer func() {
+		if unsubscribe != nil {
+			unsubscribe()
+		}
+	}()
+
+	subscribe := func() {
+		if h.runner == nil || events != nil {
+			return
+		}
+		snapshot, ch, cancel, ok := h.runner.Subscribe(id)
+		if !ok {
+			return
+		}
+		unsubscribe = cancel
+		events = ch
+		for _, s := range snapshot {
+			if err := writeSSE(w, flusher, "step", s); err != nil {
+				return
+			}
+			sent++
+		}
+	}
+
+	// 任务已终态：回放记录后立即收尾，不建立长连接。
+	if isTerminalStatus(task.Status) {
+		if h.runner != nil {
+			snapshot := h.runner.Trace(id)
+			for _, s := range snapshot {
+				if err := writeSSE(w, flusher, "step", s); err != nil {
+					return
+				}
+			}
+		}
+		_ = writeSSE(w, flusher, "done", task)
+		return
+	}
+
+	subscribe()
+
+	statusTicker := time.NewTicker(100 * time.Millisecond)
+	defer statusTicker.Stop()
+	keepAlive := time.NewTicker(15 * time.Second)
+	defer keepAlive.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+
+		case s, ok := <-events:
+			if !ok {
+				events = nil // 已关闭，停止从该通道读取
+				continue
+			}
+			if err := writeSSE(w, flusher, "step", s); err != nil {
+				return
+			}
+			sent++
+
+		case <-keepAlive.C:
+			if _, err := io.WriteString(w, ": keepalive\n\n"); err != nil {
+				return
+			}
+			flusher.Flush()
+
+		case <-statusTicker.C:
+			t, err := h.store.Get(id)
+			if err != nil {
+				return // 任务被删除或存储异常，静默断流
+			}
+
+			// 任务可能一开始还在队列里（trace 尚未注册），进入 running 后再订阅。
+			if events == nil && !isTerminalStatus(t.Status) {
+				subscribe()
+			}
+
+			if !isTerminalStatus(t.Status) {
+				continue
+			}
+
+			// 终态：先把已缓冲的增量消费完，再用快照补齐可能因慢消费被丢弃的步骤。
+		drain:
+			for {
+				select {
+				case s, ok := <-events:
+					if !ok {
+						break drain
+					}
+					if err := writeSSE(w, flusher, "step", s); err != nil {
+						return
+					}
+					sent++
+				default:
+					break drain
+				}
+			}
+			if h.runner != nil {
+				snapshot := h.runner.Trace(id)
+				for sent < len(snapshot) {
+					if err := writeSSE(w, flusher, "step", snapshot[sent]); err != nil {
+						return
+					}
+					sent++
+				}
+			}
+			_ = writeSSE(w, flusher, "done", t)
+			return
+		}
 	}
 }

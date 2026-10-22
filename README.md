@@ -2,7 +2,7 @@
 
 异步任务 + Worker Pool + LLM Agent 的 Go 后端服务。客户端提交 prompt，服务异步调用 DeepSeek：
 worker 以 **think → call tool → observe** 的多步循环执行 agent（内置 `calculate` / `current_time` 工具），
-通过轮询获取结果。
+通过轮询或 SSE 获取结果。支持用户主动取消与掉电崩溃恢复。
 
 ## Architecture
 
@@ -21,12 +21,17 @@ worker 以 **think → call tool → observe** 的多步循环执行 agent（内
   │                         │   store.Complete → done / failed
   │ GET /tasks/{id} 轮询    │
   │───────────────────────→│ api: store.Get(id) → Task JSON (200)
+  │ GET /tasks/{id}/events  │
+  │───────────────────────→│ SSE: agent.TraceBuffer 实时步进 + done
+  │ POST /tasks/{id}/cancel │
+  │───────────────────────→│ api: Pool.Cancel → context 物理中断上游
 ```
 
 > 中间件链：`Recover → RequestID → 限流(20/s, 突发40) → 鉴权(Bearer)`。
 > 生产必须设 `API_AUTH_KEY` 开启鉴权；不设则开发模式放行。
 >
-> 路由分两组：业务路由（`POST /run`、`GET /tasks/{id}`）走完整中间件链；
+> 路由分两组：业务路由（`POST /run`、`GET /tasks/{id}`、`POST /tasks/{id}/cancel`、
+> `GET /tasks/{id}/events`）走完整中间件链；
 > 运维/演示路由（`GET /healthz`、`GET /metrics`、`GET /`）只走 `Recover → RequestID`，
 > 保证探活与指标抓取不被限流或鉴权挡住。
 
@@ -91,7 +96,9 @@ Invoke-RestMethod -Uri http://localhost:8080/metrics
 | Method | Path | 说明 | Request Body | Response |
 |--------|------|------|-------------|----------|
 | POST | `/run` | 提交任务 | `{"prompt":"..."}` | `202 {"task_id":"1"}` |
-| GET | `/tasks/{id}` | 查询状态 | - | `{"id":"1","status":"done","prompt":"...","result":"...","error":""}` |
+| GET | `/tasks/{id}` | 查询状态（轮询） | - | `{"id":"1","status":"done","prompt":"...","result":"...","error":""}` |
+| POST | `/tasks/{id}/cancel` | 主动取消在飞任务 | `{"reason":"user_aborted"}`（可选） | `202 {"id":"1","status":"canceling"}`；任务不在飞返回 `409` |
+| GET | `/tasks/{id}/events` | SSE 实时步进 | - | `text/event-stream`：`event: step` / `event: done` |
 | GET | `/healthz` | 存活探针 | - | `200 ok`（纯文本） |
 | GET | `/metrics` | Prometheus 指标 | - | `agent_tasks_*` 文本格式 |
 | GET | `/` | 单页 Demo | - | `text/html` 页面 |
@@ -110,6 +117,7 @@ Status 取值：`pending` → `running` → `done` / `failed`
 | `agent_tasks_running` | gauge | 当前在飞任务数（提交 +1，终态 -1） |
 | `agent_tasks_done` | counter | 累计成功完成数 |
 | `agent_tasks_failed` | counter | 累计失败数 |
+| `agent_tasks_recovered` | counter | 崩溃恢复重灌的 pending 任务数（同时补回 running gauge） |
 
 `GET /healthz` 返回 `200 ok`，仅表示进程存活，不涉及任务状态。
 

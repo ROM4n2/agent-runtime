@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"log/slog"
@@ -148,4 +149,57 @@ func (s *SQLStore) Delete(id string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// RecoverTasks 实现掉电/被 Kill 后的启动补偿：
+//   - 所有 pending 按自增主键升序返回，由 main 重新灌入 worker 队列；
+//   - 所有 running 是上次进程非正常死亡的「幽灵任务」，批量标定 failed，
+//     避免客户端永久轮询到一个永远不变的状态。
+//
+// 两步在同一事务内完成：要么全部补偿成功，要么全部回滚。
+func (s *SQLStore) RecoverTasks(ctx context.Context) ([]string, int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer tx.Rollback() // 已 Commit 后 Rollback 返回 ErrTxDone，可安全忽略
+
+	rows, err := tx.QueryContext(ctx, "SELECT id FROM tasks WHERE status = ? ORDER BY id ASC", StatusPending)
+	if err != nil {
+		return nil, 0, err
+	}
+	var pending []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, 0, err
+		}
+		pending = append(pending, id)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, 0, err
+	}
+	rows.Close()
+
+	res, err := tx.ExecContext(ctx,
+		"UPDATE tasks SET status = ?, error = ? WHERE status = ?",
+		StatusFailed, ErrMsgServerRestart, StatusRunning,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, 0, err
+	}
+	return pending, int(n), nil
 }

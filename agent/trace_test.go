@@ -224,4 +224,3 @@ func TestTraceBuffer_SlidingWindowPreservesCapacity(t *testing.T) {
 		t.Errorf("expected newest step to be 9, got %d", snap[capacity-1].Step)
 	}
 }
-

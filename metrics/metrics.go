@@ -16,6 +16,7 @@ var (
 	running   atomic.Int64
 	done      atomic.Int64
 	failed    atomic.Int64
+	recovered atomic.Int64
 )
 
 // IncSubmitted 在任务创建时调用；同时把"在飞"数 +1，便于观测积压。
@@ -36,6 +37,17 @@ func IncFailed() {
 	running.Add(-1)
 }
 
+// IncRecovered 在崩溃恢复重灌 pending 任务时调用：
+// 只恢复在飞 gauge 并计入独立的重启恢复计数，不重复计入 submitted
+// （这些任务在上个进程已经提交过）。
+func IncRecovered(n int) {
+	if n <= 0 {
+		return
+	}
+	recovered.Add(int64(n))
+	running.Add(int64(n))
+}
+
 // Handler 返回 Prometheus 文本格式的指标端点（text/plain; version=0.0.4）。
 func Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -51,6 +63,7 @@ func expose() string {
 	b = appendMetric(b, "agent_tasks_running", "gauge", "Tasks currently in flight", running.Load())
 	b = appendMetric(b, "agent_tasks_done", "counter", "Tasks completed successfully", done.Load())
 	b = appendMetric(b, "agent_tasks_failed", "counter", "Tasks that failed", failed.Load())
+	b = appendMetric(b, "agent_tasks_recovered", "counter", "Tasks rehydrated after restart", recovered.Load())
 	return string(b)
 }
 

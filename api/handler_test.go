@@ -24,6 +24,15 @@ func (fakeLLM) ChatWithTools(ctx context.Context, msgs []llm.Message, tools []ll
 type fakeTaskRunner struct {
 	enqueued []string
 	traces   map[string][]agent.TraceStep
+	buffers  map[string]*agent.TraceBuffer
+
+	cancelled []cancelCall
+	cancelErr error
+}
+
+type cancelCall struct {
+	id     string
+	reason string
 }
 
 func (f *fakeTaskRunner) Enqueue(id string) error {
@@ -33,6 +42,23 @@ func (f *fakeTaskRunner) Enqueue(id string) error {
 
 func (f *fakeTaskRunner) Trace(id string) []agent.TraceStep {
 	return f.traces[id]
+}
+
+func (f *fakeTaskRunner) Cancel(id, reason string) error {
+	f.cancelled = append(f.cancelled, cancelCall{id: id, reason: reason})
+	return f.cancelErr
+}
+
+func (f *fakeTaskRunner) Subscribe(id string) ([]agent.TraceStep, <-chan agent.TraceStep, func(), bool) {
+	if f.buffers == nil {
+		return nil, nil, func() {}, false
+	}
+	tb := f.buffers[id]
+	if tb == nil {
+		return nil, nil, func() {}, false
+	}
+	snapshot, events, cancel := tb.Subscribe()
+	return snapshot, events, cancel, true
 }
 
 func TestHandler_WithMockTaskRunner(t *testing.T) {
