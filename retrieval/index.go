@@ -12,7 +12,11 @@ package retrieval
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"log/slog"
+	"os"
+	"time"
 
 	_ "modernc.org/sqlite"
 	_ "modernc.org/sqlite/vec"
@@ -125,4 +129,243 @@ func createSchema(db *sql.DB, embedDim int) error {
 		}
 	}
 	return nil
+}
+
+// 哨兵错误（ADR-0017 决策 5/6）：索引缺失与语料陈旧均为不可重试的显式失败，
+// 由上层（Task 7 工具层 / Task 8 装配层）映射为独立终态分类，绝不静默降级。
+var (
+	// ErrIndexMissing 表示索引尚未构建（corpus_meta 无记录）。
+	ErrIndexMissing = errors.New("retrieval: index not built")
+	// ErrCorpusStale 表示语料内容指纹与已建索引版本不符，需重建。
+	ErrCorpusStale = errors.New("retrieval: corpus version mismatch, rebuild required")
+)
+
+// ChunkBatchSize 是分块事务的批量上限：每事务最多插入这么多个 chunk 即提交，
+// 禁止全量单事务（长写持锁会阻塞任务写入，store <480 QPS 教训同源；ADR-0017 决策 6）。
+const ChunkBatchSize = 50
+
+// BuildReport 汇总一次 Rebuild 的结果。
+// 语义约定：当指纹命中、跳过重建时，DocsIndexed=0 且 ChunksWritten=0（本次未重建），
+// Fingerprint 仍回传当前指纹供对账；调用方据 ChunksWritten==0 判断「无需重建」。
+type BuildReport struct {
+	DocsIndexed   int    // 本次实际索引（读取并分块成功）的文档数
+	DocsSkipped   int    // 读取失败被跳过的文档数（可观测，不静默）
+	ChunksWritten int    // 本次写入 doc_chunk/doc_fts 的 chunk 数
+	Fingerprint   string // 本次构建对应的目录内容指纹
+}
+
+// chunkRow 是待批量插入 doc_chunk 的一条分块记录。
+type chunkRow struct {
+	docID     string
+	source    string
+	spanStart int
+	spanEnd   int
+	text      string
+}
+
+// CorpusVersion 读取 corpus_meta 中的已建语料指纹；无记录（未建索引）返回空串。
+func (idx *Index) CorpusVersion() (string, error) {
+	var version string
+	err := idx.db.QueryRow("SELECT version FROM corpus_meta WHERE singleton = 1").Scan(&version)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return version, nil
+}
+
+// CheckFresh 实时计算语料目录指纹并与已建版本比对（ADR-0017 决策 6 的调用时检查点）：
+//   - 索引未建（corpus_meta 无记录）→ ErrIndexMissing；
+//   - 指纹不符 → ErrCorpusStale；
+//   - 一致 → nil。
+//
+// 与 Search 解耦：由工具层在检索前调用，Search 本身不做实时全量内容哈希。
+func (idx *Index) CheckFresh(ctx context.Context, corpusDir string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	version, err := idx.CorpusVersion()
+	if err != nil {
+		return err
+	}
+	if version == "" {
+		return ErrIndexMissing
+	}
+	fp, err := dirFingerprint(corpusDir)
+	if err != nil {
+		return err
+	}
+	if fp != version {
+		return ErrCorpusStale
+	}
+	return nil
+}
+
+// Rebuild 幂等地把 corpusDir 构建为 FTS5 可检索索引（ADR-0017 决策 6）：
+//  1. 语料目录不存在/非目录 → 返回永久错误（启动失败，不静默）；
+//  2. 计算目录内容指纹，与 corpus_meta 已建版本比对，相同即跳过（见 BuildReport 语义）；
+//  3. 否则全量重建：清空旧索引 → 分块事务批量 INSERT（每 ≤ChunkBatchSize 个一提交，
+//     事务间检查 ctx 取消）→ 成功后更新 corpus_meta 指纹。
+//
+// 崩溃半成品靠指纹不符触发下次重建（corpus_meta 仍记旧指纹）。本任务只建词法通道，
+// 不碰 doc_vec（vec0 由 Task 6 负责）。
+func (idx *Index) Rebuild(ctx context.Context, corpusDir string) (BuildReport, error) {
+	info, err := os.Stat(corpusDir)
+	if err != nil {
+		return BuildReport{}, fmt.Errorf("retrieval: corpus dir %q: %w", corpusDir, err)
+	}
+	if !info.IsDir() {
+		return BuildReport{}, fmt.Errorf("retrieval: corpus path %q is not a directory", corpusDir)
+	}
+
+	fp, err := dirFingerprint(corpusDir)
+	if err != nil {
+		return BuildReport{}, err
+	}
+
+	current, err := idx.CorpusVersion()
+	if err != nil {
+		return BuildReport{}, err
+	}
+	if current == fp {
+		// 幂等跳过：索引已是最新。DocsIndexed=0/ChunksWritten=0 表示本次未重建。
+		return BuildReport{Fingerprint: fp}, nil
+	}
+
+	return idx.rebuildChunks(ctx, corpusDir, fp)
+}
+
+// rebuildChunks 执行全量重建的写入阶段（清空 → 分块事务插入 → 更新 corpus_meta）。
+func (idx *Index) rebuildChunks(ctx context.Context, corpusDir, fingerprint string) (BuildReport, error) {
+	// 入口取消检查：已取消 ctx 立即返回，避免无谓扫描与写入。
+	if err := ctx.Err(); err != nil {
+		return BuildReport{}, err
+	}
+
+	docs, err := listDocs(corpusDir)
+	if err != nil {
+		return BuildReport{}, err
+	}
+
+	report := BuildReport{Fingerprint: fingerprint}
+	builtAt := time.Now().Unix()
+
+	// 全量重建先清空旧索引（外接内容表需同时删 FTS 索引与内容表）。
+	// 崩溃半成品靠指纹不符触发下次重建（corpus_meta 仍记旧指纹）。
+	if err := idx.clearIndex(ctx); err != nil {
+		return BuildReport{}, err
+	}
+
+	var pending []chunkRow
+	flush := func() error {
+		if len(pending) == 0 {
+			return nil
+		}
+		tx, err := idx.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback() // 已 Commit 后 Rollback 返回 ErrTxDone，可安全忽略
+		for _, c := range pending {
+			if err := insertChunk(ctx, tx, c, fingerprint); err != nil {
+				return err
+			}
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+		report.ChunksWritten += len(pending)
+		pending = pending[:0]
+		return nil
+	}
+
+	for _, d := range docs {
+		content, err := os.ReadFile(d.absPath)
+		if err != nil {
+			// 单文件读失败：跳过并计入 DocsSkipped（可观测，不静默）。
+			slog.Warn("retrieval: rebuild skip unreadable doc", "path", d.relPath, "error", err)
+			report.DocsSkipped++
+			continue
+		}
+		for _, ch := range chunkText(string(content)) {
+			pending = append(pending, chunkRow{
+				docID:     d.relPath,
+				source:    d.relPath,
+				spanStart: ch.SpanStart,
+				spanEnd:   ch.SpanEnd,
+				text:      ch.Text,
+			})
+			if len(pending) >= ChunkBatchSize {
+				if err := flush(); err != nil {
+					return BuildReport{}, err
+				}
+				// 事务间检查取消：取消即返回，半成品靠指纹不符触发下次重建。
+				if err := ctx.Err(); err != nil {
+					return BuildReport{}, err
+				}
+			}
+		}
+		report.DocsIndexed++
+	}
+	if err := flush(); err != nil {
+		return BuildReport{}, err
+	}
+
+	// 成功后更新 corpus_meta（删旧行 + 插新指纹，紧随最后一个分块事务）。
+	if err := idx.writeCorpusMeta(ctx, fingerprint, builtAt); err != nil {
+		return BuildReport{}, err
+	}
+	return report, nil
+}
+
+// insertChunk 在事务内插入一条分块到 doc_chunk，并同步写入外接内容 FTS 索引 doc_fts。
+// doc_fts 用 content=doc_chunk 外接内容表：显式提供 rowid(=chunk_id) 与要索引的文本（原文）。
+func insertChunk(ctx context.Context, tx *sql.Tx, c chunkRow, version string) error {
+	res, err := tx.ExecContext(ctx,
+		"INSERT INTO doc_chunk(doc_id, source, span_start, span_end, text, corpus_version) VALUES (?, ?, ?, ?, ?, ?)",
+		c.docID, c.source, c.spanStart, c.spanEnd, c.text, version)
+	if err != nil {
+		return err
+	}
+	rowid, err := res.LastInsertId()
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, "INSERT INTO doc_fts(rowid, text) VALUES (?, ?)", rowid, c.text)
+	return err
+}
+
+// clearIndex 在同一事务内清空旧索引：删 FTS 索引 + 内容表（外接内容表两者都清才算全量重建）。
+func (idx *Index) clearIndex(ctx context.Context) error {
+	tx, err := idx.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, "DELETE FROM doc_fts"); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM doc_chunk"); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// writeCorpusMeta 在同一事务内把 corpus_meta 更新为单行新指纹（CHECK(singleton=1) 钉死单行）。
+func (idx *Index) writeCorpusMeta(ctx context.Context, version string, builtAt int64) error {
+	tx, err := idx.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, "DELETE FROM corpus_meta"); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx,
+		"INSERT INTO corpus_meta(singleton, version, built_at) VALUES (1, ?, ?)", version, builtAt); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
