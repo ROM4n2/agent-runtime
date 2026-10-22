@@ -583,3 +583,10 @@
 | Task 6 tokenBudget=0 语义 | 保留最高分一条 + Truncated=true | 计划 RED 步骤原文"保留头部"即此语义（CRV 裁定计划合规）；优于空集（"无命中"与"零预算"不可区分） |
 | Task 6 Hit.Score 三量纲 | 注释说明（bm25 负/vec0 距离/RRF 融合分） | 导出字段跨模式不可比；**trigger：Task 7 出口只序列化融合分口径（CRV 黄卡）** |
 | Task 5 gofmt 遗留 | orchestrator 跑 gofmt -w retrieval/embed_test.go 修复 | Task 5 CPE 报告的 TestVecCodec_RoundTrip doc comment 缩进（Go 1.19+ 规则），零逻辑变更 |
+| Task 7 ErrEmbeddingUnavailable 形态 | plain 哨兵 + 包装类型（Retryable()=true，Unwrap 双链） | 计划字面"var+实现 RetryableError"物理不可两全（plain error 值挂不了方法）；双链同时满足 errors.Is 与 errors.As |
+| Task 7 top_k 落地层 | renderResult 截断（hits[:topK] 保头部，并入 truncated） | search.go:32 注释明言"最终 top_k 由工具层决定"；与 schema 承诺一致 |
+| Task 7 分类表 ctx 分支 | 新增（计划字面表未列） | 防 hybrid 取消被误包装为可重试（取消语义分层红线）；TestClassifySearchError_CanceledCtxNeverRetryable 承重 |
+| Task 7 错误文案自纠延迟 | ErrIndexMissing/ErrCorpusStale 原样返回，未加 "run go run . -index" 文案 | -index CLI 属 Task 8；现在写死命令文案会指向不存在的入口——**trigger：Task 8 落地 -index 子命令时同步补文案（CRV 黄卡 4）** |
+| Task 7 FTS5 元字符未净化 | 未修（hybrid 下语法错误误分类为可重试） | 当前 lexical 模式 non-retryable 原样返回正确；误分类仅 hybrid 可达——**trigger：Task 12 hybrid 组开跑前必修（SearchLexical phrase 包装或 classify 增 fts5 syntax error 分支）（CRV 黄卡 3）** |
+| Task 7 schema 数值无断言 | 未补（default/maximum 靠行为测试间接兜底） | **trigger：触碰 tool.go schema 时常量改错需测试捕获（CRV 黄卡 1）** |
+| Task 7 变异自查两假绿 | 修正后复杀（builtLexicalTool 建真实索引；'3'+'字符'双 token 断言） | CPE 自查发现：参数校验测试被 ErrIndexMissing 掩盖、变异注释含 '3' 污染断言靶标；work.log 将记 PITFALL |
