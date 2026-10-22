@@ -112,7 +112,9 @@ func (t *searchTool) Execute(ctx context.Context, args json.RawMessage) (string,
 	// 新鲜度检查与 Search 解耦（Task 6 分工）：语料被改动必须显式失败，
 	// 而不是拿着旧索引给模型一个看起来正常的结果。
 	if err := t.idx.CheckFresh(ctx, t.corpusDir); err != nil {
-		return "", err // ErrIndexMissing/ErrCorpusStale 原样返回（均 non-retryable）
+		// ErrIndexMissing/ErrCorpusStale 经 freshnessHint 附上可操作文案（均 non-retryable）：
+		// Task 8 交付 -index CLI 后，模型/运维才拿得到「下一步该跑什么」的指引（CRV 黄卡 4）。
+		return "", freshnessHint(err)
 	}
 	res, err := t.idx.Search(ctx, query, tokenBudget)
 	if err != nil {
@@ -184,6 +186,22 @@ func classifySearchError(idx *Index, err error) error {
 		return err
 	case idx.hybridEnabled():
 		return &embeddingUnavailableError{cause: err}
+	default:
+		return err
+	}
+}
+
+// freshnessHint 给两个新鲜度哨兵附上用户可操作的下一步文案（CRV Task 7 黄卡 4 的
+// trigger：Task 8 交付 -index CLI 后补，此前写死命令会指向不存在的入口）。
+// 用 %w 保留哨兵：errors.Is 仍命中分类，不挂 Retryable 方法（两者本就 non-retryable），
+// 归因不丢、只增可读性。未建索引用「请先运行」，语料陈陈旧用「请重新运行」——
+// 两者下一步动作不同，文案必须可判别。非哨兵错误原样返回，只给运维能自修的两类加指引。
+func freshnessHint(err error) error {
+	switch {
+	case errors.Is(err, ErrIndexMissing):
+		return fmt.Errorf("%w: 请先运行 go run . -index <语料目录> 构建索引", err)
+	case errors.Is(err, ErrCorpusStale):
+		return fmt.Errorf("%w: 请重新运行 go run . -index <语料目录> 重建索引", err)
 	default:
 		return err
 	}

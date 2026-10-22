@@ -4,6 +4,7 @@ import (
 	"agent-runtime/agent"
 	"agent-runtime/agent/tool"
 	"agent-runtime/metrics"
+	"agent-runtime/retrieval"
 	"agent-runtime/store"
 	"context"
 	"errors"
@@ -41,13 +42,16 @@ type Pool struct {
 	stopWorkerCtx    context.Context
 	stopWorkerCancel context.CancelFunc
 	stopping         atomic.Bool
-	wg               sync.WaitGroup
-	llm              agent.Chatter
-	tools            *tool.Registry
-	tracesMu         sync.Mutex
-	traces           map[string]*agent.TraceBuffer
-	maxTraces        int
-	traceOrder       []string
+	// started 标记 worker 是否已 Start：RegisterTool 在 Start 后注入时，
+	// 新工具只对后续任务可见（在飞任务已固定 tools 快照），需显式告警而非静默。
+	started    atomic.Bool
+	wg         sync.WaitGroup
+	llm        agent.Chatter
+	tools      *tool.Registry
+	tracesMu   sync.Mutex
+	traces     map[string]*agent.TraceBuffer
+	maxTraces  int
+	traceOrder []string
 	// inFlight 保存每个在飞任务的取消句柄（taskID -> context.CancelCauseFunc），
 	// 支撑外部 POST /tasks/{id}/cancel 主动抢占：直接物理中断上游 HTTP 调用。
 	inFlight sync.Map
@@ -76,10 +80,23 @@ func NewPool(size int, taskTimeout time.Duration, s store.TaskStore, client agen
 }
 
 func (p *Pool) Start() {
+	p.started.Store(true)
 	for i := 0; i < p.size; i++ {
 		p.wg.Add(1)
 		go p.worker()
 	}
+}
+
+// RegisterTool 在 Pool 的工具注册表里追加一个工具（如 retrieval.SearchTool 产出的
+// search_docs）。幂等：同名工具经 Registry 的 map 覆盖，重复注册不增生 spec。
+// 经 Registry 内部锁保护，Start 前后调用均安全；但装配约定是 Start 之前——
+// Start 后 worker 已持 tools 快照跑在飞任务，新工具只对后续任务生效，此时仅告警不 panic。
+func (p *Pool) RegisterTool(t tool.Tool) {
+	if p.started.Load() {
+		slog.Warn("worker: RegisterTool after Start; tool applies to subsequent tasks only",
+			"tool", t.Spec().Function.Name)
+	}
+	p.tools.Register(t)
 }
 
 func (p *Pool) Stop(ctxs ...context.Context) error {
@@ -213,6 +230,10 @@ func (p *Pool) process(id string) {
 			termErr = errors.New("server shutdown")
 		case strings.Contains(err.Error(), "max steps"):
 			termErr = errors.New("max steps exceeded")
+		case errors.Is(err, retrieval.ErrIndexMissing):
+			// 检索索引未建是独立运维终态（ADR-0017 决策 6）：与泛化的 upstream error
+			// 分开，调用方得以区分「该去建索引」与「上游真的挂了」。
+			termErr = errors.New("index missing")
 		default:
 			termErr = errors.New("upstream error")
 		}

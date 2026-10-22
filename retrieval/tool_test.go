@@ -205,6 +205,12 @@ func TestSearchTool_CheckFreshSentinelsArePermanent(t *testing.T) {
 		if !errors.Is(err, ErrIndexMissing) {
 			t.Fatalf("Execute on unbuilt index = %v, want ErrIndexMissing", err)
 		}
+		// 用户可操作文案（Task 8 交付 -index CLI 后补，CRV 黄卡 4）：模型/运维看到
+		// 「请先运行 …」知道下一步，而不是一句无指引的 "index not built"。
+		// 变异自证 ④：删掉 tool.go 的文案包装，本断言转红。
+		if !strings.Contains(err.Error(), "请先运行") {
+			t.Errorf("error text = %q, want actionable hint containing 请先运行", err)
+		}
 		assertNotRetryable(t, err)
 	})
 
@@ -220,6 +226,11 @@ func TestSearchTool_CheckFreshSentinelsArePermanent(t *testing.T) {
 		_, err := execSearchTool(tl, `{"query":"检索系统"}`)
 		if !errors.Is(err, ErrCorpusStale) {
 			t.Fatalf("Execute after corpus change = %v, want ErrCorpusStale", err)
+		}
+		// 陈旧索引的指引是「重新运行重建」，与未建的「请先运行」区分：
+		// 两者下一步动作不同，文案必须可判别。变异自证 ④ 同族。
+		if !strings.Contains(err.Error(), "请重新运行") {
+			t.Errorf("error text = %q, want actionable hint containing 请重新运行", err)
 		}
 		assertNotRetryable(t, err)
 	})

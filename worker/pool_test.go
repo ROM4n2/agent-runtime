@@ -3,8 +3,10 @@ package worker
 import (
 	"agent-runtime/agent"
 	"agent-runtime/llm"
+	"agent-runtime/retrieval"
 	"agent-runtime/store"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -564,5 +566,105 @@ func TestWorker_MaxStepsExceeded(t *testing.T) {
 			t.Fatal("task did not finish in time")
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// fakeSearchTool 是名为 search_docs 的假工具，供 RegisterTool 注入测试使用：
+// 只关心 Spec（agent 视野里的工具定义）与一个可执行的 Execute，
+// 验证检索工具被装配进 pool 后，Registry 里出现且仅出现一份 search_docs。
+type fakeSearchTool struct{}
+
+func (fakeSearchTool) Spec() llm.Tool {
+	return llm.Tool{
+		Type: "function",
+		Function: llm.FunctionSpec{
+			Name:        "search_docs",
+			Description: "fake search tool for RegisterTool injection test",
+			Parameters:  map[string]any{"type": "object"},
+		},
+	}
+}
+
+func (fakeSearchTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
+	return "fake search result", nil
+}
+
+// fakeCompanionTool 是另一个假工具，用于验证 RegisterTool 是「增量注入」而非
+// 「整体替换」：注册 search_docs 之后再注册它，两者必须并存。
+type fakeCompanionTool struct{}
+
+func (fakeCompanionTool) Spec() llm.Tool {
+	return llm.Tool{
+		Type: "function",
+		Function: llm.FunctionSpec{
+			Name:        "fake_companion",
+			Description: "second tool to prove RegisterTool is additive",
+			Parameters:  map[string]any{"type": "object"},
+		},
+	}
+}
+
+func (fakeCompanionTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
+	return "companion result", nil
+}
+
+// TestPool_RegisterTool_InjectsSearchDocsSpec 是装配承重墙（变异自证 ②）：
+// RegisterTool 必须把 search_docs 注入既有 Registry，重复注册幂等（同名 map 覆盖），
+// 之后再注册别的工具不得抹掉已注入的 search_docs——非幂等/破坏性实现（如每次重建
+// registry）会让 agent 视野里的 search_docs 定义时有时无。变异自证：把 RegisterTool
+// 改成「重建 registry 再注册」，search_docs spec count 断言转红。
+func TestPool_RegisterTool_InjectsSearchDocsSpec(t *testing.T) {
+	s := store.NewStore()
+	p := NewPool(1, 30*time.Second, s, fakeChatter{})
+
+	p.RegisterTool(fakeSearchTool{})
+	p.RegisterTool(fakeSearchTool{})    // 幂等：重复注册不得增生
+	p.RegisterTool(fakeCompanionTool{}) // 增量：不得抹掉 search_docs
+
+	var searchDocs, companion, defaults int
+	for _, sp := range p.tools.Specs() {
+		switch sp.Function.Name {
+		case "search_docs":
+			searchDocs++
+		case "fake_companion":
+			companion++
+		case "calculate", "current_time":
+			defaults++
+		}
+	}
+	if searchDocs != 1 {
+		t.Errorf("search_docs spec count = %d, want 1 (RegisterTool must be idempotent and additive)", searchDocs)
+	}
+	if companion != 1 {
+		t.Errorf("fake_companion spec count = %d, want 1 (RegisterTool must be additive, not replace)", companion)
+	}
+	if defaults != 2 {
+		t.Errorf("default tool count = %d, want 2 (RegisterTool must not wipe calculate/current_time)", defaults)
+	}
+}
+
+// TestProcess_IndexMissingTerminalClassification 固化 index missing 独立终态
+// （ADR-0017 决策 6 + 错误脱敏红线）：当错误链携带 retrieval.ErrIndexMissing 时，
+// worker 必须把它归为粗分类 "index missing"，而不是泛化的 "upstream error"。
+// 变异自证 ①：删掉终态 switch 的 ErrIndexMissing 分支，本断言转红（退化成 upstream error）。
+func TestProcess_IndexMissingTerminalClassification(t *testing.T) {
+	s := store.NewStore()
+	// 经 Chatter 上抛携带 ErrIndexMissing 的错误链：agent.Run 对 Chatter 错误原样返回，
+	// 终态分类据此经 errors.Is 匹配哨兵。
+	chat := fakeChatter{err: fmt.Errorf("retrieval tool failed: %w", retrieval.ErrIndexMissing)}
+	p := NewPool(1, 30*time.Second, s, chat)
+
+	id := s.Create("query the docs")
+	p.process(id)
+
+	task, err := s.Get(id)
+	if err != nil {
+		t.Fatalf("get task: %v", err)
+	}
+	if task.Status != store.StatusFailed {
+		t.Fatalf("status = %q, want %q", task.Status, store.StatusFailed)
+	}
+	if task.Error != "index missing" {
+		t.Errorf("task.Error = %q, want %q (ErrIndexMissing deserves its own terminal class)", task.Error, "index missing")
 	}
 }

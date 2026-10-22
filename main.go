@@ -5,10 +5,12 @@ import (
 	"agent-runtime/config"
 	"agent-runtime/llm"
 	"agent-runtime/metrics"
+	"agent-runtime/retrieval"
 	"agent-runtime/store"
 	"agent-runtime/worker"
 	"context"
 	"errors"
+	"flag"
 	"log/slog"
 	"net/http"
 	"os"
@@ -24,12 +26,39 @@ func main() {
 func run() int {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 
+	// flag 先行解析：-index 子命令在任何重装配（LLM/store/pool/retrieval）之前短路退出。
+	// 用独立 FlagSet + ContinueOnError：run() 返回 int 由 main 统一 os.Exit，
+	// 不走 flag 包默认的 os.Exit，保持退出路径单一、可测。
+	fs := flag.NewFlagSet("agent-runtime", flag.ContinueOnError)
+	var indexDir, corpusDir string
+	fs.StringVar(&indexDir, "index", "", "构建检索索引后退出：-index <语料目录>")
+	fs.StringVar(&corpusDir, "corpus", "docs", "检索语料目录（search_docs 的新鲜度检查点）")
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		return 2 // flag 包已把用法错误写到 stderr
+	}
+	indexRequested := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "index" {
+			indexRequested = true
+		}
+	})
+
 	// 配置来源：环境变量优先，其次 config.yaml（文件可选）。
 	conf, err := config.Load("")
 	if err != nil {
 		slog.Error("load config", slog.Any("error", err))
 		return 1
 	}
+
+	// -index 子命令：建库 + 结构化摘要 + 退出，不启动服务、不校验 LLM 密钥。
+	if indexRequested {
+		if indexDir == "" {
+			slog.Error("-index 需要语料目录参数，用法：go run . -index <语料目录>")
+			return 2
+		}
+		return runIndexCmd(conf, indexDir)
+	}
+
 	apiKey := conf.DeepSeekAPIKey
 	if apiKey == "" {
 		slog.Error("DEEPSEEK_API_KEY is not set（环境变量或 config.yaml 任选其一）")
@@ -37,13 +66,36 @@ func run() int {
 	}
 
 	cfg := llm.Config{
-		APIKey:  apiKey,
-		BaseURL: "https://api.deepseek.com",
-		Model:   "deepseek-chat",
+		APIKey:       apiKey,
+		BaseURL:      "https://api.deepseek.com",
+		Model:        "deepseek-flash",
+		EmbedBaseURL: conf.EmbedBaseURL,
+		EmbedAPIKey:  conf.EmbedAPIKey,
+		EmbedModel:   conf.EmbedModel,
+		EmbedDim:     conf.EmbedDim,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// 检索索引与 store 共享 db_path 文件（DbPath 空则 ":memory:"，与内存 store 语义一致）：
+	// 两者分持连接、WAL 下读写互不阻塞。Open 失败 = 启动失败（显式失败不静默）。
+	idx, err := retrieval.Open(indexPath(conf), retrievalOptions(conf))
+	if err != nil {
+		slog.Error("open retrieval index", slog.Any("error", err))
+		return 1
+	}
+	defer func() {
+		if idx != nil {
+			_ = idx.Close()
+		}
+	}()
+
+	// 启动时新鲜度检查仅提示不阻断（ADR-0017 决策 6）：语料未建/已改是首次
+	// search_docs 调用时才需显式失败的运维问题，不该阻止服务起来。
+	if err := idx.CheckFresh(ctx, corpusDir); err != nil {
+		slog.Warn("retrieval index not fresh at startup", "corpus", corpusDir, "error", err)
+	}
 
 	var backend store.TaskStore
 	if conf.DbPath != "" {
@@ -66,6 +118,8 @@ func run() int {
 	}
 	cfg.HTTPTimeout = taskTimeout
 	p := worker.NewPool(3, taskTimeout, s, llm.NewClient(cfg))
+	// search_docs 进 pool：必须在 Start 前注册，worker 消费任务时才看得到工具 spec。
+	p.RegisterTool(retrieval.SearchTool(idx, corpusDir))
 
 	// 启动补偿（Crash-Recovery / Rehydration）：先把上次进程残留的状态机修复完，
 	// 再开始消费与对外提供服务，消除「幽灵 running」与「遗失 pending」。
@@ -159,4 +213,69 @@ func shutdown(srv *http.Server, p *worker.Pool) int {
 		exitCode = 1
 	}
 	return exitCode
+}
+
+// indexPath 返回检索索引库路径：与 store 共享 conf.DbPath 文件；
+// DbPath 空（纯内存 store）时检索同样落 ":memory:"，两者生命周期一致。
+func indexPath(conf config.Config) string {
+	if conf.DbPath != "" {
+		return conf.DbPath
+	}
+	return ":memory:"
+}
+
+// retrievalOptions 从同一份 config 分送检索选项：embedder 按 conf 构造（缺凭证即 nil
+// = 纯词法），EmbedModel/EmbedDim 直接透传。Task 8 装配层的单一分送点，
+// 禁在调用点散落字段——改配置映射只改这里。
+func retrievalOptions(conf config.Config) retrieval.Options {
+	return retrieval.Options{
+		Embedder:   newEmbedder(conf),
+		EmbedModel: conf.EmbedModel,
+		EmbedDim:   conf.EmbedDim,
+	}
+}
+
+// buildIndex 打开（必要时创建）检索索引库并全量重建语料，返回构建报告。
+// 供 -index 子命令与其测试共用：索引连接在本函数内开闭，报告数字即 Rebuild 出口，
+// 调用方据此核对落库结果（db_path 非空则同文件，否则 ":memory:"）。
+func buildIndex(conf config.Config, corpusDir string) (retrieval.BuildReport, error) {
+	idx, err := retrieval.Open(indexPath(conf), retrievalOptions(conf))
+	if err != nil {
+		return retrieval.BuildReport{}, err
+	}
+	defer idx.Close()
+	return idx.Rebuild(context.Background(), corpusDir)
+}
+
+// runIndexCmd 是 -index 子命令入口：构建索引 + 结构化摘要日志，返回进程退出码。
+// 构建失败 → slog.Error + 退出码 1（显式失败不静默）；成功 → 摘要日志 + 退出码 0。
+func runIndexCmd(conf config.Config, corpusDir string) int {
+	report, err := buildIndex(conf, corpusDir)
+	if err != nil {
+		slog.Error("index build failed", slog.Any("error", err))
+		return 1
+	}
+	slog.Info("index built",
+		"docs", report.DocsIndexed,
+		"skipped", report.DocsSkipped,
+		"chunks", report.ChunksWritten,
+		"fingerprint", report.Fingerprint)
+	return 0
+}
+
+// newEmbedder 按配置构造向量通道 embedder（ADR-0017 决策 3「默认关闭」）：
+// EmbedBaseURL/EmbedAPIKey/EmbedModel 三者全非空才返回实现了 llm.Embedder 的
+// *llm.Client（其 Embed 方法即接口实现），缺任一即返回 nil（纯词法模式，禁静默半配）。
+func newEmbedder(conf config.Config) llm.Embedder {
+	if conf.EmbedBaseURL == "" || conf.EmbedAPIKey == "" || conf.EmbedModel == "" {
+		return nil
+	}
+	return llm.NewClient(llm.Config{
+		APIKey:       conf.EmbedAPIKey,
+		BaseURL:      conf.EmbedBaseURL,
+		Model:        conf.EmbedModel,
+		EmbedBaseURL: conf.EmbedBaseURL,
+		EmbedAPIKey:  conf.EmbedAPIKey,
+		EmbedModel:   conf.EmbedModel,
+	})
 }

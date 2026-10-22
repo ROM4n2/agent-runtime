@@ -590,3 +590,9 @@
 | Task 7 FTS5 元字符未净化 | 未修（hybrid 下语法错误误分类为可重试） | 当前 lexical 模式 non-retryable 原样返回正确；误分类仅 hybrid 可达——**trigger：Task 12 hybrid 组开跑前必修（SearchLexical phrase 包装或 classify 增 fts5 syntax error 分支）（CRV 黄卡 3）** |
 | Task 7 schema 数值无断言 | 未补（default/maximum 靠行为测试间接兜底） | **trigger：触碰 tool.go schema 时常量改错需测试捕获（CRV 黄卡 1）** |
 | Task 7 变异自查两假绿 | 修正后复杀（builtLexicalTool 建真实索引；'3'+'字符'双 token 断言） | CPE 自查发现：参数校验测试被 ErrIndexMissing 掩盖、变异注释含 '3' 污染断言靶标；work.log 将记 PITFALL |
+| Task 8 buildIndex 签名 | (conf config.Config, corpusDir)——遵测试先行 | 第一任 CPE 已写测试固定签名；另抽 retrievalOptions helper + Pool.started atomic.Bool 为最小必要 |
+| Task 8 RegisterTool post-Start warn 无测试 | 未补 | **trigger：Task 12 合入门前补最小用例（post-Start 注册不 panic 且 spec 仍注入）（CRV 黄卡 1）** |
+| Task 8 -index flag 接线层无测试 | 未补 | indexRequested/空值 exit 2/Parse 错误 exit 2/密钥校验前短路均只间接口入——**trigger：Task 12 前补 flag 层冒烟（CRV 黄卡 2）** |
+| Task 8 幂等断言深度不足 | 未补（只断言 exit 0） | **trigger：Task 12 前补 DocsIndexed==0/ChunksWritten==0/Fingerprint 不变三断言（CRV 黄卡 3）** |
+| Task 8 默认配置 -index 报 :memory: 易失索引 | 未修（计划书面认可的 DbPath 空 → :memory: 设计后果） | exit 0 + {docs:N} 摘要令运维误以为已持久化——**trigger：Task 12 HITL 前必须补 slog.Warn 明示易失或在 README 写明（CRV 黄卡 4，误导性成功报告，acceptance gate 3 近亲）** |
+| Task 1 engine.go:32 注释「错误全文只进 slog」 | 未修正（Task 8 未执行该 trigger） | agent 包无 slog；**trigger：Task 12 前修正注释措辞（Task 1 偏差表登记项）** |
