@@ -99,33 +99,55 @@ func TestGrade_ExactHitSuccess(t *testing.T) {
 	}
 }
 
-// TestGrade_PartialOverlapScoresIntersectionOverUnion：部分相交按交集/并集自然计入
-// （got[10,20] vs want[15,25] → 5/15 = 1/3 < 0.5 → 未命中）。
-// 这正是 ADR-0018 后果节黄卡预案「边界重叠按 0.5 权重计入」的口径来源：
-// 阈值 0.5 与交并比同源，代码里不为部分相交特判任何魔法数。
-func TestGrade_PartialOverlapScoresIntersectionOverUnion(t *testing.T) {
-	task := inCorpusTask([2]int{15, 25})
-	trace := []agent.TraceStep{
-		searchCallStep(),
-		searchResultStep(searchDetail(t, hitRow{ChunkID: 1, DocID: docADR15, Span: [2]int{10, 20}, Text: "部分重叠"})),
+// TestGrade_PartialOverlapScoresCoverage：部分相交按覆盖率计（缺陷 H 后判定口径）。
+// 同一对区间在两种口径下差异明显：got[10,20] vs want[15,25] 交并比 5/15=1/3、
+// 覆盖率 5/10=0.5——判定走覆盖率，故 0.5 恰达阈值记命中；交并比只留在
+// spanScore 的单测里（TestSpanScore 的「部分相交」用例），不再参与判定。
+// 低于阈值的负向分支由 want[15,40] 覆盖（覆盖率 5/25=0.2 → wrong-span）。
+func TestGrade_PartialOverlapScoresCoverage(t *testing.T) {
+	if got, want := spanScore([2]int{10, 20}, [2]int{15, 25}), 1.0/3.0; !closeEnough(got, want) {
+		t.Errorf("spanScore 口径漂移：= %v, want %v（交并比仅供边界分析，语义不得变）", got, want)
 	}
-	g := Grade(task, trace, "依据 "+docADR15+" 作答。")
-	if want := 1.0 / 3.0; !closeEnough(g.SpanRecall, want) {
-		t.Errorf("SpanRecall = %v, want %v (intersection/union)", g.SpanRecall, want)
-	}
-	if g.Success {
-		t.Errorf("recall 1/3 must not be Success: %+v", g)
-	}
-	if g.FirstError != FirstErrorWrongSpan {
-		t.Errorf("FirstError = %q, want %q", g.FirstError, FirstErrorWrongSpan)
-	}
+
+	t.Run("覆盖率 0.5 恰达阈值记命中", func(t *testing.T) {
+		task := inCorpusTask([2]int{15, 25})
+		trace := []agent.TraceStep{
+			searchCallStep(),
+			searchResultStep(searchDetail(t, hitRow{ChunkID: 1, DocID: docADR15, Span: [2]int{10, 20}, Text: "部分重叠"})),
+		}
+		g := Grade(task, trace, "依据 "+docADR15+" 作答。")
+		if want := 0.5; !closeEnough(g.SpanRecall, want) {
+			t.Errorf("SpanRecall = %v, want %v (|want ∩ got| / |want|)", g.SpanRecall, want)
+		}
+		if !g.Success || g.FirstError != FirstErrorNone {
+			t.Errorf("recall == threshold must be Success: %+v", g)
+		}
+	})
+
+	t.Run("覆盖率 0.2 低于阈值记 wrong-span", func(t *testing.T) {
+		task := inCorpusTask([2]int{15, 40})
+		trace := []agent.TraceStep{
+			searchCallStep(),
+			searchResultStep(searchDetail(t, hitRow{ChunkID: 1, DocID: docADR15, Span: [2]int{10, 20}, Text: "只盖住开头一小段"})),
+		}
+		g := Grade(task, trace, "依据 "+docADR15+" 作答。")
+		if want := 0.2; !closeEnough(g.SpanRecall, want) {
+			t.Errorf("SpanRecall = %v, want %v", g.SpanRecall, want)
+		}
+		if g.Success {
+			t.Errorf("recall 0.2 must not be Success: %+v", g)
+		}
+		if g.FirstError != FirstErrorWrongSpan {
+			t.Errorf("FirstError = %q, want %q", g.FirstError, FirstErrorWrongSpan)
+		}
+	})
 }
 
-// TestGrade_MultipleWantsTakeBestMatchPerWant：多个期望区间各取最大匹配后求和。
+// TestGrade_MultipleWantsCoveredIndependently：每个期望区间独立算覆盖率后求平均。
 // want[[0,10],[100,110]]，got[[3,7],[100,110]]：
-// 第一个 want 的最佳匹配是 [3,7]（4/10=0.4），第二个是 [100,110]（1.0）→ recall 0.7。
-// 该值同时排除两种错误实现：首匹配即锁（0.4/2=0.2）与直接求和（1.4，>1 无意义）。
-func TestGrade_MultipleWantsTakeBestMatchPerWant(t *testing.T) {
+// 第一个 want 被并集覆盖 [3,7]（4/10=0.4），第二个被 [100,110] 全覆盖（1.0）→ recall 0.7。
+// 该值同时排除两种错误实现：首匹配即锁（0.4/2=0.2）与不除以 want 数直接求和（1.4，无意义）。
+func TestGrade_MultipleWantsCoveredIndependently(t *testing.T) {
 	task := inCorpusTask([2]int{0, 10}, [2]int{100, 110})
 	trace := []agent.TraceStep{
 		searchCallStep(),
@@ -291,7 +313,7 @@ func TestGrade_OutOfCorpus_CorrectRefusal(t *testing.T) {
 }
 
 // TestGrade_SpanRecallAtThresholdPasses：recall 恰等于阈值 0.5 记命中（>= 语义）。
-// got[0,10] vs want[0,20]：交集 10 / 并集 20 = 0.5。
+// got[0,10] vs want[0,20]：覆盖率 |want ∩ got| / |want| = 10/20 = 0.5。
 func TestGrade_SpanRecallAtThresholdPasses(t *testing.T) {
 	task := inCorpusTask([2]int{0, 20})
 	trace := []agent.TraceStep{
@@ -418,9 +440,9 @@ func TestSpanRecall_EmptyWantIsFullScore(t *testing.T) {
 	}
 }
 
-// TestSpanRecall_BestPerWant：每个 want 独立取最大匹配后求和再平均，
-// got 为空但 want 非空 → 0。
-func TestSpanRecall_BestPerWant(t *testing.T) {
+// TestSpanRecall_PerWantCoverage：每个 want 独立算覆盖率后求平均，
+// got 为空但 want 非空 → 0（值与原断言一致，仅口径注释随 coverage 更新）。
+func TestSpanRecall_PerWantCoverage(t *testing.T) {
 	got := [][2]int{{3, 7}, {100, 110}}
 	want := [][2]int{{0, 10}, {100, 110}}
 	if r := spanRecall(got, want); !closeEnough(r, 0.7) {
@@ -526,6 +548,100 @@ func TestSalvageHits_FieldLevelExtraction(t *testing.T) {
 			t.Errorf("salvageHits(complete JSON) = %+v, want %+v (diverges from unmarshal path)", alt, got)
 		}
 	})
+}
+
+// ---- 缺陷 G / H 的承重墙（Task 12 第 7、8 个缺陷） ----
+
+// TestCoverage_MultiChunkCoversWant 固化判定口径：期望段落被命中区间并集的
+// 覆盖比例（分母恒为 want 长度），不是交并比。工具返回的 Hit.Span 是 chunk 窗口
+// （ChunkSize=512 rune），任务集的 expect_spans 是答案段落——单 chunk 只盖住答案段
+// 一半时 IoU 仅 ~0.2，多个 chunk 拼起来完整覆盖也判不过（缺陷 H 的实测失真）。
+func TestCoverage_MultiChunkCoversWant(t *testing.T) {
+	want := [2]int{441, 780} // q009 的期望答案段：长 339
+	cases := []struct {
+		name string
+		got  [][2]int
+		want float64
+	}{
+		{"两个 chunk 拼接完整覆盖答案段", [][2]int{{0, 512}, {448, 960}}, 1},
+		{"单 chunk 只覆盖答案段前半", [][2]int{{0, 512}}, 71.0 / 339.0},
+		{"got 落在 want 内部按交集计", [][2]int{{500, 600}}, 100.0 / 339.0},
+		{"got 远大于 want 上限截断为 1", [][2]int{{0, 2000}}, 1},
+		{"重叠的多个 got 不重复计数", [][2]int{{441, 600}, {500, 780}}, 1}, // 直和不合并会得 439/339 > 1
+		{"全不相交", [][2]int{{900, 950}}, 0},
+		{"无命中", nil, 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := coverage(want, c.got); !closeEnough(got, c.want) {
+				t.Errorf("coverage(%v, %v) = %v, want %v", want, c.got, got, c.want)
+			}
+		})
+	}
+	// 零长 want 记 0 而不是 NaN（NaN 会让所有比较为 false，判定变成随机结果）。
+	if got := coverage([2]int{10, 10}, [][2]int{{0, 20}}); got != 0 {
+		t.Errorf("coverage(zero-length want) = %v, want 0", got)
+	}
+}
+
+// TestGradeWithHits_FullDetailNotTruncated 是缺陷 G 的承重墙：评测判定必须拿
+// 工具返回全文。同一份返回串经 trace（512B 截断）判定会掉到阈值以下，
+// 而完整 hits 输入下 recall=1.0 且首错不再是 wrong-span。
+func TestGradeWithHits_FullDetailNotTruncated(t *testing.T) {
+	task := Task{ID: "q009", Scope: ScopeInCorpus, ExpectDocs: []string{docADR15}, ExpectSpans: [][2]int{{441, 780}}}
+	answer := "依据 " + docADR15 + " 的记载作答。"
+
+	// 线上形态：chunk 窗口 [0,512] 与 [448,960] 拼起来覆盖答案段 [441,780]。
+	fullHits := []toolHit{
+		{DocID: docADR15, Span: [2]int{0, 512}},
+		{DocID: docADR15, Span: [2]int{448, 960}},
+	}
+	g := GradeWithHits(task, fullHits, answer)
+	if !closeEnough(g.SpanRecall, 1) {
+		t.Errorf("GradeWithHits SpanRecall = %v, want 1（完整 hits 下两个 chunk 并集覆盖答案段）", g.SpanRecall)
+	}
+	if !g.Success || g.FirstError != FirstErrorNone {
+		t.Errorf("expected Success on full hits, got %+v", g)
+	}
+
+	// 前提自证：同一份返回串被 512 字节截断后，trace 路径确实失真。
+	full := searchDetail(t,
+		hitRow{ChunkID: 1, DocID: docADR15, Span: [2]int{0, 512}, Text: strings.Repeat("第", 400)},
+		hitRow{ChunkID: 2, DocID: docADR15, Span: [2]int{448, 960}, Text: strings.Repeat("二", 400)},
+	)
+	truncated := truncateDetail512(full)
+	if len(truncated) != 512 {
+		t.Fatalf("test setup: truncated len = %d, want 512", len(truncated))
+	}
+	gTrace := Grade(task, []agent.TraceStep{searchCallStep(), searchResultStep(truncated)}, answer)
+	if gTrace.SpanRecall >= spanRecallThreshold {
+		t.Fatalf("test setup: 截断路径 recall = %v，本用例没测到「全文 vs 截断」的差异", gTrace.SpanRecall)
+	}
+}
+
+// TestGrade_FallsBackToTrace：无 hits 时 GradeWithHits 必须与 trace 路径同判。
+// runOnce 只在 collector 无任何成功返回（工具未调用/全失败）时才走 trace 路径，
+// 两条路径同口径是「退回兜底不是另一套判定」的保证。
+func TestGrade_FallsBackToTrace(t *testing.T) {
+	trace := []agent.TraceStep{searchCallStep(), searchResultStep(searchDetail(t))} // 成功的零命中返回
+	outTask := Task{ID: "q003", Scope: ScopeOutOfCorpus, ExpectDocs: []string{docADR15}}
+	cases := []struct {
+		name   string
+		task   Task
+		answer string
+	}{
+		{"in-corpus 零命中", inCorpusTask([2]int{120, 168}), "依据 " + docADR15 + " 作答。"},
+		{"out-of-corpus 正确拒答", outTask, "语料库中没有相关信息，无法回答。"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fromTrace := Grade(c.task, trace, c.answer)
+			fromHits := GradeWithHits(c.task, nil, c.answer)
+			if !reflect.DeepEqual(fromTrace, fromHits) {
+				t.Errorf("GradeWithHits(nil) = %+v, want %+v（无 hits 时必须与 trace 路径同判）", fromHits, fromTrace)
+			}
+		})
+	}
 }
 
 // truncateDetail512 镜像 agent.TraceBuffer.Append 的 detail 截断逻辑

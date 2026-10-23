@@ -13,6 +13,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"agent-runtime/agent"
+	"agent-runtime/agent/tool"
 	"agent-runtime/llm"
 	"agent-runtime/retrieval"
 )
@@ -489,6 +491,67 @@ func TestRun_StaleIndexAutoRebuild(t *testing.T) {
 	}
 	if len(report.TaskResults) != 2 {
 		t.Errorf("TaskResults = %d, want 2 (1 task set entry x 2 tasks x repeat 1)", len(report.TaskResults))
+	}
+}
+
+// ---- ⑨ 缺陷 G：评测取工具返回全文，不受 trace 512B 截断影响 ----
+
+// fakeSearchTool 是 search_docs 的返回来注入点：用来把「返回串长度」变成
+// 受控变量——真实索引的返回串长度不可控，测不到截断边界。
+type fakeSearchTool struct{ out string }
+
+func (f *fakeSearchTool) Spec() llm.Tool {
+	return llm.Tool{
+		Type:     "function",
+		Function: llm.FunctionSpec{Name: searchToolName, Parameters: map[string]any{"type": "object"}},
+	}
+}
+
+func (f *fakeSearchTool) Execute(ctx context.Context, _ json.RawMessage) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	return f.out, nil
+}
+
+// TestRun_CollectorUsesFullToolOutput 是缺陷 G 的承重墙（变异自证 ②）：
+// 假工具返回 >512 字节的 JSON，匹配 span 只在第 2 条命中里——trace 的 512 字节
+// detail 必然丢掉它。runOnce 若不从包装工具取全文（改回只用 trace），
+// SpanRecall 会掉到阈值以下，本断言转红。
+func TestRun_CollectorUsesFullToolOutput(t *testing.T) {
+	task := Task{
+		ID:          "q009",
+		Prompt:      "评测语料的分块约定是什么？（回答请引用 " + evalDocID + "）",
+		Scope:       ScopeInCorpus,
+		ExpectDocs:  []string{evalDocID},
+		ExpectSpans: [][2]int{{441, 780}},
+	}
+	full := searchDetail(t,
+		hitRow{ChunkID: 1, DocID: evalDocID, Span: [2]int{0, 512}, Text: strings.Repeat("甲", 400)},
+		hitRow{ChunkID: 2, DocID: evalDocID, Span: [2]int{441, 780}, Text: strings.Repeat("乙", 400)},
+	)
+	if len(full) <= 512 {
+		t.Fatalf("test setup: fake tool output = %d bytes, want > 512 (trace detail budget)", len(full))
+	}
+
+	reg := tool.NewRegistry()
+	reg.Register(&fakeSearchTool{out: full})
+	tr, err := runOnce(context.Background(), RunConfig{}, &evalFakeChatter{}, reg, task)
+	if err != nil {
+		t.Fatalf("runOnce: %v", err)
+	}
+	if !closeEnough(tr.SpanRecall, 1) {
+		t.Errorf("SpanRecall = %v, want 1（判定必须取工具返回全文，不是 512B 截断的 trace）", tr.SpanRecall)
+	}
+	if !tr.Success || tr.FirstError != FirstErrorNone {
+		t.Errorf("expected Success from full tool output, got %+v", tr)
+	}
+
+	// 前提自证：同一份返回串截断到 512 字节后判定确实失真，否则本用例没测到差异。
+	truncated := truncateDetail512(full)
+	g := Grade(task, []agent.TraceStep{searchCallStep(), searchResultStep(truncated)}, "依据 "+evalDocID+" 作答。")
+	if g.SpanRecall >= spanRecallThreshold {
+		t.Fatalf("test setup: truncated trace recall = %v, want < threshold（本用例没测到全文与截断的差异）", g.SpanRecall)
 	}
 }
 

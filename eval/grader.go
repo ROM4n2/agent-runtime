@@ -3,6 +3,7 @@ package eval
 import (
 	"encoding/json"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -19,9 +20,8 @@ const (
 )
 
 // spanRecallThreshold 是 span 命中判定阈值：recall >= 0.5 记「找对了位置」。
-// 0.5 与 ADR-0018 后果节黄卡预案「边界重叠按 0.5 权重计入」同源——部分相交时
-// 交集/并集 < 1 是自然结果，代码里不需要为部分相交特判任何魔法数；
-// 阈值本身是「期望区间被覆盖过半即算命中」的下限。
+// 0.5 与 ADR-0018 后果节黄卡预案「边界重叠按 0.5 权重计入」同源，其字面语义
+// 正是覆盖率口径：期望段落被覆盖过半即算命中（判定路径用 coverage，见 spanRecall）。
 const spanRecallThreshold = 0.5
 
 // searchToolName 是检索工具在 trace Tool 字段里的名字（ADR-0017 决策 4）。
@@ -67,16 +67,32 @@ type toolHit struct {
 //	⑤ 全部通过                        → Success
 func Grade(task Task, trace []agent.TraceStep, answer string) GradeResult {
 	called, hits := collectSearch(trace)
+	g := GradeWithHits(task, hits, answer)
+	// ① 无条件最高优先级：没有检索步骤，后面两条都无从谈起。
+	// 「根本没搜」就是第一个偏差步骤，先于任何 span/结论判定。
+	// 这条判定只能从 trace 得出（hits 为空也可能是「调了但零命中」），
+	// 故它在 Grade 这一侧、不进 GradeWithHits。
+	if !called {
+		g.Success = false
+		g.FirstError = FirstErrorNoSearch
+	}
+	return g
+}
+
+// GradeWithHits 用「已知引用集合」判定，不读 trace（Task 12 缺陷 G 的修复点）。
+//
+// 为什么需要它：trace 的 tool_result detail 被 agent.MaxTraceDetail=512 截断
+// （有界运行时观测的正确设计），而检索返回的 text 动辄上千字节——线上 trace
+// 里的引用几乎必然残缺（实测 q009 完整 recall 0.640、截断后 0.091）。
+// 评测是离线分析，应拿工具返回全文：eval.Run 的包装工具把完整返回串收进
+// collector，再经本函数判定；collector 无数据时调用方退回 Grade 的 trace 路径。
+//
+// 判定顺序与 Grade 完全一致（同一实现，不是第二套口径），只是首错①
+// 「未调用检索」由调用方决定——hits 非空本身就证明调过。
+func GradeWithHits(task Task, hits []toolHit, answer string) GradeResult {
 	spans, docs := hitSpans(hits), hitDocs(hits)
 	recall := spanRecall(spans, task.ExpectSpans)
 	g := GradeResult{SpanRecall: recall, CitedSpans: spans, CitedDocs: docs}
-
-	// ① 无条件最高优先级：没有检索步骤，后面两条都无从谈起。
-	// 「根本没搜」就是第一个偏差步骤，先于任何 span/结论判定。
-	if !called {
-		g.FirstError = FirstErrorNoSearch
-		return g
-	}
 
 	if task.Scope == ScopeOutOfCorpus {
 		// out-of-corpus 题考「不编造」：期望无引用。伪造引用有两种形态——
@@ -218,9 +234,13 @@ func salvageJSONPrefix(detail string) []toolHit {
 
 // spanScore 是单个引用区间与单个期望区间的吻合度 = |交集| / |并集|（交并比）。
 // 区间语义 [start,end) 含头不含尾，与 retrieval 的 span 契约一致。
-// 部分相交自然落到 (0,1)：这正是 ADR-0018 黄卡预案「边界重叠按 0.5 权重计入」
-// 的口径来源，无需特判。零长区间（实现错误或未初始化）记 0 而非 NaN——
-// NaN 的所有比较都为 false，会把命中判定变成不可解释的随机结果。
+// 部分相交自然落到 (0,1)：这是 ADR-0018 黄卡预案「边界重叠按 0.5 权重计入」的
+// 原始口径来源。零长区间（实现错误或未初始化）记 0 而非 NaN——NaN 的所有比较
+// 都为 false，会把命中判定变成不可解释的随机结果。
+//
+// 【口径变更（Task 12 缺陷 H）】判定路径已切到 coverage（覆盖率）：got 是 chunk
+// 窗口、want 是答案段落，交并比会系统性低估「大 chunk 完整覆盖小段落」。
+// 本函数保留供既有单测与未来边界分析（如 chunk 边界切分质量），不再参与判定。
 func spanScore(got, want [2]int) float64 {
 	inter := spanIntersect(got, want)
 	if inter <= 0 {
@@ -250,24 +270,60 @@ func spanIntersect(a, b [2]int) int {
 	return hi - lo
 }
 
-// spanRecall 对每个期望区间取与实际引用的最大吻合度，求和后除以期望区间数。
-// 每个 want 独立取最大匹配：模型多引几条、换个写法引都不惩罚，
-// 只要求每个期望点都被覆盖到。want 为空 → 1.0：无期望引用题（out-of-corpus）
-// 的真实口径是「无伪造引用」，由 Grade 的 out-of-corpus 分支经 doc 集合落实；
-// 此处记满分是为了不把「没有期望」误算成「全不命中」。
+// coverage 是单个期望段落被命中区间并集覆盖的比例 = |want ∩ ∪got| / |want|
+// （Task 12 缺陷 H 的判定口径）。分母恒为 want 长度：期望段是答案段落，
+// 命中段是 chunk 窗口（ChunkSize=512 rune，通常远大于期望段）——用交并比会把
+// 「恰好覆盖整段答案的大 chunk」判成低分（实测 q009：并集完全覆盖 want 但 IoU
+// 只给 0.091），而用覆盖率时大 chunk 记满、多个 chunk 拼接也能累加到满。
+// 零长 want 记 0 而非 NaN：NaN 的所有比较都为 false，判定会变成随机结果。
+func coverage(want [2]int, got [][2]int) float64 {
+	length := want[1] - want[0]
+	if length <= 0 {
+		return 0
+	}
+	return float64(coveredLen(want, got)) / float64(length)
+}
+
+// coveredLen 返回 want 与 got 各区间并集的交集长度。
+// 先把每段交集裁进 want，再合并重叠段计数：重叠 chunk 不能重复计入
+// （否则两段各覆盖一半会被算成 100% 以上的覆盖率）。
+func coveredLen(want [2]int, got [][2]int) int {
+	segs := make([][2]int, 0, len(got))
+	for _, g := range got {
+		lo, hi := max(want[0], g[0]), min(want[1], g[1])
+		if hi > lo {
+			segs = append(segs, [2]int{lo, hi})
+		}
+	}
+	if len(segs) == 0 {
+		return 0
+	}
+	sort.Slice(segs, func(i, j int) bool { return segs[i][0] < segs[j][0] })
+	total := 0
+	cur := segs[0]
+	for _, s := range segs[1:] {
+		if s[0] > cur[1] { // 无重叠：结算当前段
+			total += cur[1] - cur[0]
+			cur = s
+			continue
+		}
+		cur[1] = max(cur[1], s[1])
+	}
+	return total + cur[1] - cur[0]
+}
+
+// spanRecall 对每个期望区间算覆盖率，求和后除以期望区间数。
+// 每个 want 独立算覆盖率再平均：模型多引几条 chunk、或某段答案被多个 chunk
+// 分段覆盖都照常计分，只要求每个期望段落都被覆盖到。want 为空 → 1.0：
+// 无期望引用题（out-of-corpus）的真实口径是「无伪造引用」，由 out-of-corpus
+// 分支经 doc 集合落实；此处记满分是为了不把「没有期望」误算成「全不命中」。
 func spanRecall(gotSpans, wantSpans [][2]int) float64 {
 	if len(wantSpans) == 0 {
 		return 1.0
 	}
 	var sum float64
 	for _, want := range wantSpans {
-		var best float64
-		for _, got := range gotSpans {
-			if s := spanScore(got, want); s > best {
-				best = s
-			}
-		}
-		sum += best
+		sum += coverage(want, gotSpans)
 	}
 	return sum / float64(len(wantSpans))
 }
