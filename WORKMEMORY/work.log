@@ -62,7 +62,7 @@ P4 生产级体检缺陷加固计划（docs/implementation_plan_p4-audit-remedia
 
 ### 2026-10-22 18:30 | unknown-model__pi-coding-agent | NOTE
 Caps: filesystem-read, filesystem-write, shell-exec
-演进路线三项任务全部交付（来源：D:\大学文件\Chance\agent-api-演进路线与面试深挖防御指南.md）：
+演进路线三项任务全部交付（来源：演进路线与面试深挖防御指南）：
 - 任务1 主动取消：worker.Pool 新增 inFlight sync.Map + context.WithCancelCause 物理中断；Pool.Cancel/ErrTaskNotRunning；POST /tasks/{id}/cancel（404/409/202，reason 白名单脱敏）；process 用 context.Cause + errors.As 精确归因 canceled/timeout/shutdown/upstream（ADR-0014）。
 - 任务2 崩溃恢复：TaskStore.RecoverTasks 接口，内存与 SQL 双实现（SQL 事务内查 pending + 批量标死 running，error=server restarted unexpectedly）；main 在监听前补偿，新增 Pool.EnqueueWait 阻塞重灌 pending，后台 goroutine 不阻塞启动（ADR-0015）。
 - 任务3 SSE：TraceBuffer.Subscribe 原子快照+增量，Append 非阻塞广播，cancel 幂等；Pool.Subscribe；GET /tasks/{id}/events（step/done、keepalive、清除 WriteTimeout、终态快照对账）；保留轮询（ADR-0016）。
@@ -86,7 +86,7 @@ Caps: filesystem-read, filesystem-write, shell-exec
 dfs-onboard 重接手（diff-verify 模式，非重建）：
 - Phase1 基线实测：GOWORK=off go test -race ./... -count=1 九包全绿（102 func Test / 146 RUN 含子测试，0 data race）；go build / go vet 干净；git 分支 master 前后一致（共享工作树守卫通过）
 - .agent-context.md diff-verify 结论：锚点存在但严重过期（基线停在 2026-09-03 的 32 passed；架构图仍是 ADR-0013 前的 runAgent/agent.go、Handler{pool}、Enqueue 阻塞语义、config 仅 2 key）。已按当前树逐项刷新：入口补 RecoverTasks 崩溃补偿与 EnqueueWait 重灌；数据流补 cancel/SSE 路由；包分工改为 agent/engine.go Run + agent/tool + Handler{store, runner TaskRunner} + Pool{inFlight, stopWorkerCtx}；config 补 db_path / task_timeout_seconds；Gotchas 补三类必记坑（CRLF/LF 假 diff 自检、终端编码误报、exit 0 三道自检 = 架构防线静态门禁 / pre-commit 密钥扫描 / 逆向突变）；Vault 链接 ADR 0001..0017
-- 顺手勘误：CLAUDE.md 的 vault inbox 路径 08-Inbox → 99-Inbox（磁盘实证 D:/Obsidian/Coding/99-Inbox）；AGENTS.md 实际无该路径段（项目上下文快照与磁盘不一致，未改）
+- 顺手勘误：CLAUDE.md 的 vault inbox 路径 08-Inbox → 99-Inbox（磁盘实证 `{vault_root}/99-Inbox`）；AGENTS.md 实际无该路径段（项目上下文快照与磁盘不一致，未改）
 - 未做范围：未跑 benchmark；未提交 commit（用户未要求）；未改任何 Go 源码
 
 ### 2026-10-22 | step-5-preview__codebuddy | DECISION
@@ -127,3 +127,17 @@ P5 收口完成，**PR #1 已开**：https://github.com/ROM4n2/agent-runtime/pul
 - 黄卡全清（用户指令"补黄卡开PR"）：6 项遗留（post-Start RegisterTool warn/`-index` 接线层/幂等深度断言/`:memory:` 误导性 warn/`-eval` 接线层/engine.go 注释）+ CRV 复核的 3 条建议（runWithArgs 全局 logger 泄漏、`-h`→0 语义、幂等用例 cwd 隔离）全部落地，237 func Test 全绿，每组均有变异自证（commit 5e899fe）
 - 已知待观察（未修，不影响合入）：①`llm` embed 端点拼接与 README「OpenAI 兼容 /v1/embeddings」措辞歧义（base 若含 /v1 会重复）；②`TestRunIndexCommand_BuildsAndExits/_MissingDir` 仍无 t.Chdir（开发机有带凭证 config.yaml 时可能走网络）；③hybrid 组与 cross-chunk/拒答策略待凭证与 prompt 版本对照
 - 下一步：等 PR review / 合并；合并后可考虑 /dfs-save 把 3 条 PITFALL 蒸馏进 vault（二进制自索引、512B trace 截断、chunk-span 口径）
+
+### 2026-10-23 22:42 | gemini-4-argon-high__hermes-agent | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec, git
+dfs-onboard 重接手（diff-verify 模式，PR #1 合入 master 后基线对齐）：
+- Phase 1 基线实测：GOWORK=off go test -race ./... -count=1 全 11 包 PASS（238 func Test / 392 RUN 含子测试，0 data race）；GOWORK=off go build ./... && GOWORK=off go vet ./... 干净无警告；前后分支均为 master（共享工作树守卫通过）。
+- Phase 2-4 diff-verify 与锚点刷新：.agent-context.md 与 WORKMEMORY/PROJECT_OVERVIEW.md 此前仍停在 PR #1 合入前的 102 func Test / 9 包口径。已对齐当前 master（cae1fb3）：更新测试基线（238 func Test / 392 RUN / 11 包）、入口与子命令早退出路径（-index / -eval / CheckFresh / SearchTool）、包清单（新增 retrieval/ 与 eval/）、工具重试契约（tool.RetryableError 按 tc.ID 去重单次退避）、config 8 项扁平键、终态分类（新增 index missing）、双静态架构门禁（api/architecture_barrier_test.go + retrieval/architecture_test.go）与 P5 评测三关 Gotchas；同步更新 PROJECT_OVERVIEW.md 中 PR #1 已合入与黄卡已清状态。
+- 未做范围：未改任何 Go 源码；未提交 commit（等待用户下一步指令）。
+
+### 2026-10-23 22:48 | gemini-4-argon-high__hermes-agent | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec, git
+dfs-bootstrap v0.2.3 同步更新（4 件套 → 5 件套 热/温分离 + 锚点修正）：
+- Phase 1 核验：.gitignore 11 项敏感规则齐全；.githooks/pre-commit 与模板逐字节一致（LF 无 BOM，core.hooksPath=.githooks）；.gitattributes 已锁死 LF。
+- Phase 2 锚点同步：CLAUDE.md、.agent-rules.md、.cursorrules 统一对齐 dfs-bootstrap v0.2.3 规范锚点（修复 .agent-rules.md 与 .cursorrules 中陈旧的 08-Inbox 路径为 99-Inbox，补齐 search_vault MCP 与 $WIKI_PATH/$OBSIDIAN_VAULT_PATH 解析说明）。
+- Phase 3.5 WORKMEMORY 升级为 5 件套：新建 WORKMEMORY/INDEX-topics.md（WARM 层），将原 INDEX.md 中的「主题索引」与 2 条 P5 蒸馏登记迁移至 INDEX-topics.md；收缩 WORKMEMORY/INDEX.md 为纯 HOT 索引（仅保留 Configuration / 文件清单 / Active handoffs / 已归档 handoffs）；同步更新 WORKMEMORY/PROTOCOL.md 中关于 INDEX-topics.md 与 notes/ 外置超限事件的条款。
