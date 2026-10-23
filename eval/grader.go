@@ -38,6 +38,13 @@ type GradeResult struct {
 	Success    bool
 	SpanRecall float64
 	FirstError string
+	// CitedSpans / CitedDocs 是判定实际使用的引用快照：collectSearch 已解析出
+	// hits——把判定用的实际引用带出来，不改判定逻辑。两切片按下标同源
+	// （CitedSpans[i] 与 CitedDocs[i] 是同一 hit 的 span 与 doc_id）。
+	// 报表明细表「命中 span」列据此渲染（ADR-0018 决策 4）：无此列时
+	// 「哪次 repeat 命中了什么」只能回翻 trace 原文，复跑对账断一环。
+	CitedSpans [][2]int
+	CitedDocs  []string
 }
 
 // toolHit 是 grader 从 search_docs 返回 JSON 里取出的引用（doc_id + span）。
@@ -58,8 +65,9 @@ type toolHit struct {
 //	⑤ 全部通过                        → Success
 func Grade(task Task, trace []agent.TraceStep, answer string) GradeResult {
 	called, hits := collectSearch(trace)
-	recall := spanRecall(hitSpans(hits), task.ExpectSpans)
-	g := GradeResult{SpanRecall: recall}
+	spans, docs := hitSpans(hits), hitDocs(hits)
+	recall := spanRecall(spans, task.ExpectSpans)
+	g := GradeResult{SpanRecall: recall, CitedSpans: spans, CitedDocs: docs}
 
 	// ① 无条件最高优先级：没有检索步骤，后面两条都无从谈起。
 	// 「根本没搜」就是第一个偏差步骤，先于任何 span/结论判定。

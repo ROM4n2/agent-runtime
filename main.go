@@ -3,6 +3,7 @@ package main
 import (
 	"agent-runtime/api"
 	"agent-runtime/config"
+	"agent-runtime/eval"
 	"agent-runtime/llm"
 	"agent-runtime/metrics"
 	"agent-runtime/retrieval"
@@ -31,8 +32,22 @@ func run() int {
 	// 不走 flag 包默认的 os.Exit，保持退出路径单一、可测。
 	fs := flag.NewFlagSet("agent-runtime", flag.ContinueOnError)
 	var indexDir, corpusDir string
+	var evalRequested bool
+	var evalSet, evalGroup, evalModel, evalTemplate, evalOutDir string
+	var evalRepeat int
+	var evalSeed int64
 	fs.StringVar(&indexDir, "index", "", "构建检索索引后退出：-index <语料目录>")
 	fs.StringVar(&corpusDir, "corpus", "docs", "检索语料目录（search_docs 的新鲜度检查点）")
+	// -eval 子命令族（ADR-0018 决策 1：一条命令跑完整对照）。与 -index 同款
+	// 短路退出，不启动服务。评测语料口径是仓库根，见 run() 里的默认覆写。
+	fs.BoolVar(&evalRequested, "eval", false, "跑对照评测后退出：-eval -group baseline|lexical|hybrid")
+	fs.StringVar(&evalSet, "set", "eval/tasks/retrieval_v1.json", "评测任务集 JSON 路径（-eval）")
+	fs.StringVar(&evalGroup, "group", "", "评测组：baseline|lexical|hybrid（-eval，必填，无默认）")
+	fs.IntVar(&evalRepeat, "repeat", 3, "每任务重复次数 N（-eval，ADR-0018 决策 3 默认 N=3）")
+	fs.Int64Var(&evalSeed, "seed", 0, "评测随机种子（-eval，成对受控锁定量，对照组须同值）")
+	fs.StringVar(&evalModel, "model", "deepseek-flash", "评测记录所用模型（-eval，与服务路径同值）")
+	fs.StringVar(&evalTemplate, "template", "eval-template-v1", "prompt 模板版本标识（-eval，成对受控锁定量）")
+	fs.StringVar(&evalOutDir, "out", "docs/eval", "报表输出目录（-eval）")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		return 2 // flag 包已把用法错误写到 stderr
 	}
@@ -40,6 +55,14 @@ func run() int {
 	fs.Visit(func(f *flag.Flag) {
 		if f.Name == "index" {
 			indexRequested = true
+		}
+	})
+	// -corpus 是否显式传入：-eval 分支要把它覆写成仓库根（HITL 口径），
+	// 而服务路径的默认 "docs" 一动不动——两种用途的语料范围本就不同。
+	corpusExplicit := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "corpus" {
+			corpusExplicit = true
 		}
 	})
 
@@ -57,6 +80,25 @@ func run() int {
 			return 2
 		}
 		return runIndexCmd(conf, indexDir)
+	}
+
+	// -eval 子命令：一条命令跑完整对照并产出报表（ADR-0018 决策 1）。
+	// 与 -index 同款早退出，也不预校验 LLM 密钥——缺密钥由 eval.Run 显式报错
+	// （harness 故障 → 退出码 1）；业务结论只在报表里，退出码不承载。
+	if evalRequested {
+		if !corpusExplicit {
+			corpusDir = "."
+		}
+		return runEvalCmd(conf, evalOpts{
+			set:      evalSet,
+			group:    evalGroup,
+			corpus:   corpusDir,
+			repeat:   evalRepeat,
+			outDir:   evalOutDir,
+			seed:     evalSeed,
+			model:    evalModel,
+			template: evalTemplate,
+		})
 	}
 
 	apiKey := conf.DeepSeekAPIKey
@@ -260,6 +302,60 @@ func runIndexCmd(conf config.Config, corpusDir string) int {
 		"skipped", report.DocsSkipped,
 		"chunks", report.ChunksWritten,
 		"fingerprint", report.Fingerprint)
+	return 0
+}
+
+// evalOpts 收敛 -eval 子命令的 flag 值：run() 只负责收集，本结构只负责
+// 往 eval.RunConfig 上映射一次（RunConfig 是环境四元组的单一读取点）。
+type evalOpts struct {
+	set      string // 任务集 JSON 路径
+	group    string // baseline | lexical | hybrid
+	corpus   string // 评测语料目录（仓库根）
+	repeat   int    // 每任务重复次数 N
+	outDir   string // 报表输出目录
+	seed     int64
+	model    string
+	template string
+}
+
+// runEvalCmd 是 -eval 子命令入口：组装 RunConfig → eval.Run → 摘要日志。
+// Chatter 留 nil（CLI 无注入点）：eval 按 LLMConfig 构造真 client，缺密钥时
+// 由 resolveChatter 显式报错，不静默降级成空跑。
+// 退出码语义（ADR-0018 决策 1）：0 = 跑完（不论业务结论）；1 = harness 故障。
+func runEvalCmd(conf config.Config, opts evalOpts) int {
+	report, err := eval.Run(context.Background(), eval.RunConfig{
+		SetPath:         opts.set,
+		CorpusDir:       opts.corpus,
+		Group:           opts.group,
+		Repeat:          opts.repeat,
+		OutDir:          opts.outDir,
+		Seed:            opts.seed,
+		Model:           opts.model,
+		TemplateVersion: opts.template,
+		// 与 Task 8 装配同源：索引与 store 共享 conf.DbPath，空则 :memory:
+		// （一次性索引，跑完即弃，不给仓库留半份索引文件）。
+		DBPath:       conf.DbPath,
+		IndexOptions: retrievalOptions(conf),
+		LLMConfig: llm.Config{
+			APIKey:       conf.DeepSeekAPIKey,
+			BaseURL:      "https://api.deepseek.com",
+			Model:        opts.model,
+			EmbedBaseURL: conf.EmbedBaseURL,
+			EmbedAPIKey:  conf.EmbedAPIKey,
+			EmbedModel:   conf.EmbedModel,
+			EmbedDim:     conf.EmbedDim,
+		},
+	})
+	if err != nil {
+		slog.Error("eval run failed", slog.Any("error", err))
+		return 1
+	}
+	slog.Info("eval run finished",
+		"group", report.Group,
+		"repeat", report.Repeat,
+		"tasks", len(report.TaskResults),
+		"markdown", report.MarkdownPath,
+		"json", report.JSONPath)
 	return 0
 }
 

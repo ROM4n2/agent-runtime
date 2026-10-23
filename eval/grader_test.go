@@ -3,6 +3,7 @@ package eval
 import (
 	"encoding/json"
 	"math"
+	"reflect"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -427,6 +428,30 @@ func TestSpanRecall_BestPerWant(t *testing.T) {
 	}
 	if r := spanRecall(nil, want); r != 0 {
 		t.Errorf("spanRecall(nil, want) = %v, want 0", r)
+	}
+}
+
+// TestGrade_CitedFieldsCarryActualHits：GradeResult 必须把判定用的实际引用
+// （collectSearch 已解析出的 hits）原样带出——ADR-0018 决策 4 明细表
+// 「命中 span」列的数据源。只加输出字段：Success/SpanRecall/FirstError
+// 的判定路径不动（该 trace 的 recall 0.7 语义由上面的既有用例覆盖）。
+func TestGrade_CitedFieldsCarryActualHits(t *testing.T) {
+	task := inCorpusTask([2]int{0, 10}, [2]int{100, 110})
+	trace := []agent.TraceStep{
+		searchCallStep(),
+		searchResultStep(searchDetail(t,
+			hitRow{ChunkID: 1, DocID: docADR15, Span: [2]int{3, 7}, Text: "低分但覆盖第一个期望"},
+			hitRow{ChunkID: 2, DocID: docADR14, Span: [2]int{100, 110}, Text: "精确命中第二个期望"},
+		)),
+	}
+	g := Grade(task, trace, "综合 "+docADR15+" 与 "+docADR14+" 的两处说明。")
+	wantSpans := [][2]int{{3, 7}, {100, 110}}
+	wantDocs := []string{docADR15, docADR14}
+	if !reflect.DeepEqual(g.CitedSpans, wantSpans) {
+		t.Errorf("CitedSpans = %v, want %v（判定用的实际引用必须落字段）", g.CitedSpans, wantSpans)
+	}
+	if !reflect.DeepEqual(g.CitedDocs, wantDocs) {
+		t.Errorf("CitedDocs = %v, want %v", g.CitedDocs, wantDocs)
 	}
 }
 
