@@ -2,6 +2,8 @@ package eval
 
 import (
 	"encoding/json"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"agent-runtime/agent"
@@ -138,12 +140,65 @@ func parseHits(detail string) []toolHit {
 	return salvageHits(detail)
 }
 
-// salvageHits 从被截断的返回串里逐条抢救完整的 hit。
-// 依赖 renderResult 的字段顺序：每个 hit 对象里 doc_id/span 都排在 text 之前，
-// 所以截断若落在某个 hit 内部，之前的 hit 仍然完整可解。
-// 局限性（已知并接受）：截断点之前的最后一个 hit 会被丢弃，recall 可能被低估；
-// 这比「整个 tool_result 解析失败、引用全丢」保守得多。
+// salvageHits 从被截断的返回串里抢救引用（Task 12 缺陷 F 的修复点）。
+// 走字段级提取：renderResult 的字段序是 doc_id → source → span → score → text，
+// 截断点（agent.MaxTraceDetail=512）几乎必然落在某个 hit 的 text 里，
+// 而该 hit 的 doc_id/span 早已完整——按「doc_id 出现 + 紧随的 span」配对即能全部救出。
+//
+// 为什么不再逐条 json.Decode：截断点落在第一个 hit 的 text 内部时，
+// Decode 立刻失败 → 一条都救不回来（512 字节连第一条 text 都放不下，
+// 缺陷 F 实证：全量任务被判 wrong-span）。字段级提取对截断点位置不敏感。
+// 解析出 0 对（非 JSON 文本、"error: …"、空串）时退回 json 前缀解码路径，
+// 完整 JSON 场景由 parseHits 的 Unmarshal 先接住，语义不变。
 func salvageHits(detail string) []toolHit {
+	if hits := salvageFieldPairs(detail); len(hits) > 0 {
+		return hits
+	}
+	return salvageJSONPrefix(detail)
+}
+
+// 字段级抢救用的正则：不解析 JSON 结构，只按 wire 字段序抽成对引用。
+// 预编译为包级 var——每次解析 trace 都会调用，热路径上不重编译。
+// 文本内部的引号是转义态（\"），不会误命中 "doc_id":"…" 这种形态。
+var (
+	salvageDocIDRe = regexp.MustCompile(`"doc_id"\s*:\s*"([^"]*)"`)
+	salvageSpanRe  = regexp.MustCompile(`"span"\s*:\s*\[\s*(-?\d+)\s*,\s*(-?\d+)\s*\]`)
+)
+
+// salvageFieldPairs 按出现顺序把 doc_id 与紧随其后的 span 配成一条引用：
+// 截断点之前的完整对全部救出；截断点落在 doc_id 与 span 之间时该对不完整，丢弃。
+func salvageFieldPairs(detail string) []toolHit {
+	ids := salvageDocIDRe.FindAllStringSubmatchIndex(detail, -1)
+	if len(ids) == 0 {
+		return nil
+	}
+	spans := salvageSpanRe.FindAllStringSubmatchIndex(detail, -1)
+
+	var hits []toolHit
+	next := 0
+	for _, id := range ids {
+		for next < len(spans) && spans[next][0] < id[1] {
+			next++ // span 若落在本 doc_id 之前，说明它属于上一条或无处配对
+		}
+		if next >= len(spans) {
+			break // 截断点落在 doc_id 与 span 之间：这条引用不完整
+		}
+		sp := spans[next]
+		next++
+		start, errStart := strconv.Atoi(detail[sp[2]:sp[3]])
+		end, errEnd := strconv.Atoi(detail[sp[4]:sp[5]])
+		if errStart != nil || errEnd != nil {
+			continue // 数字段被截断污染：宁可少计，不补假 span
+		}
+		hits = append(hits, toolHit{DocID: detail[id[2]:id[3]], Span: [2]int{start, end}})
+	}
+	return hits
+}
+
+// salvageJSONPrefix 是字段级提取的兜底：逐条 Decode "hits":[ 之后的完整对象。
+// 截断点落在第一个 hit 内部时会返回空（这正是缺陷 F 的原始行为），
+// 保留它是为了「完整 JSON 但顶层形状不认识」等异常输入仍能按原语义处理。
+func salvageJSONPrefix(detail string) []toolHit {
 	const key = `"hits":[`
 	i := strings.Index(detail, key)
 	if i < 0 {

@@ -486,6 +486,75 @@ func TestRebuild_HybridWritesDocVec(t *testing.T) {
 	}
 }
 
+// TestSearchLexical_NaturalLanguageQuestion 是 Task 12 缺陷 E 的承重墙（变异自证 ①）：
+// 任务集的 query 是自然语言长问句（"崩溃恢复…是怎么实现的？"），问句尾巴在原文里
+// 根本不存在——整句包成一个 FTS5 phrase 时，trigram 只认「逐字连续」，必然零命中。
+// 把 ftsQuery 改回整句 phrase（`return ftsPhrase(raw)`）→ 本用例前两个子用例转红。
+func TestSearchLexical_NaturalLanguageQuestion(t *testing.T) {
+	idx := newTestIndex(t)
+	corpus := t.TempDir()
+	writeDoc(t, corpus, "recovery.md", "崩溃恢复标记僵尸任务：超时 running 任务重新置为 pending 后按重试策略处理。")
+	writeDoc(t, corpus, "adr0004.md", "ADR-0004 记录了候选持久化方案：不引入 DB 与 MQ，坚持内存队列。")
+	writeDoc(t, corpus, "other.md", "向量检索的性能测试报告与基线数据。")
+	if _, err := idx.Rebuild(context.Background(), corpus); err != nil {
+		t.Fatalf("Rebuild: %v", err)
+	}
+	ctx := context.Background()
+
+	cases := []struct {
+		name    string
+		query   string
+		wantDoc string
+	}{
+		{"long CJK question hits the verbatim clause", "崩溃恢复标记僵尸任务是怎么实现的？", "recovery.md"},
+		{"ADR number long question", "ADR-0004 的持久化方案是什么？", "adr0004.md"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			hits, err := idx.SearchLexical(ctx, tc.query, 10)
+			if err != nil {
+				t.Fatalf("SearchLexical(%q): %v", tc.query, err)
+			}
+			if !containsDoc(hits, tc.wantDoc) {
+				t.Errorf("hits = %v, want %q（长问句必须按词元/窗口召回，整句 phrase 必然零命中）", docIDs(hits), tc.wantDoc)
+			}
+		})
+	}
+
+	t.Run("single short word keeps the verbatim phrase", func(t *testing.T) {
+		if got, want := ftsQuery("崩溃恢复"), ftsPhrase("崩溃恢复"); got != want {
+			t.Errorf("ftsQuery(单短词) = %q, want %q（与 Task 12 之前逐字节一致）", got, want)
+		}
+		hits, err := idx.SearchLexical(ctx, "崩溃恢复", 10)
+		if err != nil {
+			t.Fatalf("SearchLexical(单短词): %v", err)
+		}
+		if got, want := docIDs(hits), []string{"recovery.md"}; !reflect.DeepEqual(got, want) {
+			t.Errorf("hits = %v, want %v（短词仍是精确 phrase 匹配，不引入窗口噪声）", got, want)
+		}
+	})
+
+	t.Run("pure punctuation returns empty without error", func(t *testing.T) {
+		hits, err := idx.SearchLexical(ctx, "？？！……（）", 10)
+		if err != nil {
+			t.Fatalf("标点查询不得触发 FTS5 语法错误: %v", err)
+		}
+		if len(hits) != 0 {
+			t.Errorf("hits = %v, want empty", docIDs(hits))
+		}
+	})
+}
+
+// containsDoc 判断命中集合里是否出现过该 doc_id。
+func containsDoc(hits []Hit, docID string) bool {
+	for _, h := range hits {
+		if h.DocID == docID {
+			return true
+		}
+	}
+	return false
+}
+
 // TestEstimateTokens_Boundaries 钉死 rune 数/2 的近似口径：
 // 按 rune 而非字节计数（中文 3 字节/字符，按字节会高估 3 倍），奇数向下取整。
 func TestEstimateTokens_Boundaries(t *testing.T) {

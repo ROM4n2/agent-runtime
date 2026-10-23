@@ -455,6 +455,79 @@ func TestGrade_CitedFieldsCarryActualHits(t *testing.T) {
 	}
 }
 
+// TestSalvageHits_FieldLevelExtraction 是 Task 12 缺陷 F 的承重墙（变异自证 ②）：
+// 截断点落在某个 hit 的 text 内部时，该 hit 的 doc_id/span 早已完整，
+// 字段级提取必须把它们全部救出；改回逐条 json.Decode 则只剩截断点之前的完整对象
+// （线上 512 字节连第一条 text 都放不下 → 一条都救不回，全量任务被判 wrong-span）。
+func TestSalvageHits_FieldLevelExtraction(t *testing.T) {
+	thirdText := "第三段原文。" + strings.Repeat("语", 400) // 长 text：截断点必然落在它内部
+	full := searchDetail(t,
+		hitRow{ChunkID: 1, DocID: docADR15, Source: docADR15, Span: [2]int{120, 168}, Text: "第一段原文。" + strings.Repeat("甲", 20)},
+		hitRow{ChunkID: 2, DocID: docADR15, Source: docADR15, Span: [2]int{300, 340}, Text: "第二段原文。" + strings.Repeat("乙", 20)},
+		hitRow{ChunkID: 3, DocID: docADR14, Source: docADR14, Span: [2]int{9, 21}, Text: thirdText},
+	)
+	wantAll := []toolHit{
+		{DocID: docADR15, Span: [2]int{120, 168}},
+		{DocID: docADR15, Span: [2]int{300, 340}},
+		{DocID: docADR14, Span: [2]int{9, 21}},
+	}
+
+	t.Run("cut inside third text rescues every complete pair", func(t *testing.T) {
+		i := strings.Index(full, thirdText)
+		if i < 0 {
+			t.Fatal("test setup: third hit text not found in marshalled detail")
+		}
+		cut := i + len("第三段原文。") + 3 // 落进第三条 text 内部（"语" 3 字节，切点仍在 rune 边界）
+		detail := full[:cut]
+		if json.Valid([]byte(detail)) {
+			t.Fatal("test setup: truncated detail unexpectedly still valid JSON")
+		}
+		if got := salvageHits(detail); !reflect.DeepEqual(got, wantAll) {
+			t.Errorf("salvageHits = %+v, want %+v（第三条的 doc_id/span 在 text 之前，必须被救出）", got, wantAll)
+		}
+	})
+
+	t.Run("cut between doc_id and span drops the incomplete pair", func(t *testing.T) {
+		i := strings.LastIndex(full, `"span":[9,21]`)
+		if i < 0 {
+			t.Fatal("test setup: third hit span not found")
+		}
+		detail := full[:i+len(`"span":[9`)] // span 数字段被截断
+		if got, want := salvageHits(detail), wantAll[:2]; !reflect.DeepEqual(got, want) {
+			t.Errorf("salvageHits = %+v, want %+v（不完整的 doc_id/span 对必须丢弃，不补假引用）", got, want)
+		}
+	})
+
+	t.Run("no pairs fall back to nil without panic", func(t *testing.T) {
+		for _, detail := range []string{
+			"",
+			"error: index missing; run `-index .` first",
+		} {
+			if got := parseHits(detail); got != nil {
+				t.Errorf("parseHits(%q) = %+v, want nil", detail, got)
+			}
+			if got := salvageHits(detail); got != nil {
+				t.Errorf("salvageHits(%q) = %+v, want nil", detail, got)
+			}
+		}
+		// 空 hits 数组走 Unmarshal 原生路径：零长切片（历史语义），关键是零条且不 panic。
+		if got := parseHits(`{"mode":"lexical","truncated":false,"hits":[]}`); len(got) != 0 {
+			t.Errorf("parseHits(empty hits) = %+v, want zero-length", got)
+		}
+	})
+
+	t.Run("complete JSON keeps the unmarshal semantics", func(t *testing.T) {
+		got := parseHits(full)
+		if !reflect.DeepEqual(got, wantAll) {
+			t.Fatalf("parseHits(complete JSON) = %+v, want %+v", got, wantAll)
+		}
+		// 字段级提取对完整串必须给同一答案（两条路径同口径，不是两套判定）。
+		if alt := salvageHits(full); !reflect.DeepEqual(alt, got) {
+			t.Errorf("salvageHits(complete JSON) = %+v, want %+v (diverges from unmarshal path)", alt, got)
+		}
+	})
+}
+
 // truncateDetail512 镜像 agent.TraceBuffer.Append 的 detail 截断逻辑
 // （512 字节硬上限 + utf8.RuneStart 回退到字符边界）。
 func truncateDetail512(detail string) string {
