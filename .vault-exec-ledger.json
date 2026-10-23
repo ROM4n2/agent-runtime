@@ -122,12 +122,13 @@
     {
       "id": "Task-12",
       "title": "全量回归 + 基线对照评测 + 合入判定 [Tier: 3-Critical] [Mode: HITL]",
-      "status": "pending",
-      "implementer": null,
-      "reviewer_verdict": null,
-      "commit_hash": null,
-      "started_at": null,
-      "completed_at": null
+      "status": "completed",
+      "implementer": "CPE+orchestrator",
+      "reviewer_verdict": "HITL-APPROVED(合入)",
+      "commit_hash": "796e78c",
+      "started_at": "2026-10-23T00:00:00Z",
+      "completed_at": "2026-10-23T00:00:00Z",
+      "note": "前置修复 8 个 harness 缺陷（A/B/D/E/F/G/H + bigram 机制失效），前三轮评测作废；第四轮判定：baseline 0.00 → lexical 1.00（P25 0/P75 1），17/30 vs 0/30 → 合入"
     }
   ]
 }
