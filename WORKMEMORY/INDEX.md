@@ -27,5 +27,5 @@
 
 | 日期 | 主题 | vault 归属 |
 | --- | --- | --- |
-
-（初始为空；`/dfs-save` 沉淀后回写此表，vault 侧引用用 `vault://` 前缀）
+| 2026-10-23 | 检索类评测的三个口径陷阱（语料污染 / 观测截断 / span 口径） | `vault://99-Inbox/2026-10-23-检索类评测的三个口径陷阱：语料污染、观测截断与-span-口径（agent-runtime-p5-实证）` → 归档目标 `01-Rules/AGENT-EVALUATION-HARNESS.md` 新增 §「检索类评测的口径三关」 |
+| 2026-10-23 | 评测数字可疑时先证伪 harness，再证伪能力（三轮作废纪律） | `vault://99-Inbox/2026-10-23-评测数字可疑时先证伪-harness，再证伪能力（三轮作废纪律）` → 归档目标 `01-Rules/AGENT-EVALUATION-HARNESS.md` 新增 §「反向判据的前置条件」 |
