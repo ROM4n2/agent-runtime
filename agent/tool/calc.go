@@ -2,6 +2,7 @@ package tool
 
 import (
 	"agent-runtime/llm"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,7 +34,9 @@ func (c *calculateTool) Spec() llm.Tool {
 	}
 }
 
-func (c *calculateTool) Execute(args json.RawMessage) (string, error) {
+// Execute 实现 Tool 接口。ctx 当前未被使用（纯 CPU 求值无中断点），
+// 保留参数是为了让取消语义可统一穿透到所有工具（接口只加不改）。
+func (c *calculateTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
 		Expression string `json:"expression"`
 	}

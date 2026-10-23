@@ -54,12 +54,18 @@ Copy-Item config.yaml.example config.yaml   # 然后填真实值
 go run .
 ```
 
-`config.yaml` 已被 `.gitignore` 忽略。只支持扁平的 `key: value`，解析到嵌套或未知 key 会直接启动失败，不静默忽略。已支持的 key：`deepseek_api_key`、`api_auth_key`、`db_path`（可选，留空则用内存存储）：
+`config.yaml` 已被 `.gitignore` 忽略。只支持扁平的 `key: value`，解析到嵌套或未知 key 会直接启动失败，不静默忽略。已支持的 key：`deepseek_api_key`、`api_auth_key`、`db_path`、`task_timeout_seconds`、`embed_base_url`、`embed_api_key`、`embed_model`、`embed_dim`：
 
 ```yaml
 deepseek_api_key: "sk-你的key"
 api_auth_key: "你的服务端密钥"
 db_path: ""   # 可选：填 SQLite 文件路径（如 agent-runtime.db）即启用持久化，留空用内存存储
+task_timeout_seconds: 30   # 可选：单次任务 LLM 调用超时（正整数，0=默认 30s）
+# embed_* 四项为检索功能的向量通道配置（ADR-0017），全部留空 = 纯词法检索（lexical）
+embed_base_url: ""   # OpenAI 兼容 /v1/embeddings 端点（DeepSeek 无此端点，需另配 provider）
+embed_api_key: ""
+embed_model: ""
+embed_dim: 0   # 向量维度，0=不建向量索引
 ```
 
 没有配置文件也没设环境变量时，服务会打印错误并以退出码 1 退出。

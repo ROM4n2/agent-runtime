@@ -4,9 +4,11 @@ import (
 	"agent-runtime/agent/tool"
 	"agent-runtime/llm"
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 type fakeChatter struct {
@@ -18,6 +20,12 @@ type fakeChatter struct {
 }
 
 func (f *fakeChatter) ChatWithTools(ctx context.Context, msgs []llm.Message, tools []llm.Tool) (*llm.AssistantTurn, error) {
+	// 忠于真实 llm.Client：ctx 已取消时上游调用必然失败。
+	// 没有这一条，取消路径的测试会拿到假绿的终态文本。
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	// 记录调用参数以供断言
 	var cpMsgs []llm.Message
 	if msgs != nil {
@@ -212,6 +220,297 @@ func TestRun_MaxStepsExceeded(t *testing.T) {
 	}
 	if last.Detail != "max steps exceeded" {
 		t.Errorf("expected last step detail 'max steps exceeded', got: %q", last.Detail)
+	}
+}
+
+// retryableErr 实现 tool.RetryableError（Retryable()=true），模拟「瞬时故障值得重试一次」。
+type retryableErr struct{ msg string }
+
+func (e *retryableErr) Error() string   { return e.msg }
+func (e *retryableErr) Retryable() bool { return true }
+
+// permanentErr 不实现 RetryableError，走默认的 permanent 分支。
+type permanentErr struct{ msg string }
+
+func (e *permanentErr) Error() string { return e.msg }
+
+// flakyTool 是可精确控制失败次数的假工具：前 failN 次调用返回 err，其余成功。
+type flakyTool struct {
+	name    string
+	failN   int
+	err     error
+	calls   int
+	lastCtx error // 记录最后一次调用时工具看到的 ctx.Err()
+}
+
+func (f *flakyTool) Spec() llm.Tool {
+	return llm.Tool{
+		Type: "function",
+		Function: llm.FunctionSpec{
+			Name:        f.name,
+			Description: "Flaky tool for testing",
+			Parameters:  map[string]any{"type": "object"},
+		},
+	}
+}
+
+func (f *flakyTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
+	f.calls++
+	if ctx != nil {
+		f.lastCtx = ctx.Err()
+	}
+	if f.calls <= f.failN {
+		return "", f.err
+	}
+	return "flaky ok", nil
+}
+
+// toolCallTurn 构造一轮只含单个工具调用的 AssistantTurn。
+func toolCallTurn(id, name, args string) *llm.AssistantTurn {
+	return &llm.AssistantTurn{
+		Content: "calling tool",
+		ToolCalls: []llm.ToolCall{
+			{ID: id, Type: "function", Function: llm.ToolCallFn{Name: name, Arguments: args}},
+		},
+	}
+}
+
+// findSteps 返回 trace 中指定 Kind 的步骤，供断言使用。
+func findSteps(steps []TraceStep, kind string) []TraceStep {
+	var out []TraceStep
+	for _, s := range steps {
+		if s.Kind == kind {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// TestRun_RetryableToolErrorRetriedOnce 验证：可重试错误被重试恰好一次（共 2 次调用），
+// 仍失败则 emit KindError 粗分类（脱敏：不出现错误全文），错误串喂回模型。
+func TestRun_RetryableToolErrorRetriedOnce(t *testing.T) {
+	secret := &retryableErr{msg: "vector store timeout: token=sk-secret"}
+	ft := &flakyTool{name: "flaky", failN: 99, err: secret}
+
+	fc := &fakeChatter{
+		turns: []*llm.AssistantTurn{
+			toolCallTurn("call_flaky_1", "flaky", `{}`),
+			{Content: "recovered without tool"},
+		},
+	}
+
+	var steps []TraceStep
+	reg := tool.NewRegistry()
+	reg.Register(ft)
+
+	start := time.Now()
+	res, err := Run(context.Background(), fc, "do it", reg, func(s TraceStep) { steps = append(steps, s) })
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if res != "recovered without tool" {
+		t.Errorf("expected 'recovered without tool', got: %q", res)
+	}
+
+	// 去重重试一次：初始 + 重试 = 恰好 2 次
+	if ft.calls != 2 {
+		t.Errorf("flaky tool called %d times, want 2", ft.calls)
+	}
+	// 工具看到的 ctx 未被取消（Run 的 ctx 原样穿透）
+	if ft.lastCtx != nil {
+		t.Errorf("tool saw canceled ctx: %v", ft.lastCtx)
+	}
+	// 退避必须真实发生（ctx 感知定时器下限 200ms）
+	if elapsed < 200*time.Millisecond {
+		t.Errorf("elapsed %v, want >= 200ms backoff before retry", elapsed)
+	}
+
+	errSteps := findSteps(steps, KindError)
+	if len(errSteps) != 1 {
+		t.Fatalf("expected exactly 1 KindError step, got %d: %+v", len(errSteps), steps)
+	}
+	if errSteps[0].Detail != "tool error: retryable" {
+		t.Errorf("KindError detail = %q, want %q", errSteps[0].Detail, "tool error: retryable")
+	}
+	if errSteps[0].Tool != "flaky" || errSteps[0].CallID != "call_flaky_1" {
+		t.Errorf("KindError step mismatch: %+v", errSteps[0])
+	}
+
+	// 脱敏红线：trace 的任何 detail 都不得出现错误全文
+	for _, s := range steps {
+		if strings.Contains(s.Detail, "sk-secret") || strings.Contains(s.Detail, "vector store timeout") {
+			t.Errorf("trace leaked error text: %+v", s)
+		}
+	}
+
+	// 错误串喂回模型：最后一轮 LLM 输入应含 role=tool 且带 "error: " 前缀
+	if len(fc.receivedMsgs) < 2 {
+		t.Fatalf("expected >= 2 chatter rounds, got %d", len(fc.receivedMsgs))
+	}
+	var fedBack string
+	for _, m := range fc.receivedMsgs[1] {
+		if m.Role == "tool" {
+			fedBack = m.Content
+		}
+	}
+	if !strings.HasPrefix(fedBack, "error: ") || !strings.Contains(fedBack, "vector store timeout") {
+		t.Errorf("error string not fed back to model, got tool msg %q", fedBack)
+	}
+}
+
+// TestRun_RetryDedupByCallID 验证：同一个 tc.ID 在整个任务内最多重试一次。
+// 模型在多轮里重发同一调用 ID（或同轮重复）时，绝不再叠加重试——否则一次瞬时故障
+// 会被放大成 2^N 次调用风暴。
+func TestRun_RetryDedupByCallID(t *testing.T) {
+	ft := &flakyTool{name: "flaky", failN: 99, err: &retryableErr{msg: "transient"}}
+
+	fc := &fakeChatter{
+		turns: []*llm.AssistantTurn{
+			toolCallTurn("call_same", "flaky", `{}`),
+			toolCallTurn("call_same", "flaky", `{}`), // 同 ID 重发
+			{Content: "finally gave up"},
+		},
+	}
+
+	var steps []TraceStep
+	reg := tool.NewRegistry()
+	reg.Register(ft)
+
+	res, err := Run(context.Background(), fc, "do it", reg, func(s TraceStep) { steps = append(steps, s) })
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if res != "finally gave up" {
+		t.Errorf("expected 'finally gave up', got: %q", res)
+	}
+	// 首轮：初始 + 重试 = 2 次；第二轮同 ID 已重试过，不再重试 = 1 次。合计 3 次。
+	if ft.calls != 3 {
+		t.Errorf("flaky tool called %d times, want 3 (dedup must cap retries at one per call ID)", ft.calls)
+	}
+	if errs := findSteps(steps, KindError); len(errs) != 2 {
+		t.Errorf("expected 2 KindError steps (one per failed call), got %d: %+v", len(errs), steps)
+	}
+}
+
+// TestRun_RetryableToolErrorThenSucceeds 验证：重试成功则不再视为失败，无 KindError。
+func TestRun_RetryableToolErrorThenSucceeds(t *testing.T) {
+	ft := &flakyTool{name: "flaky", failN: 1, err: &retryableErr{msg: "transient"}}
+
+	fc := &fakeChatter{
+		turns: []*llm.AssistantTurn{
+			toolCallTurn("call_flaky_1", "flaky", `{}`),
+			{Content: "done after retry"},
+		},
+	}
+
+	var steps []TraceStep
+	reg := tool.NewRegistry()
+	reg.Register(ft)
+
+	res, err := Run(context.Background(), fc, "do it", reg, func(s TraceStep) { steps = append(steps, s) })
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if res != "done after retry" {
+		t.Errorf("expected 'done after retry', got: %q", res)
+	}
+	if ft.calls != 2 {
+		t.Errorf("flaky tool called %d times, want 2", ft.calls)
+	}
+	if errs := findSteps(steps, KindError); len(errs) != 0 {
+		t.Errorf("expected no KindError step after successful retry, got: %+v", errs)
+	}
+	// 重试成功的结果照常 emit KindToolResult 并喂回模型
+	results := findSteps(steps, KindToolResult)
+	if len(results) != 1 || results[0].Detail != "flaky ok" {
+		t.Errorf("expected single KindToolResult 'flaky ok', got: %+v", results)
+	}
+}
+
+// TestRun_NonRetryableToolErrorNotRetried 验证：non-retryable 错误绝不重试（只调 1 次），
+// emit KindError 粗分类 "tool error: permanent"，错误串喂回模型。
+func TestRun_NonRetryableToolErrorNotRetried(t *testing.T) {
+	ft := &flakyTool{name: "bad", failN: 99, err: &permanentErr{msg: "bad args: secret=sk-secret"}}
+
+	fc := &fakeChatter{
+		turns: []*llm.AssistantTurn{
+			toolCallTurn("call_bad_1", "bad", `{}`),
+			{Content: "gave up"},
+		},
+	}
+
+	var steps []TraceStep
+	reg := tool.NewRegistry()
+	reg.Register(ft)
+
+	res, err := Run(context.Background(), fc, "do it", reg, func(s TraceStep) { steps = append(steps, s) })
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if res != "gave up" {
+		t.Errorf("expected 'gave up', got: %q", res)
+	}
+	if ft.calls != 1 {
+		t.Errorf("bad tool called %d times, want 1 (no retry for permanent error)", ft.calls)
+	}
+
+	errSteps := findSteps(steps, KindError)
+	if len(errSteps) != 1 {
+		t.Fatalf("expected exactly 1 KindError step, got %d: %+v", len(errSteps), steps)
+	}
+	if errSteps[0].Detail != "tool error: permanent" {
+		t.Errorf("KindError detail = %q, want %q", errSteps[0].Detail, "tool error: permanent")
+	}
+	for _, s := range steps {
+		if strings.Contains(s.Detail, "sk-secret") {
+			t.Errorf("trace leaked error text: %+v", s)
+		}
+	}
+
+	var fedBack string
+	for _, m := range fc.receivedMsgs[1] {
+		if m.Role == "tool" {
+			fedBack = m.Content
+		}
+	}
+	if !strings.HasPrefix(fedBack, "error: ") || !strings.Contains(fedBack, "bad args") {
+		t.Errorf("error string not fed back to model, got tool msg %q", fedBack)
+	}
+}
+
+// TestRun_RetryBackoffRespectsCtx 验证：退避是 ctx 感知的——退避窗口内 ctx 取消即放弃重试，
+// 绝不裸睡满 200ms。
+func TestRun_RetryBackoffRespectsCtx(t *testing.T) {
+	ft := &flakyTool{name: "flaky", failN: 99, err: &retryableErr{msg: "transient"}}
+
+	fc := &fakeChatter{
+		turns: []*llm.AssistantTurn{
+			toolCallTurn("call_flaky_1", "flaky", `{}`),
+			{Content: "never reached"},
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	// 首次工具调用已返回可重试错误，此刻进入退避；50ms 后取消应立刻打断退避。
+	time.AfterFunc(50*time.Millisecond, cancel)
+
+	reg := tool.NewRegistry()
+	reg.Register(ft)
+
+	start := time.Now()
+	_, err := Run(ctx, fc, "do it", reg, nil)
+	elapsed := time.Since(start)
+	cancel() // 幂等，防止 context 泄漏告警
+
+	if err == nil {
+		t.Fatal("expected error after ctx cancellation during backoff, got nil")
+	}
+	if ft.calls != 1 {
+		t.Errorf("flaky tool called %d times, want 1 (retry must be skipped once ctx is done)", ft.calls)
+	}
+	if elapsed > 190*time.Millisecond {
+		t.Errorf("elapsed %v, want backoff aborted well before 200ms on ctx cancellation", elapsed)
 	}
 }
 

@@ -9,3 +9,11 @@ api_auth_key: "你的服务端密钥"
 # 可选：SQLite 持久化文件路径。留空则用内存存储（重启丢任务）。
 # 例如：db_path: "agent-api.db"
 db_path: ""
+
+# 可选：向量通道独立凭证（检索混合召回用）。全部留空 = 仅词法检索（lexical only，ADR-0017 决策 3）。
+# 四项填齐才启用混合召回（hybrid）；embed_dim 为正整数，0 表示不建向量表。
+# 环境变量 EMBED_BASE_URL / EMBED_API_KEY / EMBED_MODEL / EMBED_DIM 优先级更高。
+embed_base_url: ""
+embed_api_key: ""
+embed_model: ""
+embed_dim: 0

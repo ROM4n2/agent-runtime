@@ -2,15 +2,27 @@ package tool
 
 import (
 	"agent-runtime/llm"
+	"context"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"sync"
 )
 
+// RetryableError 由工具错误实现，向 agent.Run 表达「该错误值得重试一次」
+// （如向量通道瞬时不可用）。未实现该接口的错误一律按 permanent 处理——
+// 宁可少重试，也不把确定性故障放大成重试风暴。
+type RetryableError interface {
+	error
+	Retryable() bool
+}
+
 // Tool 定义了 Agent 工具必须实现的接口。
+// Execute 携带 ctx：取消/超时必须能穿透到工具执行内部（ADR-0014、ADR-0017 决策 5），
+// 否则 worker 的抢占式取消只能中断 LLM 调用，工具侧仍会跑满全程。
 type Tool interface {
 	Spec() llm.Tool
-	Execute(args json.RawMessage) (string, error)
+	Execute(ctx context.Context, args json.RawMessage) (string, error)
 }
 
 // Registry 管理已注册的工具集，并提供统一的查找与执行入口。
@@ -59,14 +71,21 @@ func (r *Registry) Specs() []llm.Tool {
 	return specs
 }
 
-// Execute 按工具名执行；未知工具返回 "error: unknown tool " + call.Function.Name；
-// 出错返回 "error: " + err.Error()；成功返回结果。绝不 panic。
-func (r *Registry) Execute(call llm.ToolCall) string {
+// ExecuteErr 是原始错误出口：未知工具返回 error，工具错误原样返回（不压串），
+// 供 agent.Run 按 RetryableError 分类做重试/放弃的分支决策（ADR-0017 决策 5）。
+func (r *Registry) ExecuteErr(ctx context.Context, call llm.ToolCall) (string, error) {
 	t, ok := r.Get(call.Function.Name)
 	if !ok {
-		return "error: unknown tool " + call.Function.Name
+		return "", fmt.Errorf("unknown tool %s", call.Function.Name)
 	}
-	out, err := t.Execute(json.RawMessage(call.Function.Arguments))
+	return t.Execute(ctx, json.RawMessage(call.Function.Arguments))
+}
+
+// Execute 是 ExecuteErr 的包装，沿用「错误压成字符串喂回模型」的既有语义
+// （Errors-As-Messages：让模型看到错误并自纠，而不是让整轮任务失败）。
+// 单一实现：压串逻辑只此一份，避免两份代码各自漂移。
+func (r *Registry) Execute(ctx context.Context, call llm.ToolCall) string {
+	out, err := r.ExecuteErr(ctx, call)
 	if err != nil {
 		return "error: " + err.Error()
 	}

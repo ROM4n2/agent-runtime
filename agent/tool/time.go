@@ -2,6 +2,7 @@ package tool
 
 import (
 	"agent-runtime/llm"
+	"context"
 	"encoding/json"
 	"time"
 )
@@ -29,7 +30,9 @@ func (t *currentTimeTool) Spec() llm.Tool {
 	}
 }
 
-func (t *currentTimeTool) Execute(args json.RawMessage) (string, error) {
+// Execute 实现 Tool 接口。ctx 当前未被使用（取系统时间无阻塞点），
+// 保留参数以保持取消语义在所有工具上一致（接口只加不改）。
+func (t *currentTimeTool) Execute(ctx context.Context, args json.RawMessage) (string, error) {
 	var p struct {
 		Timezone string `json:"timezone"`
 	}

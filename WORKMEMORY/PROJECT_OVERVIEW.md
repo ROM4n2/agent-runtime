@@ -17,7 +17,9 @@
 ## 当前状态
 
 - P1/P2/P3/P4 完整交付（ADR-0012 轨迹可观测性、ADR-0013 架构解耦、P4 生产级审计缺陷加固全部落地）。
-- **下一步（已立项、未实施）**：ADR-0017 检索能力以工具形式接入（`search_docs` + SQLite 索引 + span 引用），验收物是对照评测表；实施前先写 ADR-0018 评测口径。
+- **P5 检索即工具已交付（分支 feat/retrieval-as-tool，2026-10-23）**：ADR-0017 v2 + ADR-0018 全量落地——独立 `retrieval` 包（FTS5 词法 + vec0 混合基础设施，默认 lexical）、`search_docs` 工具（span 契约/三哨兵/Retryable）、`eval` 包（任务集 30 条 + grader + `eval run` 分布报表）、`-index` 子命令、`index missing` 独立终态。
+- **评测结论（docs/eval/2026-10-23-*-r3.md）**：baseline 0.00 → lexical 1.00（success_median，P25 0/P75 1），17/30 vs 0/30 任务 → **合入**；边界如实记录：in-corpus 12/13、cross-chunk 4/10、out-of-corpus 1/7（模型不拒答，检索反成编造弹药）；延迟 ×1.96、步数 ×8.4。
+- **待办（已登记 trigger，见 plan Deviation Table）**：hybrid 组待 embedding 凭证；cross-chunk/拒答策略需 prompt 版本对照；4 张历史黄卡（-index/-eval 接线层测试、:memory: 误导性 warn、engine:32 注释、幂等断言深度）；未 push/未开 PR。
 - 测试基线：`GOWORK=off go test -race ./... -count=1` 全绿（102 个 `func Test`，0 数据竞争）。
 - 架构领域分层：
   - `agent/tool`: 独立工具系统与 Tool 注册表（内置纯 AST 算术引擎与时区工具，Errors-As-Messages 规范）；

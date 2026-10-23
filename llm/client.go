@@ -12,6 +12,7 @@ import (
 )
 
 const chatCompletionsPath = "/v1/chat/completions"
+const embeddingsPath = "/v1/embeddings"
 const maxResponseBytes = 1024 * 1024 // 1MB
 
 // APIError 表示上游返回了非 2xx 状态码。
@@ -23,6 +24,16 @@ type APIError struct {
 func (e *APIError) Error() string {
 	return fmt.Sprintf("llm: status %d: %s", e.StatusCode, e.Body)
 }
+
+// Embedder 把一批文本嵌入为定长 float32 向量（dim 由配置方保证一致）。
+// 定义在 llm（模型适配层）：retrieval 等上层只消费该接口，依赖单向（ADR-0013）。
+type Embedder interface {
+	Embed(ctx context.Context, texts []string) ([][]float32, error)
+}
+
+// ErrEmbedderNotConfigured 表示 embed 配置不完整。
+// 向量通道默认关闭（ADR-0017 决策 3）：缺任一项即显式失败，由上层走词法通道，禁静默降级。
+var ErrEmbedderNotConfigured = errors.New("llm: embedder not configured")
 
 // 请求
 type chatRequest struct {
@@ -50,6 +61,12 @@ type Client struct {
 	baseURL string
 	model   string
 	http    *http.Client // 复用连接，且用来设超时
+
+	// 向量通道独立凭证（与 chat 分离，ADR-0017 决策 3）：
+	// 任一项为空 → Embed 返回 ErrEmbedderNotConfigured。
+	embedBaseURL string
+	embedAPIKey  string
+	embedModel   string
 }
 
 type Config struct {
@@ -57,6 +74,11 @@ type Config struct {
 	BaseURL     string
 	Model       string
 	HTTPTimeout time.Duration
+	// 向量通道独立凭证：默认全空 = 仅词法检索（lexical only，ADR-0017 决策 3）。
+	EmbedBaseURL string
+	EmbedAPIKey  string
+	EmbedModel   string
+	EmbedDim     int
 }
 
 func NewClient(cfg Config) *Client {
@@ -65,10 +87,13 @@ func NewClient(cfg Config) *Client {
 		timeout = 60 * time.Second
 	}
 	return &Client{
-		apiKey:  cfg.APIKey,
-		baseURL: cfg.BaseURL,
-		model:   cfg.Model,
-		http:    &http.Client{Timeout: timeout},
+		apiKey:       cfg.APIKey,
+		baseURL:      cfg.BaseURL,
+		model:        cfg.Model,
+		http:         &http.Client{Timeout: timeout},
+		embedBaseURL: cfg.EmbedBaseURL,
+		embedAPIKey:  cfg.EmbedAPIKey,
+		embedModel:   cfg.EmbedModel,
 	}
 }
 
@@ -123,6 +148,61 @@ func (c *Client) Chat(ctx context.Context, prompt string) (string, error) {
 		return "", errors.New("llm: no choices in response")
 	}
 	return chatResp.Choices[0].Message.Content, nil
+}
+
+// Embed 调用 OpenAI 兼容的 embeddings 端点，把一批文本嵌入为 float32 向量。
+// 与 Chat 同纪律：复用 c.http 与 maxResponseBytes 1MB 响应上限，非 2xx → APIError。
+// 向量通道默认关闭（ADR-0017 决策 3）：embed 配置任一项为空即 ErrEmbedderNotConfigured。
+func (c *Client) Embed(ctx context.Context, texts []string) ([][]float32, error) {
+	// 配置守卫先行：缺任一项即显式失败，不发起半截请求。
+	if c.embedBaseURL == "" || c.embedAPIKey == "" || c.embedModel == "" {
+		return nil, ErrEmbedderNotConfigured
+	}
+	if len(texts) == 0 {
+		return [][]float32{}, nil // 空输入不发起请求
+	}
+
+	embedReq := struct {
+		Model string   `json:"model"`
+		Input []string `json:"input"`
+	}{Model: c.embedModel, Input: texts}
+
+	reqJSON, err := json.Marshal(embedReq)
+	if err != nil {
+		return nil, fmt.Errorf("llm: marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.embedBaseURL+embeddingsPath, bytes.NewReader(reqJSON))
+	if err != nil {
+		return nil, fmt.Errorf("llm: create request: %w", err)
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+c.embedAPIKey)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.http.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("llm: send request: %w", err)
+	}
+	defer resp.Body.Close()
+	limited := io.LimitReader(resp.Body, maxResponseBytes)
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(limited)
+		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(b)}
+	}
+
+	var embedResp struct {
+		Data []struct {
+			Embedding []float32 `json:"embedding"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(limited).Decode(&embedResp); err != nil {
+		return nil, fmt.Errorf("llm: decode response: %w", err)
+	}
+	out := make([][]float32, len(embedResp.Data))
+	for i, d := range embedResp.Data {
+		out[i] = d.Embedding
+	}
+	return out, nil
 }
 
 // ---- 工具调用（Agent 能力） ----

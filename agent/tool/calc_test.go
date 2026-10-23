@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"context"
 	"encoding/json"
 	"math"
 	"strings"
@@ -101,7 +102,7 @@ func TestCalculateTool_Execute(t *testing.T) {
 	tool := NewCalculateTool()
 
 	// 正常计算
-	out, err := tool.Execute(json.RawMessage(`{"expression": "2 * (3 + 4)"}`))
+	out, err := tool.Execute(context.Background(), json.RawMessage(`{"expression": "2 * (3 + 4)"}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -110,7 +111,7 @@ func TestCalculateTool_Execute(t *testing.T) {
 	}
 
 	// 浮点结果
-	out, err = tool.Execute(json.RawMessage(`{"expression": "7 / 2"}`))
+	out, err = tool.Execute(context.Background(), json.RawMessage(`{"expression": "7 / 2"}`))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -119,7 +120,7 @@ func TestCalculateTool_Execute(t *testing.T) {
 	}
 
 	// 除零错误
-	_, err = tool.Execute(json.RawMessage(`{"expression": "1 / 0"}`))
+	_, err = tool.Execute(context.Background(), json.RawMessage(`{"expression": "1 / 0"}`))
 	if err == nil {
 		t.Fatal("expected error for division by zero, got nil")
 	}
@@ -128,13 +129,13 @@ func TestCalculateTool_Execute(t *testing.T) {
 	}
 
 	// 非法 JSON
-	_, err = tool.Execute(json.RawMessage(`{invalid`))
+	_, err = tool.Execute(context.Background(), json.RawMessage(`{invalid`))
 	if err == nil {
 		t.Fatal("expected error for invalid json, got nil")
 	}
 
 	// 语法错误
-	_, err = tool.Execute(json.RawMessage(`{"expression": "2 + "}`))
+	_, err = tool.Execute(context.Background(), json.RawMessage(`{"expression": "2 + "}`))
 	if err == nil {
 		t.Fatal("expected error for syntax error expression, got nil")
 	}
