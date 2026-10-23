@@ -55,9 +55,28 @@ func underEvalDir(relPath string) bool {
 	return false
 }
 
+// isHiddenPath 判断 relPath（/ 分隔）任一路径段是否以 . 开头：隐藏文件/隐藏目录。
+// 覆盖 .git/.codebuddy/.claude/.trae/.pi/.idea/.worktrees 等目录，
+// 以及根下 .agent-context.md/.agent-rules.md 等隐藏文件。
+// 为什么必须排除（Task 12 缺陷 D 实证）：隐藏文件/目录由 IDE/agent 会话持续改写，
+// 入语料会让指纹永不稳定 —— 真实语料 49 个 .md 中 9 个是此类隐藏路径，
+// 内容一变 CheckFresh 就恒返回 ErrCorpusStale，每次 search_docs 都失败
+// （评测 72/90 wrong-span 全属假红）。含隐藏=4fccc8a9 / 不含=c5c45336 已逐字节复现。
+func isHiddenPath(relPath string) bool {
+	for _, seg := range strings.Split(relPath, "/") {
+		if seg == "." || seg == ".." {
+			continue // WalkDir 根目录的 rel 就是 "."，不是隐藏路径（否则整棵语料被跳过）
+		}
+		if strings.HasPrefix(seg, ".") {
+			return true
+		}
+	}
+	return false
+}
+
 // listDocs 递归遍历 corpusDir，收集语料文件：只收 .md（大小写不敏感），
-// 排除 docs/eval/ 评测产物目录。目录递归进入但不作为文档；
-// 符号链接/设备等非常规类型跳过（不计入索引，也不计入 DocsSkipped）。
+// 排除 docs/eval/ 评测产物目录与隐藏文件/目录（见 isHiddenPath 注释）。
+// 目录递归进入但不作为文档；符号链接/设备等非常规类型跳过（不计入索引，也不计入 DocsSkipped）。
 // 结果按 relPath 排序，保证指纹聚合与插入顺序确定。
 func listDocs(corpusDir string) ([]docFile, error) {
 	var docs []docFile
@@ -65,14 +84,20 @@ func listDocs(corpusDir string) ([]docFile, error) {
 		if err != nil {
 			return err
 		}
-		if !d.Type().IsRegular() {
-			return nil
-		}
 		rel, err := filepath.Rel(corpusDir, path)
 		if err != nil {
 			return err
 		}
 		relSlash := filepath.ToSlash(rel)
+		if isHiddenPath(relSlash) {
+			if d.IsDir() {
+				return fs.SkipDir // 整棵隐藏子树都不可能是语料（.git/.worktrees 等）
+			}
+			return nil
+		}
+		if !d.Type().IsRegular() {
+			return nil
+		}
 		if !strings.EqualFold(filepath.Ext(relSlash), corpusExt) {
 			return nil // 非 .md：不入语料（二进制自索引会形成正反馈，见 corpusExt 注释）
 		}

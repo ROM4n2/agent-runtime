@@ -1,6 +1,7 @@
 package retrieval
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -154,6 +155,75 @@ func TestListDocs_OnlyMarkdownExcludesEvalArtifacts(t *testing.T) {
 		if rels[i] != want[i] {
 			t.Fatalf("listDocs rels = %v, want %v (only .md, sorted, docs/eval excluded)", rels, want)
 		}
+	}
+}
+
+// TestListDocs_ExcludesHiddenPaths 是 harness 缺陷 D 的承重墙（RED→GREEN）：
+// relPath 的任一路径段以 . 开头（隐藏文件/隐藏目录）一律不进语料。
+// 背景（Task 12 缺陷 D 实证）：真实语料 49 个 .md 中有 9 个是隐藏路径
+// （.agent-context.md、.agent-rules.md、.claude/CLAUDE.md、.codebuddy/memory/*.md、
+// .trae/rules/git-commit-message.md），它们由 IDE/agent 会话后台持续改写 →
+// corpus 指纹永不稳定 → CheckFresh 恒返回 ErrCorpusStale → 每次 search_docs 都失败
+// （评测 72/90 wrong-span 全属假红）。若 listDocs 丢掉 isHiddenPath 过滤，本用例转红。
+func TestListDocs_ExcludesHiddenPaths(t *testing.T) {
+	dir := t.TempDir()
+	writeRaw(t, dir, "a.md", "甲内容")              // 普通 md：照收
+	writeRaw(t, dir, "docs/x.md", "乙内容")         // 普通子目录 md：照收
+	writeRaw(t, dir, ".hidden/secret.md", "丙内容") // 隐藏目录：排除
+	writeRaw(t, dir, ".root-hidden.md", "丁内容")   // 根下隐藏文件：排除
+
+	docs, err := listDocs(dir)
+	if err != nil {
+		t.Fatalf("listDocs: %v", err)
+	}
+	var rels []string
+	for _, d := range docs {
+		rels = append(rels, d.relPath)
+	}
+	want := []string{"a.md", "docs/x.md"}
+	if len(rels) != len(want) || rels[0] != want[0] || rels[1] != want[1] {
+		t.Fatalf("listDocs rels = %v, want %v (hidden files/dirs must be excluded)", rels, want)
+	}
+}
+
+// TestRebuild_ExcludesHiddenDocs 是缺陷 D 的集成承重墙：隐藏路径既不进 doc_chunk
+// 也不参与指纹聚合——因此它被 IDE/agent 会话后台改写不会令索引陈旧。
+func TestRebuild_ExcludesHiddenDocs(t *testing.T) {
+	idx := newTestIndex(t)
+	corpus := t.TempDir()
+	writeDoc(t, corpus, "a.md", "可见文档甲内容")
+	writeDoc(t, corpus, "docs/x.md", "可见文档乙内容")
+	writeDoc(t, corpus, ".hidden/secret.md", "隐藏目录丙内容")
+	writeDoc(t, corpus, ".root-hidden.md", "根下隐藏丁内容")
+
+	r, err := idx.Rebuild(context.Background(), corpus)
+	if err != nil {
+		t.Fatalf("Rebuild: %v", err)
+	}
+	var hidden int
+	if err := idx.db.QueryRow(`SELECT COUNT(*) FROM doc_chunk WHERE source LIKE '.%' OR source LIKE '%/.%'`).Scan(&hidden); err != nil {
+		t.Fatalf("count hidden doc_chunk: %v", err)
+	}
+	if hidden != 0 {
+		t.Errorf("doc_chunk contains %d hidden-path rows, want 0", hidden)
+	}
+	if n := ftsMatchCount(t, idx, "隐藏目录丙内容"); n != 0 {
+		t.Errorf("hidden doc must not be searchable, got %d FTS hits", n)
+	}
+	if n := ftsMatchCount(t, idx, "可见文档甲内容"); n == 0 {
+		t.Error("visible doc must be searchable")
+	}
+
+	// 指纹必须与「只放可见文档」的语料一致：隐藏路径完全不参与聚合。
+	same := t.TempDir()
+	writeDoc(t, same, "a.md", "可见文档甲内容")
+	writeDoc(t, same, "docs/x.md", "可见文档乙内容")
+	wantFP, err := dirFingerprint(same)
+	if err != nil {
+		t.Fatalf("dirFingerprint same: %v", err)
+	}
+	if r.Fingerprint != wantFP {
+		t.Errorf("fingerprint polluted by hidden paths: %s, want %s", r.Fingerprint, wantFP)
 	}
 }
 
