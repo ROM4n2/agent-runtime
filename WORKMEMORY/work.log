@@ -120,3 +120,10 @@ P5 检索即工具 + 评测 harness 全量交付（分支 feat/retrieval-as-tool
 - 最终判定（第四轮，docs/eval/2026-10-23-*-r3.md）：baseline success_median 0.00 → lexical 1.00（P25 0/P75 1），逐任务 17/30 vs 0/30 → 合入；能力边界如实记录：in-corpus 12/13、cross-chunk 4/10、out-of-corpus 1/7（模型不拒答，检索反成编造弹药）；延迟 ×1.96、步数 ×8.4
 - 物理门：GOWORK=off go test -race ./... 11 包全绿（顶层 200+ 用例）；build/vet/gofmt/双架构门禁全过
 - 未做范围：未 push、未开 PR（等用户指令）；4 张历史黄卡（-index/-eval 接线层测试、:memory: 误导性 warn、engine 注释、幂等断言深度）仍按 trigger 遗留，已记 plan Deviation Table
+
+### 2026-10-23 | step-5-preview__codebuddy | HANDOFF
+Caps: filesystem-read, filesystem-write, shell-exec, git
+P5 收口完成，**PR #1 已开**：https://github.com/ROM4n2/agent-runtime/pull/1（base master ← feat/retrieval-as-tool，58 文件 +25710/-173）
+- 黄卡全清（用户指令"补黄卡开PR"）：6 项遗留（post-Start RegisterTool warn/`-index` 接线层/幂等深度断言/`:memory:` 误导性 warn/`-eval` 接线层/engine.go 注释）+ CRV 复核的 3 条建议（runWithArgs 全局 logger 泄漏、`-h`→0 语义、幂等用例 cwd 隔离）全部落地，237 func Test 全绿，每组均有变异自证（commit 5e899fe）
+- 已知待观察（未修，不影响合入）：①`llm` embed 端点拼接与 README「OpenAI 兼容 /v1/embeddings」措辞歧义（base 若含 /v1 会重复）；②`TestRunIndexCommand_BuildsAndExits/_MissingDir` 仍无 t.Chdir（开发机有带凭证 config.yaml 时可能走网络）；③hybrid 组与 cross-chunk/拒答策略待凭证与 prompt 版本对照
+- 下一步：等 PR review / 合并；合并后可考虑 /dfs-save 把 3 条 PITFALL 蒸馏进 vault（二进制自索引、512B trace 截断、chunk-span 口径）
