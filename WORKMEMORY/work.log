@@ -80,3 +80,43 @@ Caps: filesystem-read, filesystem-write, shell-exec, git
 身份校正：本次会话模型确认为 DeepSeek-flash（此前两条事件头的 unknown-model 由本条覆盖）。
 行尾噪声治理：.gitattributes 新增 `* text=auto eol=lf`，工作区全部文本文件归一为 LF；此前 33 个「已修改」文件中 18 个实为 CRLF 假 diff，归一后内容零差异。
 交付提交：任务1 主动取消 / 任务2 崩溃恢复 / 任务3 SSE，随后 push 至 origin/master。
+
+### 2026-10-22 | step-5-preview__codebuddy | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec
+dfs-onboard 重接手（diff-verify 模式，非重建）：
+- Phase1 基线实测：GOWORK=off go test -race ./... -count=1 九包全绿（102 func Test / 146 RUN 含子测试，0 data race）；go build / go vet 干净；git 分支 master 前后一致（共享工作树守卫通过）
+- .agent-context.md diff-verify 结论：锚点存在但严重过期（基线停在 2026-09-03 的 32 passed；架构图仍是 ADR-0013 前的 runAgent/agent.go、Handler{pool}、Enqueue 阻塞语义、config 仅 2 key）。已按当前树逐项刷新：入口补 RecoverTasks 崩溃补偿与 EnqueueWait 重灌；数据流补 cancel/SSE 路由；包分工改为 agent/engine.go Run + agent/tool + Handler{store, runner TaskRunner} + Pool{inFlight, stopWorkerCtx}；config 补 db_path / task_timeout_seconds；Gotchas 补三类必记坑（CRLF/LF 假 diff 自检、终端编码误报、exit 0 三道自检 = 架构防线静态门禁 / pre-commit 密钥扫描 / 逆向突变）；Vault 链接 ADR 0001..0017
+- 顺手勘误：CLAUDE.md 的 vault inbox 路径 08-Inbox → 99-Inbox（磁盘实证 D:/Obsidian/Coding/99-Inbox）；AGENTS.md 实际无该路径段（项目上下文快照与磁盘不一致，未改）
+- 未做范围：未跑 benchmark；未提交 commit（用户未要求）；未改任何 Go 源码
+
+### 2026-10-22 | step-5-preview__codebuddy | DECISION
+Caps: filesystem-read, filesystem-write, shell-exec
+dfs-grill 双透镜拷打 ADR-0017/0018（三 seat：product-ux / dba-optimizer / sre-resilience + vault 阶梯 + DeepSeek API 外部实证），四问全部拍板：
+- Q1=A：混合召回基础设施全做、默认 lexical。实证：DeepSeek 无 embeddings 端点（官方仅 chat/completion，三源确认）；modernc sqlite 内置 FTS5/vec0 实测可用（dba seat 运行时探针）。Embedder 接口入 llm 包，默认空凭证；mode 显式标注禁静默降级
+- Q2=A：Tool.Execute(ctx,args) + 错误实现 Retryable()；agent.Run 分支：retryable 同 step 重试一次后喂回模型，non-retryable 立即喂回并 trace 标 error（修复"可重试纸面分类"缺陷）
+- Q3=A：retrieval 独立顶层包（Pi LAYERED-ARCHITECTURE 判据：依赖单向向上/底层定原子上层只加不改/知识边界切层/可独立使用测试物理不 import agent）；索引自持 *sql.DB 与 store 共享 db_path 各管各表；禁手写倒排与 BLOB 全扫（dba 实测 vec0/FTS5 内置）
+- Q4=A：ADR-0018 裁剪 vault AGENT-EVALUATION-HARNESS 三条 MUST（成对受控单变量/程序判定引用命中禁 LLM-Judge/首错归因替代 max-steps 根因）；任务集 YAML 入仓先于实现；N=3 重复报分布；反向判据收紧为"无提升不合入"
+- 产物：docs/adr/0017-retrieval-as-tool.md v2 重写（吸收四类已知缺陷应答表）+ docs/adr/0018-retrieval-evaluation-harness.md 新写
+- 附带待办（未实施）：main.go 模型名 deepseek-flash 已于 2026-07-24 退役为 deepseek-v4-flash
+- 未做：未写 implementation_plan；未提交 commit（用户未要求）
+
+### 2026-10-22 | step-5-preview__codebuddy | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec
+dfs-plan 产出 docs/implementation_plan_p5-retrieval.md（ADR-0017 v2 + ADR-0018 执行计划）：
+- 用户确认已自行将 main.go 模型名替换为 deepseek-flash（官方 pricing 页当前名），附带待办闭环
+- Phase1 物理核验：tool.Tool 接口（agent/tool/tool.go:11-14）、Registry.Execute 压串语义（tool.go:64-74）、engine.Run 循环（engine.go:19-85）、NewPool 硬编码 DefaultRegistry（worker/pool.go:70）、SQLStore PRAGMA 模式（store/sql.go:27-52）、架构门禁实现模式（api/architecture_barrier_test.go）、ledger 格式（.vault-exec-ledger.json）
+- 12 任务分四阶段：A 契约层（Tool ctx 化+Retryable / config 四项）；B retrieval 包（骨架+门禁 / 索引构建 / Embedder+缓存 / 混合召回 / SearchTool / 装配）；C 评测（grader / 任务集 v1 HITL / eval run）；D 收口（Task 12 HITL 五道物理门 + 对照评测 + 无提升不合入判定）
+- Tier 分布：2×Tier1（Task 2 + Batch 10）+ 8×Tier2 + 1×Tier3（Task 12）；每任务带 Subagent Prompt Scaffold 与 Produces 签名
+- Fog of War 4 项 + Deferred Gap Register 6 行（trigger 列非空）；分支 feat/retrieval-as-tool，PR 合回
+- ledger 脚本 scripts/vault_exec_state.py 不存在于本仓与 skill 目录，Phase3 按 plan-confirmed-ready 处理，由 /dfs-exec 沿用 .vault-exec-ledger.json 既有格式管理
+- 未做：未初始化 ledger；未提交 commit（用户未要求）；未开分支（等用户指令）
+
+### 2026-10-23 | step-5-preview__codebuddy | WORK_END
+Caps: filesystem-read, filesystem-write, shell-exec, git
+P5 检索即工具 + 评测 harness 全量交付（分支 feat/retrieval-as-tool，12 任务全 completed，未 push/未开 PR）：
+- 实现：Tool ctx 化+Retryable（00e1866）→ config embed 四项（c7d69c6）→ retrieval 包骨架+DDL+依赖门禁（6ef5ce7）→ 索引构建（c84caed，含 ADR-0017 bigram 机制失效修订）→ Embedder+缓存（7db3ace）→ 混合召回（8710b96）→ SearchTool（8513f26）→ 装配（dba5f91）→ grader（1a77b0e）→ 任务集 v1 HITL 核准（724db88）→ eval run（fc93313）
+- Task 12 实跑评测发现并修复 8 个 harness 缺陷（A 二进制自索引/B FTS5 语法错/D 隐藏目录指纹漂移/E 整句 phrase 零命中/F 512B 截断失救/G 评测数据源受限/H IoU 口径失真），三次作废重跑；修复提交 3f0d4bc、eeed109、c4bc5d3、796e78c
+- **PITFALL 沉淀**：①listDocs 必须限定 .md 且排除隐藏路径——二进制自索引形成「库大→索引多→库更大」正反馈，IDE 目录（.codebuddy/.trae）被会话持续改写导致指纹永漂移、所有检索恒 ErrCorpusStale；②trace MaxTraceDetail=512 与「hit.text 512 rune≈1.5KB」的组合使 tool_result 必然残损，评测侧必须用包装工具拿全文；③trigram 分词器的 chunk span 与答案段 span 是两种口径，IoU 判定系统性低估，应按 |want∩∪got|/|want| 覆盖率计。
+- 最终判定（第四轮，docs/eval/2026-10-23-*-r3.md）：baseline success_median 0.00 → lexical 1.00（P25 0/P75 1），逐任务 17/30 vs 0/30 → 合入；能力边界如实记录：in-corpus 12/13、cross-chunk 4/10、out-of-corpus 1/7（模型不拒答，检索反成编造弹药）；延迟 ×1.96、步数 ×8.4
+- 物理门：GOWORK=off go test -race ./... 11 包全绿（顶层 200+ 用例）；build/vet/gofmt/双架构门禁全过
+- 未做范围：未 push、未开 PR（等用户指令）；4 张历史黄卡（-index/-eval 接线层测试、:memory: 误导性 warn、engine 注释、幂等断言深度）仍按 trigger 遗留，已记 plan Deviation Table

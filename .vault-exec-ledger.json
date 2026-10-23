@@ -1,81 +1,133 @@
 {
   "version": "1.0.0",
-  "plan_file": "docs/implementation_plan_p4-audit-remediation.md",
-  "created_at": "2026-10-17T18:00:00.820428",
-  "last_updated": "2026-10-18T13:43:22.255638",
-  "total_tasks": 7,
-  "completed_count": 7,
+  "plan_file": "docs/implementation_plan_p5-retrieval.md",
+  "created_at": "2026-10-22T00:00:00Z",
+  "last_updated": "2026-10-22T00:00:00Z",
+  "total_tasks": 12,
+  "completed_count": 12,
   "active_task_id": null,
+  "branch": "feat/retrieval-as-tool",
+  "note": "scripts/vault_exec_state.py 不存在于本仓，ledger 由 orchestrator 按本格式手动维护",
   "tasks": [
     {
       "id": "Task-1",
-      "title": "结构化日志传参修复与 503 重试退避头 [Tier: 1-Light] [Mode: AFK] [Role: Solo Builder]",
+      "title": "Tool 接口 ctx 化 + Retryable 错误分类 [Tier: 2-Standard] [Mode: AFK]",
       "status": "completed",
-      "implementer": "TDD",
-      "commit_hash": "2ac7269",
+      "implementer": "CPE",
       "reviewer_verdict": "PASS",
-      "started_at": "2026-10-18T12:40:59.326216",
-      "completed_at": "2026-10-18T12:47:47.205502"
+      "commit_hash": "00e1866",
+      "started_at": "2026-10-22T00:00:00Z",
+      "completed_at": "2026-10-22T00:00:00Z"
     },
     {
       "id": "Task-2",
-      "title": "Trace 缓存容量淘汰与 UTF-8 安全截断 [Tier: 2-Standard] [Mode: AFK] [Role: TDD Builder]",
+      "title": "config 扩展 embedding 四项配置 [Tier: 2-Standard 升档] [Mode: AFK]",
       "status": "completed",
-      "implementer": "TDD",
-      "commit_hash": "f61a7e4",
+      "implementer": "CPE",
       "reviewer_verdict": "PASS",
-      "started_at": "2026-10-18T12:47:59.935795",
-      "completed_at": "2026-10-18T12:58:37.140873"
+      "commit_hash": "c7d69c6",
+      "started_at": "2026-10-22T00:00:00Z",
+      "completed_at": "2026-10-22T00:00:00Z"
     },
     {
       "id": "Task-3",
-      "title": "两阶段优雅停机与任务队列排空 [Tier: 2-Standard] [Mode: AFK] [Role: TDD Builder]",
+      "title": "retrieval 包骨架 + DDL + 依赖方向门禁 [Tier: 2-Standard] [Mode: AFK]",
       "status": "completed",
-      "implementer": "TDD",
-      "commit_hash": "3895337",
+      "implementer": "CPE",
       "reviewer_verdict": "PASS",
-      "started_at": "2026-10-18T12:58:43.057866",
-      "completed_at": "2026-10-18T13:12:19.983107"
+      "commit_hash": "6ef5ce7",
+      "started_at": "2026-10-22T00:00:00Z",
+      "completed_at": "2026-10-22T00:00:00Z"
     },
     {
       "id": "Task-4",
-      "title": "细化任务异常落库分类 [Tier: 2-Standard] [Mode: AFK] [Role: TDD Builder]",
+      "title": "索引构建（分块 + FTS5 + 内容哈希指纹 + 分块事务） [Tier: 2-Standard] [Mode: AFK]",
       "status": "completed",
-      "implementer": "TDD",
-      "commit_hash": "f13e436",
+      "implementer": "CPE",
       "reviewer_verdict": "PASS",
-      "started_at": "2026-10-18T13:12:28.734364",
-      "completed_at": "2026-10-18T13:20:06.145966"
+      "commit_hash": "c84caed",
+      "started_at": "2026-10-22T00:00:00Z",
+      "completed_at": "2026-10-22T00:00:00Z"
     },
     {
       "id": "Task-5",
-      "title": "环境变量与传输层超时解耦 [Tier: 2-Standard] [Mode: AFK] [Role: TDD Builder]",
+      "title": "Embedder 接口 + llm.Client 实现 + retrieval 缓存 [Tier: 2-Standard] [Mode: AFK]",
       "status": "completed",
-      "implementer": "TDD",
-      "commit_hash": "328b2b7",
+      "implementer": "CPE",
       "reviewer_verdict": "PASS",
-      "started_at": "2026-10-18T13:20:11.515804",
-      "completed_at": "2026-10-18T13:34:22.650642"
+      "commit_hash": "7db3ace",
+      "started_at": "2026-10-22T00:00:00Z",
+      "completed_at": "2026-10-22T00:00:00Z"
     },
     {
       "id": "Task-6",
-      "title": "SQLite 原生自增主键消除全表扫描 [Tier: 2-Standard] [Mode: AFK] [Role: TDD Builder]",
+      "title": "混合召回（FTS5 bm25 + vec0 KNN + RRF + token 预算截断） [Tier: 2-Standard] [Mode: AFK]",
       "status": "completed",
-      "implementer": "TDD",
-      "commit_hash": "3721623",
+      "implementer": "CPE",
       "reviewer_verdict": "PASS",
-      "started_at": "2026-10-18T13:34:28.607404",
-      "completed_at": "2026-10-18T13:42:00.586930"
+      "commit_hash": "8710b96",
+      "started_at": "2026-10-22T00:00:00Z",
+      "completed_at": "2026-10-22T00:00:00Z"
     },
     {
       "id": "Task-7",
-      "title": "全仓回归与物理证据门禁 [Tier: 1-Light] [Mode: AFK] [Role: Solo Builder]",
+      "title": "SearchTool（tool.Tool 实现 + span 契约 + 哨兵分类） [Tier: 2-Standard] [Mode: AFK]",
       "status": "completed",
-      "implementer": "TDD",
-      "commit_hash": "01422fa",
-      "reviewer_verdict": "SELF-VERIFIED",
-      "started_at": "2026-10-18T13:42:06.475702",
-      "completed_at": "2026-10-18T13:43:22.255638"
+      "implementer": "CPE",
+      "reviewer_verdict": "PASS",
+      "commit_hash": "8513f26",
+      "started_at": "2026-10-22T00:00:00Z",
+      "completed_at": "2026-10-22T00:00:00Z"
+    },
+    {
+      "id": "Task-8",
+      "title": "装配（-index 子命令 + Pool 注入 + 终态分类补 index missing） [Tier: 2-Standard] [Mode: AFK]",
+      "status": "completed",
+      "implementer": "CPE",
+      "reviewer_verdict": "PASS",
+      "commit_hash": "dba5f91",
+      "started_at": "2026-10-22T00:00:00Z",
+      "completed_at": "2026-10-22T00:00:00Z"
+    },
+    {
+      "id": "Task-9",
+      "title": "eval 包骨架 + grader（span 程序判定 + 边界案例） [Tier: 2-Standard] [Mode: AFK]",
+      "status": "completed",
+      "implementer": "CPE",
+      "reviewer_verdict": "PASS",
+      "commit_hash": "1a77b0e",
+      "started_at": "2026-10-22T00:00:00Z",
+      "completed_at": "2026-10-22T00:00:00Z"
+    },
+    {
+      "id": "Batch-10",
+      "title": "任务集 v1 入仓 [Tier: 1-Light] [Mode: HITL]",
+      "status": "completed",
+      "implementer": "CPE",
+      "reviewer_verdict": "HITL-APPROVED",
+      "commit_hash": "see git log",
+      "started_at": "2026-10-22T00:00:00Z",
+      "completed_at": "2026-10-23T00:00:00Z"
+    },
+    {
+      "id": "Task-11",
+      "title": "eval run 命令（N 重复 + 报告 + 首错归因汇总） [Tier: 2-Standard] [Mode: AFK]",
+      "status": "completed",
+      "implementer": "CPE",
+      "reviewer_verdict": "PASS",
+      "commit_hash": "fc93313",
+      "started_at": "2026-10-22T00:00:00Z",
+      "completed_at": "2026-10-23T00:00:00Z"
+    },
+    {
+      "id": "Task-12",
+      "title": "全量回归 + 基线对照评测 + 合入判定 [Tier: 3-Critical] [Mode: HITL]",
+      "status": "pending",
+      "implementer": null,
+      "reviewer_verdict": null,
+      "commit_hash": null,
+      "started_at": null,
+      "completed_at": null
     }
   ]
 }

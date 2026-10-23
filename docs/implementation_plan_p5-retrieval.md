@@ -596,3 +596,5 @@
 | Task 8 幂等断言深度不足 | 未补（只断言 exit 0） | **trigger：Task 12 前补 DocsIndexed==0/ChunksWritten==0/Fingerprint 不变三断言（CRV 黄卡 3）** |
 | Task 8 默认配置 -index 报 :memory: 易失索引 | 未修（计划书面认可的 DbPath 空 → :memory: 设计后果） | exit 0 + {docs:N} 摘要令运维误以为已持久化——**trigger：Task 12 HITL 前必须补 slog.Warn 明示易失或在 README 写明（CRV 黄卡 4，误导性成功报告，acceptance gate 3 近亲）** |
 | Task 1 engine.go:32 注释「错误全文只进 slog」 | 未修正（Task 8 未执行该 trigger） | agent 包无 slog；**trigger：Task 12 前修正注释措辞（Task 1 偏差表登记项）** |
+| Task 12 计划「五道门 + 两组评测 + 判定」 | 同，但前置修复 8 个 harness 缺陷、三轮评测作废、第四轮为判定依据 | 缺陷 A/B/D/E/F/G/H 非计划预见：二进制自索引、FTS5 语法错、隐藏目录指纹漂移、整句 phrase 零命中、512B 截断失救、评测数据源受限、IoU 口径失真；ADR-0018 已补口径修订注记；# Task 12 四张历史黄卡（-index/-eval 接线层、:memory: warn、engine 注释、幂等断言）**仍未修**，如实遗留 |
+| Task 12 未做 | 未 push、未开 PR | 用户未要求；分支 feat/retrieval-as-tool 待 PR |
