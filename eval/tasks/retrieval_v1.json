@@ -1,0 +1,441 @@
+[
+  {
+    "id": "q001",
+    "prompt": "ADR-0004 列出了哪些候选方案？最终采用哪一个？未触发重新评估前坚持什么原则？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "in-corpus",
+    "expect_docs": [
+      "docs/adr/0004-no-persistence-no-message-queue.md"
+    ],
+    "expect_spans": [
+      [
+        930,
+        1405
+      ]
+    ]
+  },
+  {
+    "id": "q002",
+    "prompt": "ADR-0004 从产品与用户体验层面给出了哪些反对引入 DB/MQ 的论据？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "in-corpus",
+    "expect_docs": [
+      "docs/adr/0004-no-persistence-no-message-queue.md"
+    ],
+    "expect_spans": [
+      [
+        220,
+        504
+      ]
+    ]
+  },
+  {
+    "id": "q003",
+    "prompt": "引入 SQLite 时为什么选 modernc.org/sqlite？并发写冲突如何解决？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "in-corpus",
+    "expect_docs": [
+      "docs/adr/0010-persistence-sqlite.md"
+    ],
+    "expect_spans": [
+      [
+        513,
+        870
+      ]
+    ]
+  },
+  {
+    "id": "q004",
+    "prompt": "config.DbPath 为空与非空时分别使用哪个存储实现？两套实现的语义一致性有哪些要求？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "in-corpus",
+    "expect_docs": [
+      "docs/adr/0010-persistence-sqlite.md"
+    ],
+    "expect_spans": [
+      [
+        1103,
+        1415
+      ]
+    ]
+  },
+  {
+    "id": "q005",
+    "prompt": "ADR-0013 审计出的 worker 包 Kitchen Sink 反模式具体指什么？api 层还存在哪些越层依赖与强耦合问题？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "in-corpus",
+    "expect_docs": [
+      "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md"
+    ],
+    "expect_spans": [
+      [
+        588,
+        1435
+      ]
+    ]
+  },
+  {
+    "id": "q006",
+    "prompt": "ADR-0013 重构后的包职责划分是怎样的？api 层通过什么接口消费 Pool？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "in-corpus",
+    "expect_docs": [
+      "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md"
+    ],
+    "expect_spans": [
+      [
+        4607,
+        5464
+      ]
+    ]
+  },
+  {
+    "id": "q007",
+    "prompt": "POST /tasks/{id}/cancel 的 API 契约是什么？任务不存在、未在飞、命中时分别返回什么？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "in-corpus",
+    "expect_docs": [
+      "docs/adr/0014-user-initiated-task-cancellation.md"
+    ],
+    "expect_spans": [
+      [
+        914,
+        1201
+      ]
+    ]
+  },
+  {
+    "id": "q008",
+    "prompt": "process 如何区分用户取消、超时与停机？各自的 task.error 文案是什么？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "in-corpus",
+    "expect_docs": [
+      "docs/adr/0014-user-initiated-task-cancellation.md"
+    ],
+    "expect_spans": [
+      [
+        510,
+        913
+      ]
+    ]
+  },
+  {
+    "id": "q009",
+    "prompt": "崩溃恢复新增的补偿接口签名是什么？pending 与 running 任务分别如何处理？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "in-corpus",
+    "expect_docs": [
+      "docs/adr/0015-crash-recovery-and-task-rehydration.md"
+    ],
+    "expect_spans": [
+      [
+        441,
+        780
+      ]
+    ]
+  },
+  {
+    "id": "q010",
+    "prompt": "进程重启后 pending 任务如何被重新消费？崩溃恢复与优雅停机写入的错误文案分别是什么？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "in-corpus",
+    "expect_docs": [
+      "docs/adr/0015-crash-recovery-and-task-rehydration.md"
+    ],
+    "expect_spans": [
+      [
+        781,
+        1293
+      ]
+    ]
+  },
+  {
+    "id": "q011",
+    "prompt": "SSE 端点对已终态任务与活跃任务分别如何推送？如何清除 WriteTimeout 对长连接的限制？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "in-corpus",
+    "expect_docs": [
+      "docs/adr/0016-sse-task-progress-stream.md"
+    ],
+    "expect_spans": [
+      [
+        929,
+        1226
+      ]
+    ]
+  },
+  {
+    "id": "q012",
+    "prompt": "search_docs 的引用回链契约是什么？三个哨兵错误的可重试性分别是什么？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "in-corpus",
+    "expect_docs": [
+      "docs/adr/0017-retrieval-as-tool.md"
+    ],
+    "expect_spans": [
+      [
+        3616,
+        4227
+      ]
+    ]
+  },
+  {
+    "id": "q013",
+    "prompt": "README 说明如何配置密钥并启动服务？配置文件支持哪些 key？环境变量与配置文件优先级如何？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "in-corpus",
+    "expect_docs": [
+      "README.md"
+    ],
+    "expect_spans": [
+      [
+        1450,
+        1926
+      ]
+    ]
+  },
+  {
+    "id": "q014",
+    "prompt": "从 ADR-0004 到 ADR-0010，项目对持久化的立场发生了什么变化？引入 SQLite 的新触发动机是什么？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "cross-chunk",
+    "expect_docs": [
+      "docs/adr/0004-no-persistence-no-message-queue.md",
+      "docs/adr/0010-persistence-sqlite.md"
+    ],
+    "expect_spans": [
+      [
+        930,
+        1405
+      ],
+      [
+        126,
+        382
+      ]
+    ]
+  },
+  {
+    "id": "q015",
+    "prompt": "配置 db_path 启用 SQLite 后，进程被 Kill -9，pending 与 running 任务的去向分别由什么机制保证？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "cross-chunk",
+    "expect_docs": [
+      "docs/adr/0010-persistence-sqlite.md",
+      "docs/adr/0015-crash-recovery-and-task-rehydration.md"
+    ],
+    "expect_spans": [
+      [
+        881,
+        1415
+      ],
+      [
+        1380,
+        1613
+      ]
+    ]
+  },
+  {
+    "id": "q016",
+    "prompt": "取消功能如何做到 api 不 import worker？涉及哪个消费者定义的接口与哪条架构纪律？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "cross-chunk",
+    "expect_docs": [
+      "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+      "docs/adr/0014-user-initiated-task-cancellation.md"
+    ],
+    "expect_spans": [
+      [
+        4607,
+        5464
+      ],
+      [
+        914,
+        1309
+      ]
+    ]
+  },
+  {
+    "id": "q017",
+    "prompt": "任务尚未被 worker 领单时，SSE 订阅与崩溃恢复分别如何处理？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "cross-chunk",
+    "expect_docs": [
+      "docs/adr/0016-sse-task-progress-stream.md",
+      "docs/adr/0015-crash-recovery-and-task-rehydration.md"
+    ],
+    "expect_spans": [
+      [
+        302,
+        972
+      ],
+      [
+        781,
+        1293
+      ]
+    ]
+  },
+  {
+    "id": "q018",
+    "prompt": "检索能力的验收物是什么？任务集为什么要先于实现入仓？无提升时的判决是什么？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "cross-chunk",
+    "expect_docs": [
+      "docs/adr/0017-retrieval-as-tool.md",
+      "docs/adr/0018-retrieval-evaluation-harness.md"
+    ],
+    "expect_spans": [
+      [
+        5057,
+        5348
+      ],
+      [
+        6880,
+        7193
+      ],
+      [
+        892,
+        1178
+      ]
+    ]
+  },
+  {
+    "id": "q019",
+    "prompt": "retrieval 包在分层拓扑中的位置是什么？允许的依赖方向与 agent 内核对检索的约束分别是什么？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "cross-chunk",
+    "expect_docs": [
+      "docs/adr/0017-retrieval-as-tool.md",
+      "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md"
+    ],
+    "expect_spans": [
+      [
+        1251,
+        2019
+      ],
+      [
+        4607,
+        5464
+      ]
+    ]
+  },
+  {
+    "id": "q020",
+    "prompt": "检索索引存储归谁管？与任务存储共享什么？为什么不并进 TaskStore 接口？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "cross-chunk",
+    "expect_docs": [
+      "docs/adr/0017-retrieval-as-tool.md",
+      "docs/adr/0010-persistence-sqlite.md"
+    ],
+    "expect_spans": [
+      [
+        1682,
+        2325
+      ],
+      [
+        513,
+        870
+      ]
+    ]
+  },
+  {
+    "id": "q021",
+    "prompt": "单任务超时与用户取消如何共用取消树？停机时 cancel 与任务超时是什么关系？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "cross-chunk",
+    "expect_docs": [
+      "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+      "docs/adr/0014-user-initiated-task-cancellation.md"
+    ],
+    "expect_spans": [
+      [
+        958,
+        1341
+      ],
+      [
+        1366,
+        1750
+      ]
+    ]
+  },
+  {
+    "id": "q022",
+    "prompt": "按仓库文档，运行测试与启动评测对照分别用什么命令？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "cross-chunk",
+    "expect_docs": [
+      "docs/adr/0018-retrieval-evaluation-harness.md",
+      "README.md"
+    ],
+    "expect_spans": [
+      [
+        801,
+        1921
+      ],
+      [
+        4428,
+        4824
+      ]
+    ]
+  },
+  {
+    "id": "q023",
+    "prompt": "检索功能如何体现 ADR-0004 的 YAGNI 纪律？无 embedding 凭证时的运行行为是什么？（回答请引用 docs/ 下具体文档的路径作为依据）",
+    "scope": "cross-chunk",
+    "expect_docs": [
+      "docs/adr/0004-no-persistence-no-message-queue.md",
+      "docs/adr/0017-retrieval-as-tool.md"
+    ],
+    "expect_spans": [
+      [
+        506,
+        919
+      ],
+      [
+        3054,
+        3357
+      ]
+    ]
+  },
+  {
+    "id": "q024",
+    "prompt": "agent-runtime 仓库在 GitHub 上获得了多少 star？（仅依据仓库文档回答，文档未提及的信息请直说，不要编造）",
+    "scope": "out-of-corpus",
+    "expect_docs": [
+      "README.md"
+    ],
+    "expect_spans": []
+  },
+  {
+    "id": "q025",
+    "prompt": "ADR-0019 规划决策的内容是什么？（仅依据仓库文档回答，文档未提及的信息请直说，不要编造）",
+    "scope": "out-of-corpus",
+    "expect_docs": [
+      "docs/adr/0018-retrieval-evaluation-harness.md"
+    ],
+    "expect_spans": []
+  },
+  {
+    "id": "q026",
+    "prompt": "agent-runtime 的单元测试代码覆盖率是多少？（仅依据仓库文档回答，文档未提及的信息请直说，不要编造）",
+    "scope": "out-of-corpus",
+    "expect_docs": [
+      "README.md"
+    ],
+    "expect_spans": []
+  },
+  {
+    "id": "q027",
+    "prompt": "ADR-0018 对 P95 延迟规定的验收阈值是多少毫秒？（仅依据仓库文档回答，文档未提及的信息请直说，不要编造）",
+    "scope": "out-of-corpus",
+    "expect_docs": [
+      "docs/adr/0018-retrieval-evaluation-harness.md"
+    ],
+    "expect_spans": []
+  },
+  {
+    "id": "q028",
+    "prompt": "DeepSeek API 每百万 token 的定价是多少？（仅依据仓库文档回答，文档未提及的信息请直说，不要编造）",
+    "scope": "out-of-corpus",
+    "expect_docs": [
+      "README.md"
+    ],
+    "expect_spans": []
+  },
+  {
+    "id": "q029",
+    "prompt": "WAL 模式相比默认 rollback journal 模式，写吞吐提升多少倍？（仅依据仓库文档回答，文档未提及的信息请直说，不要编造）",
+    "scope": "out-of-corpus",
+    "expect_docs": [
+      "docs/adr/0010-persistence-sqlite.md"
+    ],
+    "expect_spans": []
+  },
+  {
+    "id": "q030",
+    "prompt": "SQLite FTS5 trigram 分词器单个 token 的最大长度是多少字符？（仅依据仓库文档回答，文档未提及的信息请直说，不要编造）",
+    "scope": "out-of-corpus",
+    "expect_docs": [
+      "docs/adr/0017-retrieval-as-tool.md"
+    ],
+    "expect_spans": []
+  }
+]
