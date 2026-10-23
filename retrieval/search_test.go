@@ -194,6 +194,47 @@ func TestSearchLexical_BM25Order(t *testing.T) {
 	}
 }
 
+// TestSearchLexical_QuerySanitizedNoFTSSyntaxError 是 harness 缺陷修复的承重墙（RED→GREEN）：
+// 查询串包成 FTS5 phrase 后直进 MATCH——ADR 编号（"ADR-0004 …"）、问号、括号、
+// 前导星号、裸布尔词（NOT / 行尾 AND）都不再触发 FTS5 语法错误。
+// 若去掉 phrase 包装（查询原文直传 MATCH）→ ADR 编号 query 报
+// "SQL logic error: no such column: 0004"，工具层转 KindError，grader 判 recall=0（伪造 wrong-span）。
+// 含双引号的 query 也不能破坏 phrase：内部 " 双写成 "" 后整体包引号，原文仍可命中。
+func TestSearchLexical_QuerySanitizedNoFTSSyntaxError(t *testing.T) {
+	idx := newTestIndex(t)
+	corpus := t.TempDir()
+	writeDoc(t, corpus, "a.md", "ADR-0004 的持久化方案是什么？检索系统设计与实现")
+	writeDoc(t, corpus, "q.md", `含"双引号"的查询检索系统设计与实现`)
+	if _, err := idx.Rebuild(context.Background(), corpus); err != nil {
+		t.Fatalf("Rebuild: %v", err)
+	}
+
+	cases := []struct {
+		name    string
+		query   string
+		wantHit bool // 语料含该串原文：净化后仍应命中（证明不是靠「查无此项」规避错误）
+	}{
+		{"ADR number with question", "ADR-0004 的持久化方案是什么？", true},
+		{"ADR number with parens", "ADR-0004 (持久化) 方案？", false},
+		{"leading asterisk", "*星号检索", false},
+		{"bare NOT keyword", "NOT", false},
+		{"trailing AND keyword", "检索系统 AND", false},
+		{"embedded double quotes", `含"双引号"的查询`, true},
+		{"plain CJK query", "检索系统", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			hits, err := idx.SearchLexical(context.Background(), tc.query, 10)
+			if err != nil {
+				t.Fatalf("SearchLexical(%q) = error %v, want no FTS5 syntax error (query must be phrase-wrapped)", tc.query, err)
+			}
+			if tc.wantHit && len(hits) == 0 {
+				t.Errorf("SearchLexical(%q) = 0 hits, want the verbatim corpus text to stay matchable after sanitization", tc.query)
+			}
+		})
+	}
+}
+
 // TestSearch_HybridRRFFusion 是 RRF 融合的承重墙（变异自证 ①）：
 // 词法 rank 序列 [a,b] 与向量 rank 序列 [x,b,y,a] 交叉错位。
 // 正确参数（k=60, wLex=wVec=0.5）下融合序必须是 b > a > x > y：

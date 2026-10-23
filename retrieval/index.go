@@ -207,6 +207,11 @@ func (idx *Index) CheckFresh(ctx context.Context, corpusDir string) error {
 //  3. 否则全量重建：清空旧索引 → 分块事务批量 INSERT（每 ≤ChunkBatchSize 个一提交，
 //     事务间检查 ctx 取消）→ 成功后更新 corpus_meta 指纹。
 //
+// 语料范围（listDocs 定义，harness 缺陷修复后勿回退）：只收 .md 且排除 docs/eval/。
+// 二进制文件（尤其索引库自身的 .db/.db-wal）入语料会形成正反馈自噬循环——
+// 库大→索引的 chunk 多→库更大，且库内容每次写入都变→指纹永不命中→每次启动全量 Rebuild；
+// 评测产物（docs/eval/ 报表）在评测期间写入，同样会改指纹触发无谓重建。
+//
 // 词法通道（doc_chunk + doc_fts）恒建；向量通道（doc_vec）仅在 hybrid 就绪时
 // （Embedder 非 nil 且 EmbedDim>0）随同一批分块事务写入，见 flush 内的说明。
 //

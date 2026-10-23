@@ -121,6 +121,42 @@ func TestDirFingerprint_PathMatters(t *testing.T) {
 	}
 }
 
+// TestListDocs_OnlyMarkdownExcludesEvalArtifacts 是 harness 缺陷修复的承重墙（RED→GREEN）：
+// 语料限定 .md（大小写不敏感）且排除 docs/eval/（评测产物不是语料）。
+// 若 listDocs 退回「收全部常规文件」→ .go/.db/.git 与 docs/eval 报告全部入列，本用例转红。
+// 背景：二进制文件（索引库自身 .db/.db-wal）入语料会让库越索引越大、指纹永不命中，
+// 形成 库大→索引多→库更大 的正反馈自噬循环；评测报表在评测期间被写进语料，指纹永不符。
+func TestListDocs_OnlyMarkdownExcludesEvalArtifacts(t *testing.T) {
+	dir := t.TempDir()
+	writeRaw(t, dir, "a.md", "甲内容")
+	writeRaw(t, dir, "notes.MD", "乙内容")                     // 大写后缀同样算 markdown
+	writeRaw(t, dir, "sub/c.md", "丙内容")                     // 子目录 .md 照收
+	writeRaw(t, dir, "main.go", "package x")                // 非 .md：排除
+	writeRaw(t, dir, "agent-runtime.db", "SQLite format 3") // 二进制：排除
+	writeRaw(t, dir, "agent-runtime.db-wal", "wal bytes")   // 二进制：排除
+	writeRaw(t, dir, ".git/config", "[core]")               // 元数据：排除
+	writeRaw(t, dir, "docs/eval/report.md", "评测报表")         // 评测产物：排除
+	writeRaw(t, dir, "docs/adr/0004-x.md", "ADR 正文")        // 普通 md：照收
+
+	docs, err := listDocs(dir)
+	if err != nil {
+		t.Fatalf("listDocs: %v", err)
+	}
+	var rels []string
+	for _, d := range docs {
+		rels = append(rels, d.relPath)
+	}
+	want := []string{"a.md", "docs/adr/0004-x.md", "notes.MD", "sub/c.md"}
+	if len(rels) != len(want) {
+		t.Fatalf("listDocs rels = %v, want %v", rels, want)
+	}
+	for i := range want {
+		if rels[i] != want[i] {
+			t.Fatalf("listDocs rels = %v, want %v (only .md, sorted, docs/eval excluded)", rels, want)
+		}
+	}
+}
+
 // TestDirFingerprint_EmptyDir 验证空目录合法（返回稳定的空聚合指纹，不报错）。
 func TestDirFingerprint_EmptyDir(t *testing.T) {
 	fp, err := dirFingerprint(t.TempDir())

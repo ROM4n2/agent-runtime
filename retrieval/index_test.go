@@ -200,6 +200,47 @@ func TestRebuild_SkipsUnreadableFile(t *testing.T) {
 	}
 }
 
+// TestRebuild_CorpusExcludesNonMarkdownAndEval 是 harness 缺陷修复的承重墙（RED→GREEN）：
+// 混合语料 Rebuild 后 doc_chunk 只能含 .md 文档且 docs/eval 被排除（物理证据，不走抽象）。
+// 若 listDocs 不限定 .md → .go/.db/.git 内容进索引，本用例转红；
+// 若 docs/eval 不被排除 → 评测报表在评测期间写入即改指纹，触发无谓全量 Rebuild。
+func TestRebuild_CorpusExcludesNonMarkdownAndEval(t *testing.T) {
+	idx := newTestIndex(t)
+	corpus := t.TempDir()
+	writeDoc(t, corpus, "a.md", "检索系统设计文档")
+	writeDoc(t, corpus, "sub/b.md", "向量数据库性能测试")
+	writeDoc(t, corpus, "main.go", "package retrieval // 不该入索引")
+	writeDoc(t, corpus, "agent-runtime.db", "SQLite format 3 二进制不该入索引")
+	writeDoc(t, corpus, "docs/eval/report.md", "评测报表不该入语料")
+
+	r, err := idx.Rebuild(context.Background(), corpus)
+	if err != nil {
+		t.Fatalf("Rebuild: %v", err)
+	}
+	if r.DocsIndexed != 2 {
+		t.Errorf("DocsIndexed = %d, want 2 (only the two .md docs outside docs/eval)", r.DocsIndexed)
+	}
+	rows, err := idx.db.Query("SELECT DISTINCT doc_id FROM doc_chunk ORDER BY doc_id")
+	if err != nil {
+		t.Fatalf("query doc_id: %v", err)
+	}
+	defer rows.Close()
+	var got []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		got = append(got, id)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows: %v", err)
+	}
+	if want := []string{"a.md", "sub/b.md"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("doc_chunk doc_ids = %v, want %v", got, want)
+	}
+}
+
 // TestCheckFresh_NotBuilt 验证索引未建 → ErrIndexMissing。
 func TestCheckFresh_NotBuilt(t *testing.T) {
 	idx := newTestIndex(t)

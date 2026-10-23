@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -31,6 +32,16 @@ const (
 // RRF 融合前两路都必须取足候选：任一路提前截断都会直接决定最终排序，
 // 使另一路的贡献被静默削掉。最终 top_k 由工具层（Task 7）决定，这里只保证融合输入充分。
 const searchCandidateLimit = 50
+
+// ftsPhrase 把用户查询串净化为一个 FTS5 phrase：内部双引号双写（" → ""）后整体包 "..."。
+// 这样查询串永远是「一段连续的原文」，其中的 ADR 编号、问号、括号、前导 *、
+// AND/OR/NOT 等字符全部失去 FTS5 语法含义，不再触发语法错误；
+// 用户真正想搜的原文子串仍按 trigram 命中（净化只包一层引号，不改写内容）。
+// 语义变化是刻意且必要的：查询不再支持布尔组合词（那是 Query Builder 的领域，
+// 不是自然语言检索工具的契约），换来「任何自然语言问句都不报错」。
+func ftsPhrase(query string) string {
+	return `"` + strings.ReplaceAll(query, `"`, `""`) + `"`
+}
 
 // Hit 是单条召回结果。Span 为原文 rune 偏移（含头不含尾），
 // 配合 DocID 构成上层引用硬契约，供回链原文（ADR-0017 决策 4）。
@@ -110,9 +121,12 @@ func (idx *Index) Search(ctx context.Context, query string, tokenBudget int) (Se
 }
 
 // SearchLexical 走 FTS5 bm25 词法召回，返回按相关度降序的 limit 个命中。
-// 查询原文直传 MATCH：不对查询做 bigram 预切（trigram 下预切文本不可检索，
-// 实证见 index_test.go TestFTS_BigramSplitProducesEmptyIndex；2 字查询的
-// 零命中是 trigram 分词器的硬限制，由工具层的 schema 提示引导用户给足上下文）。
+// 查询串先净化为单个 FTS5 phrase（ftsPhrase）再进 MATCH：不对查询做 bigram 预切
+// （trigram 下预切文本不可检索，实证见 index_test.go TestFTS_BigramSplitProducesEmptyIndex；
+// 2 字查询的零命中是 trigram 分词器的硬限制，由工具层的 schema 提示引导用户给足上下文），
+// 但也不把原文直传 MATCH——ADR 编号（"ADR-0004 的持久化方案是什么？"）会被 FTS5
+// 当作列名解析，报 "no such column: 0004"；前导 * / 裸 NOT / 行尾 AND 同样是语法错误，
+// 错误经工具层转 KindError 后 grader 记 recall=0（伪造的 wrong-span，CRV 黄卡 3 外溢）。
 //
 // 用 JOIN 而非两步：外接内容表只能直接选 FTS 自己声明的列（text）与 rowid，
 // doc_id/source/span 都在内容表 doc_chunk 里，JOIN 一次拿全且保序。
@@ -123,7 +137,7 @@ func (idx *Index) SearchLexical(ctx context.Context, query string, limit int) ([
 		`SELECT c.chunk_id, c.doc_id, c.source, c.span_start, c.span_end, c.text, bm25(doc_fts)
 		 FROM doc_fts JOIN doc_chunk c ON c.chunk_id = doc_fts.rowid
 		 WHERE doc_fts MATCH ? ORDER BY bm25(doc_fts) LIMIT ?`,
-		query, limit)
+		ftsPhrase(query), limit)
 	if err != nil {
 		return nil, err
 	}

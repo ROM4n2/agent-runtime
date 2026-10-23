@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 // docFile 是语料中一篇待索引文件的定位信息。
@@ -16,8 +17,47 @@ type docFile struct {
 	absPath string // 绝对路径，用于读取
 }
 
-// listDocs 递归遍历 corpusDir，收集所有常规文件。
-// 目录递归进入但不作为文档；符号链接/设备等非常规类型跳过（不计入索引，也不计入 DocsSkipped）。
+// corpusExt 是语料收录的唯一后缀（大小写不敏感）：只收 .md。
+// 为什么限定 .md（harness 缺陷修复，勿回退）：二进制文件（尤其是检索索引库自身的
+// .db/.db-wal）一旦进语料就形成正反馈自噬循环——库大→索引的 chunk 多→库更大，
+// 且库内容每次写入都变，corpus 指纹永远不符→每次启动全量 Rebuild。
+// 实测 agent-runtime.db 自身产生 293409 行、.db-wal 114195 行，411965 行语料中
+// 仅 ~35402 是正常 md，纯词法组 recall 被稀释到 0。
+const corpusExt = ".md"
+
+// evalDirPrefixes 是被排除的评测产物目录名序列（相对 corpusDir，逐段大小写不敏感）：
+// corpusDir=仓库根 时是 docs/eval/，corpusDir=docs 时是 eval/（main.go 两个默认值）。
+// 评测报表在评测期间被写进语料目录，会改变语料指纹、触发下次无谓全量 Rebuild（缺陷 C），
+// 因此评测产物一律不算语料。
+var evalDirPrefixes = [][]string{
+	{"docs", "eval"},
+	{"eval"},
+}
+
+// underEvalDir 判断 relPath（/ 分隔）是否位于评测产物目录内。
+func underEvalDir(relPath string) bool {
+	segs := strings.Split(relPath, "/")
+	for _, prefix := range evalDirPrefixes {
+		if len(segs) <= len(prefix) {
+			continue // 目录自身或更高层不算「目录内」，只排除其子孙
+		}
+		match := true
+		for i, want := range prefix {
+			if !strings.EqualFold(segs[i], want) {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true
+		}
+	}
+	return false
+}
+
+// listDocs 递归遍历 corpusDir，收集语料文件：只收 .md（大小写不敏感），
+// 排除 docs/eval/ 评测产物目录。目录递归进入但不作为文档；
+// 符号链接/设备等非常规类型跳过（不计入索引，也不计入 DocsSkipped）。
 // 结果按 relPath 排序，保证指纹聚合与插入顺序确定。
 func listDocs(corpusDir string) ([]docFile, error) {
 	var docs []docFile
@@ -32,7 +72,14 @@ func listDocs(corpusDir string) ([]docFile, error) {
 		if err != nil {
 			return err
 		}
-		docs = append(docs, docFile{relPath: filepath.ToSlash(rel), absPath: path})
+		relSlash := filepath.ToSlash(rel)
+		if !strings.EqualFold(filepath.Ext(relSlash), corpusExt) {
+			return nil // 非 .md：不入语料（二进制自索引会形成正反馈，见 corpusExt 注释）
+		}
+		if underEvalDir(relSlash) {
+			return nil // 评测产物不是语料（见 evalDirPrefixes 注释）
+		}
+		docs = append(docs, docFile{relPath: relSlash, absPath: path})
 		return nil
 	})
 	if err != nil {
