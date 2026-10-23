@@ -29,7 +29,8 @@ func isRetryable(err error) bool {
 }
 
 // toolErrorClass 把工具错误映射成 trace 用的粗分类。
-// 红线：trace 的 KindError detail 只存粗分类，错误全文只进 slog / 喂回模型的消息。
+// 红线：trace 的 KindError detail 只存粗分类；错误全文只喂回模型供其自纠，
+// 不进 trace（agent 包不打日志，脱敏责任在 trace 出口这一层）。
 func toolErrorClass(err error) string {
 	if isRetryable(err) {
 		return "tool error: retryable"

@@ -5,10 +5,12 @@ import (
 	"agent-runtime/llm"
 	"agent-runtime/retrieval"
 	"agent-runtime/store"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"testing"
@@ -640,6 +642,43 @@ func TestPool_RegisterTool_InjectsSearchDocsSpec(t *testing.T) {
 	}
 	if defaults != 2 {
 		t.Errorf("default tool count = %d, want 2 (RegisterTool must not wipe calculate/current_time)", defaults)
+	}
+}
+
+// TestPool_RegisterToolAfterStart_WarnsButKeepsWorking 覆盖 RegisterTool 的
+// started 分支（现有用例全在 Start 之前注册，该分支零覆盖）：Start 之后注册
+// 不得 panic、必须走 slog.Warn 告警（装配约定被违反时要显式可见），且工具仍
+// 进 Registry 对后续任务可见（告警不等于丢注册）。
+// 变异自证：删掉 RegisterTool 里的 started 判断，本用例的 WARN 断言转红。
+func TestPool_RegisterToolAfterStart_WarnsButKeepsWorking(t *testing.T) {
+	s := store.NewStore()
+	p := NewPool(1, 30*time.Second, s, fakeChatter{})
+	p.Start()
+	defer p.Stop()
+
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	p.RegisterTool(fakeSearchTool{}) // Start 之后：只告警，不 panic、不丢注册
+
+	out := buf.String()
+	if !strings.Contains(out, "level=WARN") || !strings.Contains(out, "RegisterTool after Start") {
+		t.Fatalf("slog output = %q, want a WARN mentioning %q", out, "RegisterTool after Start")
+	}
+	if !strings.Contains(out, "search_docs") {
+		t.Errorf("slog output = %q, want the offending tool name %q", out, "search_docs")
+	}
+
+	var found bool
+	for _, sp := range p.tools.Specs() {
+		if sp.Function.Name == "search_docs" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("search_docs missing from Specs after post-Start RegisterTool (warn must not drop the tool)")
 	}
 }
 
