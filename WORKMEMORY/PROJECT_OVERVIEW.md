@@ -17,15 +17,24 @@
 ## 当前状态
 
 - P1/P2/P3/P4 完整交付（ADR-0012 轨迹可观测性、ADR-0013 架构解耦、P4 生产级审计缺陷加固全部落地）。
-- **P5 检索即工具已随 PR #1 合入 `master`（b5f8b97，2026-10-23）**：ADR-0017 v2 + ADR-0018 全量落地——独立 `retrieval` 包（FTS5 词法 + vec0 混合基础设施，默认 lexical）、`search_docs` 工具（span 契约/三哨兵/Retryable）、`eval` 包（任务集 30 条 + grader + `eval run` 分布报表）、`-index` 子命令、`index missing` 独立终态；6 项历史黄卡与 3 条 CRV 复核项已在合入前全清（5e899fe）；P5 评测三关与三轮作废纪律已蒸馏登记至 vault（cae1fb3）。
-- **评测结论（docs/eval/2026-10-23-*-r3.md）**：baseline 0.00 → lexical 1.00（success_median，P25 0/P75 1），17/30 vs 0/30 任务 → **合入**；边界如实记录：in-corpus 12/13、cross-chunk 4/10、out-of-corpus 1/7（模型不拒答，检索反成编造弹药）；延迟 ×1.96、步数 ×8.4。
-- **待观察项（已登记 trigger）**：① hybrid 组待 embedding 凭证；② cross-chunk/拒答策略需 prompt 版本对照；③ `llm` embed 端点拼接与 README 措辞对齐（base 若含 `/v1` 会重复）；④ `TestRunIndexCommand_BuildsAndExits/_MissingDir` 补 `t.Chdir` 隔离本地 `config.yaml`。
-- 测试基线：`GOWORK=off go test -race ./... -count=1` 11 包全绿（238 个 `func Test` / 392 RUN，0 数据竞争）。
+- P5 检索即工具随 PR #1 合入 `master`（b5f8b97，2026-10-23）。
+- **P6 生产级对齐与混合检索实证完整落地（2026-10-25）**：
+  1. **工业级契约闭环**：`llm.joinEndpoint` 幂等防 `/v1/v1` 404；允许空 `EmbedAPIKey` 支持本地 Ollama 免密嵌入；`ChatWithTools` 透传 `Temperature=0` 与 `Seed`；解析 `llm.Usage` 并在 `agent.RunWithOptions` 支持多步 Token 累加；`config.Model` 9 项配置支持。
+  2. **结构熵增治理三件套**：在 `agent/tool` 下沉 `TerminalClassifier` 接口，`retrieval.ErrIndexMissing` 实现协议，`worker/pool.go` 面向接口做 `errors.As` 提取终态，彻底移除 `worker → retrieval` 反向依赖；在不引入外部子包的前提下同包正交拆分 5 个巨型文件（`main.go → cli.go`、`api/handler.go → api/events.go`、`retrieval/search.go → retrieval/vector_search.go`、`retrieval/index.go → retrieval/schema.go`、`eval/run.go → eval/collector.go`）；新增根级 `architecture_test.go`，用 `go/parser` 扫描全仓建立 12 包 AST DAG 白名单与生产 ≤ 400 行 / 测试 ≤ 800 行代码体积预算机械闸。
+  3. **版本化 Prompt 与实证评测闭环**：创建 `prompts/` 包（`go:embed` 内嵌 `eval-template-v1`、`eval-template-v2`、`default-v1`），在本地 Ollama `nomic-embed-text:latest`（768 维）与 DeepSeek-V3 下完成 30 题 × 3 重复（每组 90 轮）实跑。实证验证混合检索将跨文档综合题（`cross-chunk`）成功率提升至 100%，平均步数下降至 11.84 步，单轮评测节省 54,608 个 Prompt Context Tokens，端到端延迟仅微增 188ms。
+- **评测结论（docs/eval/2026-10-25-*-r3.md）**：
+  - Baseline：0.00 [0.00, 0.00]（0/90）；
+  - Lexical（v2 提示词）：1.00 [0.00, 1.00]（61/90，none×61, wrong-span×24, right-span-wrong-reasoning×5，总 Token 1042K+72K）；
+  - Hybrid（v2 提示词 + nomic-embed-text 768维）：1.00 [0.25, 1.00]（67/90，none×67, wrong-span×20, right-span-wrong-reasoning×3，总 Token 987K+71K）→ **合入**。
+- 测试基线：`GOWORK=off go test -race ./... -count=1` 12 包全绿（260 个 `func Test` / 422 RUN，0 数据竞争）。代码规模 71 个 Go 文件（33 生产 / 38 测试，共 15,319 行）。
 - 架构领域分层：
-  - `agent/tool`: 独立工具系统与 Tool 注册表（内置纯 AST 算术引擎与时区工具，Errors-As-Messages 规范）；
-  - `agent`: 纯粹认知内核（ReAct `Run` 循环、`Chatter` 接口、`TraceStep` 步骤与有界环形缓冲 `TraceBuffer`）；
-  - `api`: 纯粹 HTTP 适配器与装配层，依赖倒置使用 `TaskRunner` 消费者接口，有自动化架构防线静态门禁阻断反向依赖；
-  - `worker`: 纯粹 Job Concurrency Executor，两阶段优雅停机 + 队列排空 + 细化异常终态归因。
+  - `prompts`: 版本化系统提示词管理（`go:embed`，提供 `Get`，内嵌反幻觉与 Grounded Citation 铁律）；
+  - `agent/tool`: 独立工具系统与 Tool 注册表（内置纯 AST 算术引擎与时区工具，提供 `TerminalClassifier` 协议下沉接口）；
+  - `agent`: 纯粹认知内核（ReAct `Run`/`RunWithOptions` 循环、`Chatter` 接口、`TraceBuffer` 环形缓冲）；
+  - `api`: 纯粹 HTTP 适配器与装配层，REST CRUD 与 SSE 流式事件按文件正交拆分，有架构防线静态门禁阻断反向依赖；
+  - `worker`: 纯粹 Job Concurrency Executor，零 retrieval 依赖，通过 `TerminalClassifier` 提取终态；
+  - `retrieval`: 独立顶层检索包，FTS5 词法 + vec0 KNN + RRF 融合，生命周期/DDL/词法/向量正交切分；
+  - `eval`: 检索评测 harness（ADR-0018），成对受控实验参数锁定与 API 真实 Token 统计。
 - 生产加固能力：
   - **主动抢占取消**：`POST /tasks/{id}/cancel` + `Pool.inFlight` 句柄表 + `context.WithCancelCause`
     物理中断上游 HTTP 调用；未在飞任务返回 409；取消原因脱敏后落 `task.error`（ADR-0014）。

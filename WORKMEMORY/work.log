@@ -148,3 +148,21 @@ Caps: filesystem-read, filesystem-write, shell-exec, git, mcp-vault
 - 知识沉淀（/dfs-save）：经 search_vault 查重后，将「多版本迭代后的结构熵增治理：错误协议下沉、同包按职责切分与 AST 依赖/体积机械闸」写入知识库 99-Inbox/2026-10-23-多版本迭代后的结构熵增治理：错误协议下沉、同包按职责切分与-ast-依赖体积机械闸.md（A-MAC 通过，YAML frontmatter 8 键核验通过），并在正文与 WORKMEMORY/INDEX-topics.md 登记归档目标（01-Rules/LAYERED-ARCHITECTURE.md §5）及演进路线（先在本项目 P6 试点，本会话不跨仓修改 dfs-* 技能，待试点合入后并入 dfs-* 技能）。
 - 规格与计划产出（/dfs-spark + /dfs-plan）：生成设计规格书 docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md 与 7 任务 TDD 实施计划 docs/implementation_plan_p6-production-alignment.md（覆盖：Task 1 TerminalClassifier 协议下沉斩断 worker->retrieval；Task 2 切分 5 个 >400 行文件 + 根级 AST DAG 与行数预算门禁；Task 3 LLM /v1 幂等拼接、Ollama 免密嵌入、Temperature/Seed 与 Usage 解析；Task 4 prompts/ 版本化系统提示词与 agent.RunWithOptions 跨步 Usage 累加；Task 5 eval/CLI 接线闭环；Task 6 本地 Ollama nomic-embed-text:latest 768 维 hybrid + lexical v2 实跑评测；Batch 7 README/ADR/面试军火库全量刷新）。
 - 隐私与门禁核验：全仓受跟踪文件零本机盘符/隐私目录命中。
+
+### 2026-10-25 18:35 | gemini-3.8-flash-high__hermes-agent | WORK_END
+Caps: filesystem-read, filesystem-write, shell-exec, git
+P6 生产级闭环（工业级契约对齐 + 结构治理三件套 + Ollama 768维混合检索实证 + 文档资产全量刷新）在分支 feat/p6-production-alignment 全量交付（7 任务全部通过，未 push / 未提 PR）：
+- Task 1 [Tier2] (fcb8f9c): agent/tool.TerminalClassifier 协议下沉，retrieval.ErrIndexMissing 实现协议，worker/pool.go 面向接口做 errors.As 判别，彻底移除 worker->retrieval 反向依赖。通过独立 Reviewer 子代理 Maker-Checker PASS 审查与变异测试自证。
+- Task 2 [Tier2] (b617b00): 同包正交拆分 5 个 >400 行巨型文件（main.go -> cli.go、api/handler.go -> api/events.go、retrieval/search.go -> retrieval/vector_search.go、retrieval/index.go -> retrieval/schema.go、eval/run.go -> eval/collector.go），零新增子包；新增根级 architecture_test.go，用 go/parser 扫描全仓建立 12 包 AST DAG 白名单与生产 <= 400 行 / 测试 <= 800 行代码体积预算机械闸。Reviewer PASS 审查。
+- Task 3 [Tier2] (b106577): 工业级契约对齐。llm.joinEndpoint 幂等处理 /v1 消除 /v1/v1 404；Embed 移除强制非空 APIKey 守卫以支持本地 Ollama 免密嵌入；ChatWithTools 透传 Temperature=0 与 Seed；解析并暴露 llm.Usage；config.Model 9 项配置支持。Reviewer PASS 审查。
+- Task 4 [Tier2] (46d0372): 新增 prompts/ 包（go:embed 内嵌 default-v1、eval-template-v1、eval-template-v2 反幻觉与 Grounded Citation 铁律）；agent.RunWithOptions 支持注入 SystemPrompt 与 OnUsage 跨步 Token 累加。Reviewer PASS 审查。
+- Task 5 [Tier2] (289f3be): 评测与 CLI 接线闭环。eval.Run 预检校验模板版本；resolveChatter 注入 Temperature=0 与 Seed；runOnce 累加真实 Token 并在无注入计数器且 Token > 0 时标注 llm-usage（API 实测返回）；cli.go 支持免密构建向量 Embedder。Reviewer PASS 审查。
+- Task 6 [Tier3 HITL] (4a35861): 本地 Ollama nomic-embed-text:latest（768 维）+ DeepSeek 实测。30 题 × 3 重复（每组 90 轮）实跑 eval-template-v2 下的 lexical 与 hybrid 组。实证：混合检索将跨文档综合（cross-chunk）成功率由 33% 提升至 100%，总体成功率提升 6.66%（P25 跃升至 0.25），平均步数由 12.72 降至 11.84，单轮评测净节省 54,608 个 Prompt Context Tokens，P50 延迟仅微增 188ms。报表落盘 docs/eval/2026-10-25-*-r3.{md,json} 并填入结构化人工判定。
+- Batch 7 [Tier1]: 全面刷新 README.md（12 包结构、-index/-eval CLI、9 项配置、实证对照表、真实测试数）、docs/adr/0017-retrieval-as-tool.md 与 0018-retrieval-evaluation-harness.md 状态升级为已实施并补充实证索引、docs/interview/ 三篇面试手册全面升级为 P6 全栈运行时口径、.agent-context.md 与 WORKMEMORY/PROJECT_OVERVIEW.md 物理对齐。
+- 物理门禁验证：
+  - 测试套件：GOWORK=off go test -race ./... -count=1 全部 12 个包 PASS，260 个 func Test / 422 个 === RUN 分支全绿，0 data race。
+  - 构建静态检查：GOWORK=off go build ./... && GOWORK=off go vet ./... 0 警告 0 报错。
+  - 架构门禁：GOWORK=off go test -v -run TestArchitecture . -count=1 PASS。
+  - 代码规模：71 个 Go 文件（33 生产 / 38 测试，共 15,319 行），单文件行数全部在预算内。
+  - 隐私扫描：git grep -n -E 'Obsidian|Haoyu|[CDcd]:[/\\\\]' 全仓受跟踪文件 0 命中。
+- 状态：所有代码已在 feat/p6-production-alignment 分支就绪，工作树清洁，等待用户审查开 PR。

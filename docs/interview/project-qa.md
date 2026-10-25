@@ -26,17 +26,20 @@
     > 1. **短期（快速失败）**：在 Handler 中使用 `select` + `default` 改造成非阻塞通道写入。一旦队列满了，立即清理 Store 中的待执行记录，并返回 **`HTTP 503 Service Unavailable`** 响应。
     > 2. **长期（持久化队列）**：引入 SQLite 或 Redis 等外部存储组件，将内存队列持久化，在隔离内存压力的同时，防止进程重启导致任务丢失。
 
-### Q4：`worker` 包需要调用大模型，却并没有导入 `llm` 包，这是怎么实现的？为什么要这么设计？
+### Q4：`worker` 包需要调用大模型，却并没有导入 `llm` 包；在接入检索后，也没有导入 `retrieval` 包，这是怎么实现的？为什么要这么设计？
 *   **标准回答**：
-    > 采用 **依赖倒置原则（DIP）**，在消费者侧定义接口。
-    > 在 [worker/pool.go](../../worker/pool.go) 中定义了小接口 [`chatter`](../../worker/pool.go#L14)：
-    > ```go
-    > type chatter interface {
-    >     Chat(ctx context.Context, prompt string) (string, error)
-    > }
-    > ```
-    > `worker` 仅依赖此接口进行消费。最终在 [main.go](../../main.go) 中，我们将实现了该接口的 `llm.Client` 实例化并注入。
-    > **最大价值**：**支持高度可测试性（Mocking）**。在编写 [pool_test.go](../../worker/pool_test.go) 时，我们可以无需引入真实的网络客户端，直接注入一个模拟的 `MockChatter`，从而在无网状态下完成 100% 单元测试覆盖。
+    > 采用 **依赖倒置原则（DIP）与协议下沉（Protocol Lowering）**。
+    > 1. **LLM 解耦**：在 `agent` 包定义小接口 `agent.Chatter`，`worker` 仅面向接口消费，实际由外部注入实现。
+    > 2. **检索错误解耦**：当工具发生特定失败（如检索索引未建立），上层调度器需要将其分类为任务终态 `"index missing"`。如果直接让 `worker` 去 import `retrieval.ErrIndexMissing`，就会造成调度池反向耦合具体工具实现。
+    > 3. **解决方案**：我们在底层契约包 `agent/tool` 中下沉定义了 `TerminalClassifier` 接口：
+    >    ```go
+    >    type TerminalClassifier interface {
+    >        error
+    >        TerminalStatus() string
+    >    }
+    >    ```
+    >    由 `retrieval` 内部的未导出错误类型实现该方法返回 `"index missing"`，`worker` 内部仅需使用 `errors.As(err, &tc)` 判定，彻底移除了对 `retrieval` 包的 import 依赖。
+    >    此依赖单向性由根目录的 `architecture_test.go` AST DAG 白名单进行每次编译必测的机械防护。
 
 ### Q5：在 [store/store.go](../../store/store.go) 里，`Update` 和 `Complete` 分离的设计初衷是什么？
 *   **标准回答**：

@@ -1,7 +1,7 @@
 # ADR-0017：检索能力以工具形式接入（Hybrid Retrieval as a Tool）
 
-- **日期**：2026-10-22（v2 重写：2026-10-22 dfs-grill 双透镜拷打后修订）
-- **状态**：已接受（**未实施**）
+- **日期**：2026-10-22（v2 重写：2026-10-22 dfs-grill 双透镜拷打后修订；2026-10-25 P6 闭环）
+- **状态**：已实施（2026-10-23 PR #1 合入基础框架；2026-10-25 P6 闭环混合检索实证、提示词工程与 AST 架构解耦）
 - **上游依赖**：ADR-0008（工具调用循环）、ADR-0010（SQLite 持久化）、ADR-0013（分层解耦）、ADR-0014（取消语义）、ADR-0004（YAGNI 立场）
 - **下游影响**：`tool.Registry` 接口签名、`agent.Run` 循环、新增 `retrieval` 包、`llm` 包扩展；评测口径由 **ADR-0018** 定义
 - **上位规范**：vault `01-Rules/LAYERED-ARCHITECTURE.md`（Pi-Agent 三层蒸馏：依赖方向判据）、`01-Rules/AGENT-EVALUATION-HARNESS.md`（裁剪引用）

@@ -355,4 +355,5 @@
 
 | plan text | what was actually built | why |
 | --- | --- | --- |
-| *(待执行后据实填写；无偏差填「无偏差」)* | | |
+| Task 2 同包切分清单提及 `retrieval/build.go` 与 `eval/batch.go` | 实际切分为 `retrieval/schema.go`（聚焦 SQLite DDL 与版本指纹）与 `eval/collector.go`（聚焦全文证据收集与计数辅助） | 文件职责内聚度更高，符合 Go 标准库命名惯例，行数预算（<=400 行）完全达成 |
+| 计划提及使用 `scripts/vault_exec_state.py` 驱动 ledger | 本地不存在该脚本，降级使用 Hermes 原生 `todo_list` 状态机配合实施计划的 Step Breakdown 进行物理状态追踪 | 零阻碍推进，10 项任务状态全链路清晰可审 |

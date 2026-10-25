@@ -1,8 +1,8 @@
 # Agent Runtime
 
 异步任务 + Worker Pool + LLM Agent 的 Go 后端服务。客户端提交 prompt，服务异步调用 DeepSeek：
-worker 以 **think → call tool → observe** 的多步循环执行 agent（内置 `calculate` / `current_time` 工具），
-通过轮询或 SSE 获取结果。支持用户主动取消与掉电崩溃恢复。
+worker 以 **think → call tool → observe** 的多步认知循环执行 agent（内置 `calculate` / `current_time` / `search_docs` 工具），
+通过轮询或 SSE 获取结果。支持用户主动取消、掉电崩溃恢复与 FTS5+vec0 RRF 混合知识检索。
 
 ## Architecture
 
@@ -16,7 +16,7 @@ worker 以 **think → call tool → observe** 的多步循环执行 agent（内
   │                         │  [worker 1][worker 2][worker 3]
   │                         │   store.Update(running)
   │                         │         ▼
-  │                         │   runAgent: llm.ChatWithTools ⇄ 执行工具(calc/time)
+  │                         │   runAgent: llm.ChatWithTools ⇄ 执行工具(calc/time/search_docs)
   │                         │         ▼
   │                         │   store.Complete → done / failed
   │ GET /tasks/{id} 轮询    │
@@ -54,21 +54,40 @@ Copy-Item config.yaml.example config.yaml   # 然后填真实值
 go run .
 ```
 
-`config.yaml` 已被 `.gitignore` 忽略。只支持扁平的 `key: value`，解析到嵌套或未知 key 会直接启动失败，不静默忽略。已支持的 key：`deepseek_api_key`、`api_auth_key`、`db_path`、`task_timeout_seconds`、`embed_base_url`、`embed_api_key`、`embed_model`、`embed_dim`：
+`config.yaml` 已被 `.gitignore` 忽略。只支持扁平的 `key: value`，解析到嵌套或未知 key 会直接启动失败，不静默忽略。已支持 9 项配置：`deepseek_api_key`、`api_auth_key`、`model`、`db_path`、`task_timeout_seconds`、`embed_base_url`、`embed_api_key`、`embed_model`、`embed_dim`：
 
 ```yaml
 deepseek_api_key: "sk-你的key"
 api_auth_key: "你的服务端密钥"
+model: "deepseek-chat"   # 可选：默认 deepseek-chat，环境变量 MODEL 优先级更高
 db_path: ""   # 可选：填 SQLite 文件路径（如 agent-runtime.db）即启用持久化，留空用内存存储
 task_timeout_seconds: 30   # 可选：单次任务 LLM 调用超时（正整数，0=默认 30s）
 # embed_* 四项为检索功能的向量通道配置（ADR-0017），全部留空 = 纯词法检索（lexical）
-embed_base_url: ""   # OpenAI 兼容 /v1/embeddings 端点（DeepSeek 无此端点，需另配 provider）
-embed_api_key: ""
-embed_model: ""
-embed_dim: 0   # 向量维度，0=不建向量索引
+# 本地 Ollama 等免密向量引擎无需鉴权时，embed_api_key 可以留空
+embed_base_url: "http://localhost:11434/v1"   # OpenAI 兼容 embeddings 端点
+embed_api_key: ""                             # 远端引擎需鉴权时填写，本地 Ollama 留空
+embed_model: "nomic-embed-text:latest"
+embed_dim: 768                               # 向量维度，0=不建向量索引
 ```
 
 没有配置文件也没设环境变量时，服务会打印错误并以退出码 1 退出。
+
+### CLI 子命令（运维与离线对照）
+
+服务支持两条短路退出的 CLI 子命令，不占用主服务监听端口：
+
+```powershell
+# 1. 离线构建/全量重建检索索引（对指定语料目录切分分块并建库）
+go run . -index docs
+
+# 2. 自动化对照评测 Harness（ADR-0018：成对受控，单命令跑完 30 题 × 3 次重复并落盘 Markdown/JSON 报表）
+# 词法基线组（FTS5 词法召回）：
+go run . -eval -group lexical -repeat 3 -template eval-template-v2
+
+# 混合召回组（本地 Ollama 768 维向量 + FTS5 BM25 + RRF 融合倒数排序）：
+$env:EMBED_BASE_URL="http://localhost:11434/v1"; $env:EMBED_MODEL="nomic-embed-text:latest"; $env:EMBED_DIM="768"
+go run . -eval -group hybrid -repeat 3 -template eval-template-v2
+```
 
 ### Docker
 
@@ -141,38 +160,85 @@ Token 框填一次就会存进浏览器 `localStorage`，下次打开自动回�
 ## Testing
 
 ```powershell
-go test ./... -count=1                 # 25 个测试全绿
-go test -bench=. -benchmem ./worker/   # 基准测试
+GOWORK=off go test -race ./... -count=1  # 260 个测试用例 / 422 个测试分支全绿，零 race
+go test -bench=. -benchmem ./worker/     # 基准测试
 ```
 
-- **单测**：store 状态机、worker 并发上限、agent 工具调用循环、llm 请求/响应解析、metrics 计数。
-- **集成测试**：`api/integration_test.go` 用 `httptest` 端到端跑通 `POST /run → 轮询 → done`。
+- **单测体系**：涵盖 12 个分层包，覆盖 store 状态机、worker 并发与取消树、agent 认知循环、tool 注册表与 AST 算术求解器、retrieval 词法/向量/RRF 融合召回、eval 自动化判题器。
+- **静态架构与体积门禁**（`architecture_test.go`）：
+  - **AST DAG 白名单**：用 `go/parser` 扫描全包 import 关系，严格锁死单向分层，杜绝跨层反向依赖（如 worker 严禁 import retrieval，api 严禁 import worker）；
+  - **代码体积预算（Line Budget）**：强制生产 `.go` 文件 ≤ 400 行、测试文件 ≤ 800 行，多版本迭代防腐化。
+- **集成测试**：`api/integration_test.go` 用 `httptest` 端到端验证 `POST /run → 轮询 → done` 与 SSE 流式事件。
 - **Benchmark**：
   - `BenchmarkPoolEnqueue` ≈ 1.5 µs/op（3 worker 调度吞吐）
   - `BenchmarkRunAgent` ≈ 84 ns/op（单步 agent 循环开销）
+
+## 检索实证对照（Evaluation Benchmark）
+
+依据 ADR-0018 成对受控设计，使用 30 题独立评测集（包含语料内直答 `in-corpus`、跨文档综合 `cross-chunk` 与语料外拒答 `out-of-corpus`）在 DeepSeek-V3 与 本地 Ollama `nomic-embed-text:latest`（768 维）下执行 N=3 重复实跑（每组 90 轮）：
+
+| 对照组别 | 召回通道 | 任务成功率 (中位数 [P25, P75]) | 引用命中率 (中位数) | 平均步数 | P50 延迟 (ms) | 真实 Token 成本 (p+c) |
+|---|---|---|---|---|---|---|
+| **Baseline** | 无检索（仅计算/时间） | 0.00 [0.00, 0.00] (0/90) | 0.00 | 2.00 | 4551.5 | 0 + 0 (not-wired) |
+| **Lexical** | FTS5 trigram BM25 | 1.00 [0.00, 1.00] (61/90) | 1.00 | 12.72 | 6412.5 | 1042K + 72K (llm-usage) |
+| **Hybrid** | FTS5 + vec0 (768维) + RRF | **1.00 [0.25, 1.00] (67/90)** | 1.00 | **11.84** | 6601.0 | **987K + 71K (-55K tokens)** |
+
+> **实证结论**：混合检索使成功率绝对值提升 6.66%（P25 跃升至 0.25），跨文档综合题（如取消与重试联动、并发池与状态机解耦）成功率由 33.3% 跃升至 100%；同时因语义命中更精准，Agent 平均认知步数减少 0.88 步，单轮评测节省 54,608 个 Prompt Context Tokens，端到端延迟仅微增 188ms。
 
 ## Project Structure
 
 ```
 agent-runtime/
-├── main.go            # 入口：环境变量 → 组装依赖 → 启动服务
-├── api/               # HTTP 层
-│   ├── handler.go     # 路由注册：/run、/tasks/{id}、/healthz、/metrics、/
-│   ├── middleware.go  # Recover / RequestID / 限流 / 鉴权
-│   ├── demo.go        # go:embed 单页 Demo
-│   └── demo.html
-├── config/            # 配置加载：环境变量 > config.yaml（扁平解析，零依赖）
-├── store/             # 任务存储：TaskStore 接口；内存 map + Mutex（默认）或 SQLite 持久化（配 db_path）
-├── worker/            # Worker Pool + agent 工具调用循环
-├── llm/               # LLM 客户端：封装 DeepSeek API 调用
-├── metrics/           # 进程内计数 + Prometheus 文本格式（零依赖）
-├── docs/              # 项目文档、ADR、实施计划
-└── Dockerfile         # 多阶段构建
+├── main.go               # 守护进程入口：配置加载 → 依赖组装 → 优雅停机
+├── cli.go                # 运维 CLI：-index 索引构建、-eval 对照评测子命令
+├── architecture_test.go  # 根级架构守卫：AST DAG 白名单 + 400 行体积预算门禁
+├── api/                  # HTTP 传输层（依赖 agent、metrics、store）
+│   ├── handler.go        # REST CRUD：/run、/tasks/{id}、/healthz、/metrics
+│   ├── events.go         # SSE 实时事件流与写超时管理
+│   ├── middleware.go     # Recover / RequestID / 令牌桶限流 / Bearer 鉴权
+│   ├── demo.go / demo.html # go:embed 零依赖离线单页 Demo
+├── agent/                # 认知内核（ReAct 循环，支持 context 抢占与 OnUsage 累加）
+│   ├── engine.go         # Run / RunWithOptions 多步决策循环
+│   ├── trace.go          # 有界 TraceBuffer 环形缓冲与 512B 安全截断
+│   └── tool/             # 独立工具注册表与契约
+│       ├── tool.go       # Tool、RetryableError、TerminalClassifier 解耦接口
+│       ├── registry.go   # 工具注册表（Errors-As-Messages）
+│       ├── calculate.go  # AST 递归下降算术求值器（防代码注入）
+│       └── time.go       # IANA 时区解析时间工具
+├── worker/               # 任务调度执行层（Worker Pool，纯化并发池）
+│   └── pool.go           # 信号量并发池、两阶段停机、崩溃恢复重灌、取消树管理
+├── retrieval/            # 混合检索即工具（独立领域包，零反向依赖）
+│   ├── index.go          # 索引生命周期：Open、Close、CheckFresh、Rebuild
+│   ├── schema.go         # SQLite DDL、FTS5 表结构与版本指纹
+│   ├── search.go         # FTS5 BM25 词法召回与 RRF 融合排序
+│   ├── vector_search.go  # vec0 向量 KNN 检索与距离加权
+│   ├── embed.go          # 向量嵌入客户端适配（支持本地 keyless Ollama）
+│   └── tool.go           # search_docs 注册工具（Span 引用契约与终态分类）
+├── eval/                 # 检索评测 Harness（离线受控实验与数据对账）
+│   ├── run.go            # 评测协调器（成对受控参数锁定、索引预检）
+│   ├── collector.go      # 运行时无截断全文证据收集器
+│   ├── grader.go         # 程序化 Span 覆盖率判定器（禁 LLM-as-Judge）
+│   ├── aggregate.go      # 分布指标计算器（中位数、P25、P75）
+│   └── report.go         # 结构化 Markdown / JSON 报表渲染与落盘
+├── prompts/              # 版本化系统提示词（go:embed 内嵌）
+│   ├── prompts.go        # Get(version) 模板管理器
+│   ├── default-v1.md     # 生产服务默认提示词
+│   ├── eval-template-v1.md # 历史对照空提示词
+│   └── eval-template-v2.md # Grounded Citation 铁律与反幻觉拒答规范
+├── store/                # 任务状态存储（TaskStore 接口，消除数据竞争）
+│   ├── store.go          # 内存原子存储（默认）
+│   └── sql.go            # modernc SQLite WAL 持久化与崩溃补偿
+├── llm/                  # 模型适配层（OpenAI 兼容协议封装）
+│   └── client.go         # ChatWithTools、幂等 joinEndpoint、Usage 解析
+├── metrics/              # 监控度量（sync/atomic 零依赖 Prometheus 格式）
+├── config/               # 扁平配置解析器（环境变量 > config.yaml > 默认值）
+├── docs/                 # ADR 决策记录、设计规格、实施计划与实测报表
+└── Dockerfile            # 生产多阶段镜像构建
 ```
 
 ## Tech Stack
 
-Go 1.26 · slog · Docker · DeepSeek API · 以标准库为主（`net/http` / `embed` / `httptest` / `sync/atomic`）；持久化可选引入 `modernc.org/sqlite`（纯 Go，无 CGO）作为唯一第三方运行时依赖，默认不启用。
+Go 1.24+ · modernc.org/sqlite (纯 Go 无 CGO) · slog · Docker · DeepSeek API · 本地 Ollama (nomic-embed-text) · 以标准库为主（`net/http` / `embed` / `go/parser` / `httptest` / `sync/atomic`）。
 
 ## License
 

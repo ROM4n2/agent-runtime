@@ -2,7 +2,7 @@
 
 **Date**: 2026-10-23  
 **Status**: DRAFT  
-**Author**: Haoyu & Hermes Agent  
+**Author**: Maintainer & Hermes Agent  
 **Target Path**: `docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md`
 
 ---
