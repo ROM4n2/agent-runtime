@@ -16,9 +16,9 @@
 **考点**：能否一句话让面试官知道项目价值，而非报组件名。
 
 **标准答法**：
-> agent-api 是一个把 LLM 封装成**异步任务系统**的 Go 服务：`POST /run` 提交任务立即回 **202**，后台 worker pool 调 LLM 并在任务里循环调用工具（计算器 / 当前时间），调用方**轮询** `GET /tasks/{id}` 拿结果。
+> agent-runtime 是一个高并发 Agent 异步运行时服务：`POST /run` 提交任务立即回 **202**，后台纯化的 worker pool 驱动带抢占式取消的 ReAct 认知循环，支持计算器、时间与 FTS5+vec0 向量混合知识检索工具，客户端可通过轮询或 SSE 实时获取事件流。
 >
-> 技术亮点：worker pool 限并发、context 取消树、手写限流器、递归下降求值器、零依赖 Prometheus 指标、优雅停机、SQLite 持久化可插拔（默认内存，配 `db_path` 即启用）。
+> 技术亮点：Worker Pool 调度限流、context 抢占式取消树、SQLite WAL 断电崩溃恢复（Rehydration）、依赖倒置与 `tool.TerminalClassifier` 错误协议下沉、根级 AST DAG 白名单与 400 行代码体积机械门禁、以及受控评测 Harness 实证提升。
 
 ---
 

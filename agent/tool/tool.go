@@ -17,6 +17,12 @@ type RetryableError interface {
 	Retryable() bool
 }
 
+// TerminalClassifier 由工具错误实现，声明该错误冒泡终止 agent.Run 时对应的任务级脱敏终态文案（如 "index missing"）。
+type TerminalClassifier interface {
+	error
+	TerminalStatus() string
+}
+
 // Tool 定义了 Agent 工具必须实现的接口。
 // Execute 携带 ctx：取消/超时必须能穿透到工具执行内部（ADR-0014、ADR-0017 决策 5），
 // 否则 worker 的抢占式取消只能中断 LLM 调用，工具侧仍会跑满全程。

@@ -4,7 +4,6 @@ import (
 	"agent-runtime/agent"
 	"agent-runtime/agent/tool"
 	"agent-runtime/metrics"
-	"agent-runtime/retrieval"
 	"agent-runtime/store"
 	"context"
 	"errors"
@@ -218,6 +217,7 @@ func (p *Pool) process(id string) {
 		metrics.IncFailed() // 终态：在飞数 -1，失败数 +1
 		cause := context.Cause(taskCtx)
 		var userCancel *userCancelCause
+		var tc tool.TerminalClassifier
 		var termErr error
 		switch {
 		case errors.As(cause, &userCancel):
@@ -230,10 +230,10 @@ func (p *Pool) process(id string) {
 			termErr = errors.New("server shutdown")
 		case strings.Contains(err.Error(), "max steps"):
 			termErr = errors.New("max steps exceeded")
-		case errors.Is(err, retrieval.ErrIndexMissing):
-			// 检索索引未建是独立运维终态（ADR-0017 决策 6）：与泛化的 upstream error
-			// 分开，调用方得以区分「该去建索引」与「上游真的挂了」。
-			termErr = errors.New("index missing")
+		case errors.As(err, &tc) && tc.TerminalStatus() != "":
+			// 工具错误通过 TerminalClassifier 暴露脱敏终态文案（如 "index missing"），
+			// 避免 worker 反向依赖具体工具包（ADR-0013 / ADR-0017），同时确保非空才覆盖。
+			termErr = errors.New(tc.TerminalStatus())
 		default:
 			termErr = errors.New("upstream error")
 		}

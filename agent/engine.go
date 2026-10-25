@@ -49,8 +49,14 @@ func waitBackoff(ctx context.Context, d time.Duration) bool {
 	}
 }
 
-// Run 执行 think -> tool_call -> tool_result 的多步认知循环，直到模型给出终态文本或步数耗尽。
-func Run(ctx context.Context, c Chatter, prompt string, reg *tool.Registry, onStep func(TraceStep)) (string, error) {
+// RunOptions 控制 Agent 运行的可选参数。
+type RunOptions struct {
+	SystemPrompt string
+	OnUsage      func(llm.Usage)
+}
+
+// RunWithOptions 使用可选参数执行认知循环。
+func RunWithOptions(ctx context.Context, c Chatter, prompt string, reg *tool.Registry, onStep func(TraceStep), opts RunOptions) (string, error) {
 	var tools []llm.Tool
 	if reg != nil {
 		tools = reg.Specs()
@@ -78,7 +84,16 @@ func Run(ctx context.Context, c Chatter, prompt string, reg *tool.Registry, onSt
 		return reg.ExecuteErr(ctx, tc)
 	}
 
-	turns := []llm.Message{{Role: "user", Content: prompt}}
+	var turns []llm.Message
+	if opts.SystemPrompt != "" {
+		turns = []llm.Message{
+			{Role: "system", Content: opts.SystemPrompt},
+			{Role: "user", Content: prompt},
+		}
+	} else {
+		turns = []llm.Message{{Role: "user", Content: prompt}}
+	}
+
 	step := 0
 	emit := func(kind, toolName, detail, callID string) {
 		if onStep != nil {
@@ -101,6 +116,10 @@ func Run(ctx context.Context, c Chatter, prompt string, reg *tool.Registry, onSt
 		if resp == nil {
 			emit(KindError, "", "upstream error", "")
 			return "", errors.New("nil response from chatter")
+		}
+
+		if opts.OnUsage != nil && (resp.Usage.PromptTokens > 0 || resp.Usage.CompletionTokens > 0 || resp.Usage.TotalTokens > 0) {
+			opts.OnUsage(resp.Usage)
 		}
 
 		if resp.Content != "" {
@@ -139,4 +158,9 @@ func Run(ctx context.Context, c Chatter, prompt string, reg *tool.Registry, onSt
 
 	emit(KindError, "", "max steps exceeded", "")
 	return "", errors.New("agent exceeded max steps")
+}
+
+// Run 执行 think -> tool_call -> tool_result 的多步认知循环，直到模型给出终态文本或步数耗尽。
+func Run(ctx context.Context, c Chatter, prompt string, reg *tool.Registry, onStep func(TraceStep)) (string, error) {
+	return RunWithOptions(ctx, c, prompt, reg, onStep, RunOptions{})
 }

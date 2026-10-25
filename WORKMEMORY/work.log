@@ -62,7 +62,7 @@ P4 生产级体检缺陷加固计划（docs/implementation_plan_p4-audit-remedia
 
 ### 2026-10-22 18:30 | unknown-model__pi-coding-agent | NOTE
 Caps: filesystem-read, filesystem-write, shell-exec
-演进路线三项任务全部交付（来源：D:\大学文件\Chance\agent-api-演进路线与面试深挖防御指南.md）：
+演进路线三项任务全部交付（来源：演进路线与面试深挖防御指南）：
 - 任务1 主动取消：worker.Pool 新增 inFlight sync.Map + context.WithCancelCause 物理中断；Pool.Cancel/ErrTaskNotRunning；POST /tasks/{id}/cancel（404/409/202，reason 白名单脱敏）；process 用 context.Cause + errors.As 精确归因 canceled/timeout/shutdown/upstream（ADR-0014）。
 - 任务2 崩溃恢复：TaskStore.RecoverTasks 接口，内存与 SQL 双实现（SQL 事务内查 pending + 批量标死 running，error=server restarted unexpectedly）；main 在监听前补偿，新增 Pool.EnqueueWait 阻塞重灌 pending，后台 goroutine 不阻塞启动（ADR-0015）。
 - 任务3 SSE：TraceBuffer.Subscribe 原子快照+增量，Append 非阻塞广播，cancel 幂等；Pool.Subscribe；GET /tasks/{id}/events（step/done、keepalive、清除 WriteTimeout、终态快照对账）；保留轮询（ADR-0016）。
@@ -86,7 +86,7 @@ Caps: filesystem-read, filesystem-write, shell-exec
 dfs-onboard 重接手（diff-verify 模式，非重建）：
 - Phase1 基线实测：GOWORK=off go test -race ./... -count=1 九包全绿（102 func Test / 146 RUN 含子测试，0 data race）；go build / go vet 干净；git 分支 master 前后一致（共享工作树守卫通过）
 - .agent-context.md diff-verify 结论：锚点存在但严重过期（基线停在 2026-09-03 的 32 passed；架构图仍是 ADR-0013 前的 runAgent/agent.go、Handler{pool}、Enqueue 阻塞语义、config 仅 2 key）。已按当前树逐项刷新：入口补 RecoverTasks 崩溃补偿与 EnqueueWait 重灌；数据流补 cancel/SSE 路由；包分工改为 agent/engine.go Run + agent/tool + Handler{store, runner TaskRunner} + Pool{inFlight, stopWorkerCtx}；config 补 db_path / task_timeout_seconds；Gotchas 补三类必记坑（CRLF/LF 假 diff 自检、终端编码误报、exit 0 三道自检 = 架构防线静态门禁 / pre-commit 密钥扫描 / 逆向突变）；Vault 链接 ADR 0001..0017
-- 顺手勘误：CLAUDE.md 的 vault inbox 路径 08-Inbox → 99-Inbox（磁盘实证 D:/Obsidian/Coding/99-Inbox）；AGENTS.md 实际无该路径段（项目上下文快照与磁盘不一致，未改）
+- 顺手勘误：CLAUDE.md 的 vault inbox 路径 08-Inbox → 99-Inbox（磁盘实证 `{vault_root}/99-Inbox`）；AGENTS.md 实际无该路径段（项目上下文快照与磁盘不一致，未改）
 - 未做范围：未跑 benchmark；未提交 commit（用户未要求）；未改任何 Go 源码
 
 ### 2026-10-22 | step-5-preview__codebuddy | DECISION
@@ -127,3 +127,42 @@ P5 收口完成，**PR #1 已开**：https://github.com/ROM4n2/agent-runtime/pul
 - 黄卡全清（用户指令"补黄卡开PR"）：6 项遗留（post-Start RegisterTool warn/`-index` 接线层/幂等深度断言/`:memory:` 误导性 warn/`-eval` 接线层/engine.go 注释）+ CRV 复核的 3 条建议（runWithArgs 全局 logger 泄漏、`-h`→0 语义、幂等用例 cwd 隔离）全部落地，237 func Test 全绿，每组均有变异自证（commit 5e899fe）
 - 已知待观察（未修，不影响合入）：①`llm` embed 端点拼接与 README「OpenAI 兼容 /v1/embeddings」措辞歧义（base 若含 /v1 会重复）；②`TestRunIndexCommand_BuildsAndExits/_MissingDir` 仍无 t.Chdir（开发机有带凭证 config.yaml 时可能走网络）；③hybrid 组与 cross-chunk/拒答策略待凭证与 prompt 版本对照
 - 下一步：等 PR review / 合并；合并后可考虑 /dfs-save 把 3 条 PITFALL 蒸馏进 vault（二进制自索引、512B trace 截断、chunk-span 口径）
+
+### 2026-10-23 22:42 | gemini-4-argon-high__hermes-agent | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec, git
+dfs-onboard 重接手（diff-verify 模式，PR #1 合入 master 后基线对齐）：
+- Phase 1 基线实测：GOWORK=off go test -race ./... -count=1 全 11 包 PASS（238 func Test / 392 RUN 含子测试，0 data race）；GOWORK=off go build ./... && GOWORK=off go vet ./... 干净无警告；前后分支均为 master（共享工作树守卫通过）。
+- Phase 2-4 diff-verify 与锚点刷新：.agent-context.md 与 WORKMEMORY/PROJECT_OVERVIEW.md 此前仍停在 PR #1 合入前的 102 func Test / 9 包口径。已对齐当前 master（cae1fb3）：更新测试基线（238 func Test / 392 RUN / 11 包）、入口与子命令早退出路径（-index / -eval / CheckFresh / SearchTool）、包清单（新增 retrieval/ 与 eval/）、工具重试契约（tool.RetryableError 按 tc.ID 去重单次退避）、config 8 项扁平键、终态分类（新增 index missing）、双静态架构门禁（api/architecture_barrier_test.go + retrieval/architecture_test.go）与 P5 评测三关 Gotchas；同步更新 PROJECT_OVERVIEW.md 中 PR #1 已合入与黄卡已清状态。
+- 未做范围：未改任何 Go 源码；未提交 commit（等待用户下一步指令）。
+
+### 2026-10-23 22:48 | gemini-4-argon-high__hermes-agent | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec, git
+dfs-bootstrap v0.2.3 同步更新（4 件套 → 5 件套 热/温分离 + 锚点修正）：
+- Phase 1 核验：.gitignore 11 项敏感规则齐全；.githooks/pre-commit 与模板逐字节一致（LF 无 BOM，core.hooksPath=.githooks）；.gitattributes 已锁死 LF。
+- Phase 2 锚点同步：CLAUDE.md、.agent-rules.md、.cursorrules 统一对齐 dfs-bootstrap v0.2.3 规范锚点（修复 .agent-rules.md 与 .cursorrules 中陈旧的 08-Inbox 路径为 99-Inbox，补齐 search_vault MCP 与 $WIKI_PATH/$OBSIDIAN_VAULT_PATH 解析说明）。
+- Phase 3.5 WORKMEMORY 升级为 5 件套：新建 WORKMEMORY/INDEX-topics.md（WARM 层），将原 INDEX.md 中的「主题索引」与 2 条 P5 蒸馏登记迁移至 INDEX-topics.md；收缩 WORKMEMORY/INDEX.md 为纯 HOT 索引（仅保留 Configuration / 文件清单 / Active handoffs / 已归档 handoffs）；同步更新 WORKMEMORY/PROTOCOL.md 中关于 INDEX-topics.md 与 notes/ 外置超限事件的条款。
+
+### 2026-10-23 23:05 | gemini-4-argon-high__hermes-agent | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec, git, mcp-vault
+完成结构熵增治理模式沉淀（/dfs-save）与 P6 实施计划编制（/dfs-plan）：
+- 知识沉淀（/dfs-save）：经 search_vault 查重后，将「多版本迭代后的结构熵增治理：错误协议下沉、同包按职责切分与 AST 依赖/体积机械闸」写入知识库 99-Inbox/2026-10-23-多版本迭代后的结构熵增治理：错误协议下沉、同包按职责切分与-ast-依赖体积机械闸.md（A-MAC 通过，YAML frontmatter 8 键核验通过），并在正文与 WORKMEMORY/INDEX-topics.md 登记归档目标（01-Rules/LAYERED-ARCHITECTURE.md §5）及演进路线（先在本项目 P6 试点，本会话不跨仓修改 dfs-* 技能，待试点合入后并入 dfs-* 技能）。
+- 规格与计划产出（/dfs-spark + /dfs-plan）：生成设计规格书 docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md 与 7 任务 TDD 实施计划 docs/implementation_plan_p6-production-alignment.md（覆盖：Task 1 TerminalClassifier 协议下沉斩断 worker->retrieval；Task 2 切分 5 个 >400 行文件 + 根级 AST DAG 与行数预算门禁；Task 3 LLM /v1 幂等拼接、Ollama 免密嵌入、Temperature/Seed 与 Usage 解析；Task 4 prompts/ 版本化系统提示词与 agent.RunWithOptions 跨步 Usage 累加；Task 5 eval/CLI 接线闭环；Task 6 本地 Ollama nomic-embed-text:latest 768 维 hybrid + lexical v2 实跑评测；Batch 7 README/ADR/面试军火库全量刷新）。
+- 隐私与门禁核验：全仓受跟踪文件零本机盘符/隐私目录命中。
+
+### 2026-10-25 18:35 | gemini-3.8-flash-high__hermes-agent | WORK_END
+Caps: filesystem-read, filesystem-write, shell-exec, git
+P6 生产级闭环（工业级契约对齐 + 结构治理三件套 + Ollama 768维混合检索实证 + 文档资产全量刷新）在分支 feat/p6-production-alignment 全量交付（7 任务全部通过，未 push / 未提 PR）：
+- Task 1 [Tier2] (fcb8f9c): agent/tool.TerminalClassifier 协议下沉，retrieval.ErrIndexMissing 实现协议，worker/pool.go 面向接口做 errors.As 判别，彻底移除 worker->retrieval 反向依赖。通过独立 Reviewer 子代理 Maker-Checker PASS 审查与变异测试自证。
+- Task 2 [Tier2] (b617b00): 同包正交拆分 5 个 >400 行巨型文件（main.go -> cli.go、api/handler.go -> api/events.go、retrieval/search.go -> retrieval/vector_search.go、retrieval/index.go -> retrieval/schema.go、eval/run.go -> eval/collector.go），零新增子包；新增根级 architecture_test.go，用 go/parser 扫描全仓建立 12 包 AST DAG 白名单与生产 <= 400 行 / 测试 <= 800 行代码体积预算机械闸。Reviewer PASS 审查。
+- Task 3 [Tier2] (b106577): 工业级契约对齐。llm.joinEndpoint 幂等处理 /v1 消除 /v1/v1 404；Embed 移除强制非空 APIKey 守卫以支持本地 Ollama 免密嵌入；ChatWithTools 透传 Temperature=0 与 Seed；解析并暴露 llm.Usage；config.Model 9 项配置支持。Reviewer PASS 审查。
+- Task 4 [Tier2] (46d0372): 新增 prompts/ 包（go:embed 内嵌 default-v1、eval-template-v1、eval-template-v2 反幻觉与 Grounded Citation 铁律）；agent.RunWithOptions 支持注入 SystemPrompt 与 OnUsage 跨步 Token 累加。Reviewer PASS 审查。
+- Task 5 [Tier2] (289f3be): 评测与 CLI 接线闭环。eval.Run 预检校验模板版本；resolveChatter 注入 Temperature=0 与 Seed；runOnce 累加真实 Token 并在无注入计数器且 Token > 0 时标注 llm-usage（API 实测返回）；cli.go 支持免密构建向量 Embedder。Reviewer PASS 审查。
+- Task 6 [Tier3 HITL] (4a35861): 本地 Ollama nomic-embed-text:latest（768 维）+ DeepSeek 实测。30 题 × 3 重复（每组 90 轮）实跑 eval-template-v2 下的 lexical 与 hybrid 组。实证：混合检索将跨文档综合（cross-chunk）成功率由 33% 提升至 100%，总体成功率提升 6.66%（P25 跃升至 0.25），平均步数由 12.72 降至 11.84，单轮评测净节省 54,608 个 Prompt Context Tokens，P50 延迟仅微增 188ms。报表落盘 docs/eval/2026-10-25-*-r3.{md,json} 并填入结构化人工判定。
+- Batch 7 [Tier1]: 全面刷新 README.md（12 包结构、-index/-eval CLI、9 项配置、实证对照表、真实测试数）、docs/adr/0017-retrieval-as-tool.md 与 0018-retrieval-evaluation-harness.md 状态升级为已实施并补充实证索引、docs/interview/ 三篇面试手册全面升级为 P6 全栈运行时口径、.agent-context.md 与 WORKMEMORY/PROJECT_OVERVIEW.md 物理对齐。
+- 物理门禁验证：
+  - 测试套件：GOWORK=off go test -race ./... -count=1 全部 12 个包 PASS，260 个 func Test / 422 个 === RUN 分支全绿，0 data race。
+  - 构建静态检查：GOWORK=off go build ./... && GOWORK=off go vet ./... 0 警告 0 报错。
+  - 架构门禁：GOWORK=off go test -v -run TestArchitecture . -count=1 PASS。
+  - 代码规模：71 个 Go 文件（33 生产 / 38 测试，共 15,319 行），单文件行数全部在预算内。
+  - 隐私扫描：git grep -n -E 'Obsidian|Haoyu|[CDcd]:[/\\\\]' 全仓受跟踪文件 0 命中。
+- 状态：所有代码已在 feat/p6-production-alignment 分支就绪，工作树清洁，等待用户审查开 PR。

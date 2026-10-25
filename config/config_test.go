@@ -17,6 +17,7 @@ func isolateEnv(t *testing.T) {
 	t.Setenv("EMBED_API_KEY", "")
 	t.Setenv("EMBED_MODEL", "")
 	t.Setenv("EMBED_DIM", "")
+	t.Setenv("MODEL", "")
 }
 
 func writeCfg(t *testing.T, content string) string {
@@ -252,10 +253,37 @@ func TestLoad_UnknownKeyErrorListsAllKeys(t *testing.T) {
 	msg := err.Error()
 	for _, key := range []string{
 		"deepseek_api_key", "api_auth_key", "db_path", "task_timeout_seconds",
-		"embed_base_url", "embed_api_key", "embed_model", "embed_dim",
+		"embed_base_url", "embed_api_key", "embed_model", "embed_dim", "model",
 	} {
 		if !strings.Contains(msg, key) {
 			t.Errorf("错误文案应列举合法 key %q：%s", key, msg)
 		}
+	}
+}
+
+func TestLoad_ModelParsedFromFile(t *testing.T) {
+	isolateEnv(t)
+	p := writeCfg(t, "model: deepseek-chat\n")
+
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Model != "deepseek-chat" {
+		t.Errorf("Model = %q, want deepseek-chat", cfg.Model)
+	}
+}
+
+func TestLoad_EnvOverridesModel(t *testing.T) {
+	isolateEnv(t)
+	t.Setenv("MODEL", "custom-model-from-env")
+	p := writeCfg(t, "model: default-model-from-file\n")
+
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Model != "custom-model-from-env" {
+		t.Errorf("Model = %q, want custom-model-from-env (环境变量优先)", cfg.Model)
 	}
 }

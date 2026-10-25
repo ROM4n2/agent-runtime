@@ -2,8 +2,8 @@ package worker
 
 import (
 	"agent-runtime/agent"
+	"agent-runtime/agent/tool"
 	"agent-runtime/llm"
-	"agent-runtime/retrieval"
 	"agent-runtime/store"
 	"bytes"
 	"context"
@@ -682,28 +682,86 @@ func TestPool_RegisterToolAfterStart_WarnsButKeepsWorking(t *testing.T) {
 	}
 }
 
-// TestProcess_IndexMissingTerminalClassification 固化 index missing 独立终态
-// （ADR-0017 决策 6 + 错误脱敏红线）：当错误链携带 retrieval.ErrIndexMissing 时，
-// worker 必须把它归为粗分类 "index missing"，而不是泛化的 "upstream error"。
-// 变异自证 ①：删掉终态 switch 的 ErrIndexMissing 分支，本断言转红（退化成 upstream error）。
+// fakeTerminalErr 用于测试 tool.TerminalClassifier 协议下沉与脱敏。
+type fakeTerminalErr struct {
+	msg    string
+	status string
+}
+
+var _ tool.TerminalClassifier = fakeTerminalErr{}
+
+func (e fakeTerminalErr) Error() string {
+	return e.msg
+}
+
+func (e fakeTerminalErr) TerminalStatus() string {
+	return e.status
+}
+
+// TestProcess_IndexMissingTerminalClassification 固化基于 tool.TerminalClassifier 的终态脱敏协议：
+// worker 仅依赖下层 tool.TerminalClassifier 接口，不再直接依赖 retrieval 包；
+// 当错误链携带实现了 TerminalClassifier 的错误且 TerminalStatus 非空时，映射为对应粗粒度终态；
+// 若 TerminalStatus 为空或未实现接口，则回退至 "upstream error"。
 func TestProcess_IndexMissingTerminalClassification(t *testing.T) {
-	s := store.NewStore()
-	// 经 Chatter 上抛携带 ErrIndexMissing 的错误链：agent.Run 对 Chatter 错误原样返回，
-	// 终态分类据此经 errors.Is 匹配哨兵。
-	chat := fakeChatter{err: fmt.Errorf("retrieval tool failed: %w", retrieval.ErrIndexMissing)}
-	p := NewPool(1, 30*time.Second, s, chat)
+	t.Run("classifier with status", func(t *testing.T) {
+		s := store.NewStore()
+		// 经 Chatter 上抛包装了 fakeTerminalErr 的错误链：agent.Run 对 Chatter 错误原样返回，
+		// 终态分类据此经 errors.As 匹配 tool.TerminalClassifier 并提取脱敏终态文案。
+		chat := fakeChatter{err: fmt.Errorf("tool failed: %w", fakeTerminalErr{msg: "sensitive internal error", status: "index missing"})}
+		p := NewPool(1, 30*time.Second, s, chat)
 
-	id := s.Create("query the docs")
-	p.process(id)
+		id := s.Create("query the docs")
+		p.process(id)
 
-	task, err := s.Get(id)
-	if err != nil {
-		t.Fatalf("get task: %v", err)
-	}
-	if task.Status != store.StatusFailed {
-		t.Fatalf("status = %q, want %q", task.Status, store.StatusFailed)
-	}
-	if task.Error != "index missing" {
-		t.Errorf("task.Error = %q, want %q (ErrIndexMissing deserves its own terminal class)", task.Error, "index missing")
-	}
+		task, err := s.Get(id)
+		if err != nil {
+			t.Fatalf("get task: %v", err)
+		}
+		if task.Status != store.StatusFailed {
+			t.Fatalf("status = %q, want %q", task.Status, store.StatusFailed)
+		}
+		if task.Error != "index missing" {
+			t.Errorf("task.Error = %q, want %q (TerminalClassifier deserves its own terminal class)", task.Error, "index missing")
+		}
+	})
+
+	t.Run("classifier with empty status falls through", func(t *testing.T) {
+		s := store.NewStore()
+		chat := fakeChatter{err: fmt.Errorf("tool failed: %w", fakeTerminalErr{msg: "empty status error", status: ""})}
+		p := NewPool(1, 30*time.Second, s, chat)
+
+		id := s.Create("query with empty status")
+		p.process(id)
+
+		task, err := s.Get(id)
+		if err != nil {
+			t.Fatalf("get task: %v", err)
+		}
+		if task.Status != store.StatusFailed {
+			t.Fatalf("status = %q, want %q", task.Status, store.StatusFailed)
+		}
+		if task.Error != "upstream error" {
+			t.Errorf("task.Error = %q, want %q (empty status must fall through to upstream error)", task.Error, "upstream error")
+		}
+	})
+
+	t.Run("plain non-classifier error falls through", func(t *testing.T) {
+		s := store.NewStore()
+		chat := fakeChatter{err: fmt.Errorf("plain wrapped error: %w", errors.New("raw failure"))}
+		p := NewPool(1, 30*time.Second, s, chat)
+
+		id := s.Create("query with plain error")
+		p.process(id)
+
+		task, err := s.Get(id)
+		if err != nil {
+			t.Fatalf("get task: %v", err)
+		}
+		if task.Status != store.StatusFailed {
+			t.Fatalf("status = %q, want %q", task.Status, store.StatusFailed)
+		}
+		if task.Error != "upstream error" {
+			t.Errorf("task.Error = %q, want %q (non-classifier error must be upstream error)", task.Error, "upstream error")
+		}
+	})
 }

@@ -3,10 +3,13 @@ package retrieval
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"agent-runtime/agent/tool"
 )
 
 // newTestIndex 在临时目录开一个纯词法索引，测试结束自动关闭。
@@ -330,5 +333,22 @@ func TestFTS_BigramSplitProducesEmptyIndex(t *testing.T) {
 	}
 	if n != 0 {
 		t.Errorf("bigram-split text must be unsearchable under trigram (empty index); got %d matches", n)
+	}
+}
+
+// TestErrIndexMissing_ImplementsTerminalClassifier 验证 ErrIndexMissing 实现 tool.TerminalClassifier 契约：
+// worker 不再直接依赖 retrieval 包，改由 agent/tool 下层协议解耦；
+// 本测试作为契约测试，确保 ErrIndexMissing 包装后仍满足 errors.As 与 errors.Is。
+func TestErrIndexMissing_ImplementsTerminalClassifier(t *testing.T) {
+	wrapped := fmt.Errorf("wrap: %w", ErrIndexMissing)
+	var tc tool.TerminalClassifier
+	if !errors.As(wrapped, &tc) {
+		t.Fatalf("errors.As(wrapped, &tc) = false, want true; ErrIndexMissing must implement tool.TerminalClassifier")
+	}
+	if got := tc.TerminalStatus(); got != "index missing" {
+		t.Errorf("tc.TerminalStatus() = %q, want %q", got, "index missing")
+	}
+	if !errors.Is(wrapped, ErrIndexMissing) {
+		t.Errorf("errors.Is(wrapped, ErrIndexMissing) = false, want true")
 	}
 }

@@ -1,0 +1,8598 @@
+{
+  "Group": "lexical",
+  "Repeat": 3,
+  "TaskResults": [
+    {
+      "TaskID": "q001",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 17,
+      "LatencyMS": 8927,
+      "PromptTokens": 20456,
+      "CompletionTokens": 884,
+      "CitedSpans": [
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          14336,
+          14579
+        ],
+        [
+          1344,
+          1673
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0006-worker-concurrency-count.md",
+        "docs/adr/0006-worker-concurrency-count.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0007-resume-positioning-and-optimization.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0003-security-resilience-design.md",
+        "docs/interview/interview-answers.md",
+        "docs/interview/pitch-3min.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0005-polling-vs-server-push.md",
+        "docs/adr/0006-worker-concurrency-count.md",
+        "docs/adr/0006-worker-concurrency-count.md"
+      ]
+    },
+    {
+      "TaskID": "q001",
+      "Scope": "in-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "right-span-wrong-reasoning",
+      "Steps": 17,
+      "LatencyMS": 9378,
+      "PromptTokens": 20437,
+      "CompletionTokens": 1003,
+      "CitedSpans": [
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          14336,
+          14579
+        ],
+        [
+          1344,
+          1673
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          14336,
+          14579
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1344,
+          1735
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          896,
+          1408
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0006-worker-concurrency-count.md",
+        "docs/adr/0006-worker-concurrency-count.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0007-resume-positioning-and-optimization.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0003-security-resilience-design.md",
+        "docs/interview/interview-answers.md",
+        "docs/interview/pitch-3min.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/adr/0009-configuration-loading.md",
+        "docs/adr/0006-worker-concurrency-count.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/implementation_plan_p4-audit-remediation.md"
+      ]
+    },
+    {
+      "TaskID": "q001",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 7,
+      "LatencyMS": 3786,
+      "PromptTokens": 5532,
+      "CompletionTokens": 527,
+      "CitedSpans": [
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          14336,
+          14579
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0006-worker-concurrency-count.md",
+        "docs/adr/0006-worker-concurrency-count.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0007-resume-positioning-and-optimization.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/implementation_plan_p4-audit-remediation.md"
+      ]
+    },
+    {
+      "TaskID": "q002",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 7,
+      "LatencyMS": 4558,
+      "PromptTokens": 5463,
+      "CompletionTokens": 649,
+      "CitedSpans": [
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          14336,
+          14579
+        ],
+        [
+          1344,
+          1673
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1344,
+          1856
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0007-resume-positioning-and-optimization.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0003-security-resilience-design.md",
+        "docs/adr/0003-security-resilience-design.md",
+        "docs/adr/0003-security-resilience-design.md"
+      ]
+    },
+    {
+      "TaskID": "q002",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 6874,
+      "PromptTokens": 15235,
+      "CompletionTokens": 727,
+      "CitedSpans": [
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          14336,
+          14579
+        ],
+        [
+          1344,
+          1673
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          0,
+          512
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0007-resume-positioning-and-optimization.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0003-security-resilience-design.md",
+        "docs/adr/0003-security-resilience-design.md",
+        "docs/adr/0003-security-resilience-design.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md"
+      ]
+    },
+    {
+      "TaskID": "q002",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 10,
+      "LatencyMS": 5780,
+      "PromptTokens": 11153,
+      "CompletionTokens": 659,
+      "CitedSpans": [
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          14336,
+          14579
+        ],
+        [
+          1344,
+          1673
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          1344,
+          1856
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0007-resume-positioning-and-optimization.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0003-security-resilience-design.md",
+        "docs/adr/0003-security-resilience-design.md",
+        "docs/adr/0003-security-resilience-design.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md"
+      ]
+    },
+    {
+      "TaskID": "q003",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 7572,
+      "PromptTokens": 9401,
+      "CompletionTokens": 1030,
+      "CitedSpans": [
+        [
+          2240,
+          2752
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          5376,
+          5696
+        ],
+        [
+          8512,
+          8990
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          7168,
+          7680
+        ],
+        [
+          7616,
+          8128
+        ],
+        [
+          1344,
+          1673
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          30912,
+          31424
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          3584,
+          4096
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "README.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/implementation_plan_p2-observe.md"
+      ]
+    },
+    {
+      "TaskID": "q003",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 6714,
+      "PromptTokens": 9379,
+      "CompletionTokens": 1068,
+      "CitedSpans": [
+        [
+          2240,
+          2752
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          5376,
+          5696
+        ],
+        [
+          8512,
+          8990
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          7168,
+          7680
+        ],
+        [
+          7616,
+          8128
+        ],
+        [
+          1344,
+          1673
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          30912,
+          31424
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          3584,
+          4096
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "README.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/implementation_plan_p2-observe.md"
+      ]
+    },
+    {
+      "TaskID": "q003",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 22,
+      "LatencyMS": 11096,
+      "PromptTokens": 24307,
+      "CompletionTokens": 1299,
+      "CitedSpans": [
+        [
+          2240,
+          2752
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          5376,
+          5696
+        ],
+        [
+          8512,
+          8990
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          7168,
+          7680
+        ],
+        [
+          7616,
+          8128
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          5376,
+          5696
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          20608,
+          20692
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          7616,
+          8128
+        ],
+        [
+          29568,
+          30080
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          12096,
+          12608
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1344,
+          1762
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1344,
+          1735
+        ],
+        [
+          448,
+          960
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "README.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p2-observe.md",
+        "README.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/adr/0005-polling-vs-server-push.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/adr/0006-worker-concurrency-count.md",
+        "docs/adr/0010-persistence-sqlite.md"
+      ]
+    },
+    {
+      "TaskID": "q004",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 17,
+      "LatencyMS": 7236,
+      "PromptTokens": 12138,
+      "CompletionTokens": 847,
+      "CitedSpans": [
+        [
+          448,
+          907
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          19712,
+          20224
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          1344,
+          1673
+        ]
+      ],
+      "CitedDocs": [
+        "docs/grill/adr-0012-sse-rejection/README.md",
+        "docs/grill/adr-0012-sse-rejection/README.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "README.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0010-persistence-sqlite.md"
+      ]
+    },
+    {
+      "TaskID": "q004",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 17,
+      "LatencyMS": 7022,
+      "PromptTokens": 12135,
+      "CompletionTokens": 834,
+      "CitedSpans": [
+        [
+          448,
+          907
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          19712,
+          20224
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          1344,
+          1673
+        ]
+      ],
+      "CitedDocs": [
+        "docs/grill/adr-0012-sse-rejection/README.md",
+        "docs/grill/adr-0012-sse-rejection/README.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "README.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0010-persistence-sqlite.md"
+      ]
+    },
+    {
+      "TaskID": "q004",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 17,
+      "LatencyMS": 7123,
+      "PromptTokens": 12138,
+      "CompletionTokens": 860,
+      "CitedSpans": [
+        [
+          448,
+          907
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          19712,
+          20224
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          1344,
+          1673
+        ]
+      ],
+      "CitedDocs": [
+        "docs/grill/adr-0012-sse-rejection/README.md",
+        "docs/grill/adr-0012-sse-rejection/README.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "README.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0010-persistence-sqlite.md"
+      ]
+    },
+    {
+      "TaskID": "q005",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 15,
+      "LatencyMS": 9136,
+      "PromptTokens": 17519,
+      "CompletionTokens": 1223,
+      "CitedSpans": [
+        [
+          448,
+          960
+        ],
+        [
+          12992,
+          13504
+        ],
+        [
+          1344,
+          1751
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          5824,
+          6336
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          8512,
+          9024
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          5824,
+          6336
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          8064,
+          8576
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/interview/project-qa.md",
+        "docs/implementation_plan_p3-decouple.md"
+      ]
+    },
+    {
+      "TaskID": "q005",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 20,
+      "LatencyMS": 10747,
+      "PromptTokens": 23867,
+      "CompletionTokens": 1460,
+      "CitedSpans": [
+        [
+          448,
+          960
+        ],
+        [
+          12992,
+          13504
+        ],
+        [
+          1344,
+          1751
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          5824,
+          6336
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          5824,
+          6336
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          8512,
+          9024
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          5824,
+          6336
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          1792,
+          2304
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md"
+      ]
+    },
+    {
+      "TaskID": "q005",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 20,
+      "LatencyMS": 11966,
+      "PromptTokens": 28601,
+      "CompletionTokens": 1630,
+      "CitedSpans": [
+        [
+          448,
+          960
+        ],
+        [
+          12992,
+          13504
+        ],
+        [
+          1344,
+          1751
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          5824,
+          6336
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          9408,
+          9920
+        ],
+        [
+          10304,
+          10816
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          9856,
+          10368
+        ],
+        [
+          8512,
+          9024
+        ],
+        [
+          5824,
+          6336
+        ],
+        [
+          8064,
+          8576
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          5824,
+          6336
+        ],
+        [
+          3136,
+          3648
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/interview/go-basics.md",
+        "docs/interview/go-basics.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/interview/go-basics.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/interview/project-qa.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/GO-STANDARDS.md"
+      ]
+    },
+    {
+      "TaskID": "q006",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 0.9719953325554259,
+      "FirstError": "",
+      "Steps": 7,
+      "LatencyMS": 5443,
+      "PromptTokens": 5170,
+      "CompletionTokens": 842,
+      "CitedSpans": [
+        [
+          4480,
+          4992
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          14784,
+          15166
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          0,
+          512
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0002-async-task-worker-pool-architecture.md",
+        "docs/implementation_plan_p1.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/interview/m1-async-worker-pool.md"
+      ]
+    },
+    {
+      "TaskID": "q006",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 0.9719953325554259,
+      "FirstError": "",
+      "Steps": 10,
+      "LatencyMS": 6703,
+      "PromptTokens": 10664,
+      "CompletionTokens": 932,
+      "CitedSpans": [
+        [
+          4480,
+          4992
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          14784,
+          15166
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1344,
+          1856
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0002-async-task-worker-pool-architecture.md",
+        "docs/implementation_plan_p1.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/interview/m1-async-worker-pool.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p3-decouple.md"
+      ]
+    },
+    {
+      "TaskID": "q006",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 0.9719953325554259,
+      "FirstError": "",
+      "Steps": 7,
+      "LatencyMS": 5883,
+      "PromptTokens": 5173,
+      "CompletionTokens": 761,
+      "CitedSpans": [
+        [
+          4480,
+          4992
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          14784,
+          15166
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          0,
+          512
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0002-async-task-worker-pool-architecture.md",
+        "docs/implementation_plan_p1.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/interview/m1-async-worker-pool.md"
+      ]
+    },
+    {
+      "TaskID": "q007",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 7,
+      "LatencyMS": 3896,
+      "PromptTokens": 3547,
+      "CompletionTokens": 530,
+      "CitedSpans": [
+        [
+          896,
+          1408
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          3136,
+          3648
+        ]
+      ],
+      "CitedDocs": [
+        "README.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "README.md"
+      ]
+    },
+    {
+      "TaskID": "q007",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 7,
+      "LatencyMS": 4131,
+      "PromptTokens": 5175,
+      "CompletionTokens": 503,
+      "CitedSpans": [
+        [
+          896,
+          1408
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          1344,
+          1751
+        ],
+        [
+          7168,
+          7680
+        ]
+      ],
+      "CitedDocs": [
+        "README.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "README.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "README.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md"
+      ]
+    },
+    {
+      "TaskID": "q007",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 7,
+      "LatencyMS": 4270,
+      "PromptTokens": 5044,
+      "CompletionTokens": 604,
+      "CitedSpans": [
+        [
+          896,
+          1408
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1344,
+          1751
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          12544,
+          13056
+        ]
+      ],
+      "CitedDocs": [
+        "README.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "README.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "README.md",
+        "docs/implementation_plan_p6-production-alignment.md"
+      ]
+    },
+    {
+      "TaskID": "q008",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 6763,
+      "PromptTokens": 9506,
+      "CompletionTokens": 957,
+      "CitedSpans": [
+        [
+          448,
+          960
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          31808,
+          32320
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          17920,
+          18432
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          8064,
+          8576
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          13440,
+          13952
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          10752,
+          11264
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          3584,
+          4096
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/interview/go-basics.md",
+        "docs/interview/m2-llm-timeout.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md"
+      ]
+    },
+    {
+      "TaskID": "q008",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 7668,
+      "PromptTokens": 9558,
+      "CompletionTokens": 1268,
+      "CitedSpans": [
+        [
+          448,
+          960
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          31808,
+          32320
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          17920,
+          18432
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          8064,
+          8576
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          13440,
+          13952
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          7616,
+          8128
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          896,
+          1408
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/interview/go-basics.md",
+        "docs/interview/m2-llm-timeout.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md"
+      ]
+    },
+    {
+      "TaskID": "q008",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 7068,
+      "PromptTokens": 9122,
+      "CompletionTokens": 974,
+      "CitedSpans": [
+        [
+          448,
+          960
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          31808,
+          32320
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          17920,
+          18432
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          8064,
+          8576
+        ],
+        [
+          7616,
+          8128
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          1792,
+          2304
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/implementation_plan_p5-retrieval.md"
+      ]
+    },
+    {
+      "TaskID": "q009",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 10,
+      "LatencyMS": 6014,
+      "PromptTokens": 7668,
+      "CompletionTokens": 640,
+      "CitedSpans": [
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          1344,
+          1614
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          4032,
+          4473
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "README.md",
+        "README.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md"
+      ]
+    },
+    {
+      "TaskID": "q009",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 10,
+      "LatencyMS": 5787,
+      "PromptTokens": 7620,
+      "CompletionTokens": 682,
+      "CitedSpans": [
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          1344,
+          1614
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          4032,
+          4473
+        ],
+        [
+          1792,
+          2304
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "README.md",
+        "README.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md"
+      ]
+    },
+    {
+      "TaskID": "q009",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 10,
+      "LatencyMS": 6366,
+      "PromptTokens": 8297,
+      "CompletionTokens": 730,
+      "CitedSpans": [
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          1344,
+          1614
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          4032,
+          4473
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "README.md",
+        "README.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md"
+      ]
+    },
+    {
+      "TaskID": "q010",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 6379,
+      "PromptTokens": 9457,
+      "CompletionTokens": 881,
+      "CitedSpans": [
+        [
+          4032,
+          4473
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          6272,
+          6784
+        ]
+      ],
+      "CitedDocs": [
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "README.md",
+        "README.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/implementation_plan_p4-audit-remediation.md"
+      ]
+    },
+    {
+      "TaskID": "q010",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 6892,
+      "PromptTokens": 9541,
+      "CompletionTokens": 888,
+      "CitedSpans": [
+        [
+          4032,
+          4473
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          4480,
+          4992
+        ]
+      ],
+      "CitedDocs": [
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "README.md",
+        "README.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md"
+      ]
+    },
+    {
+      "TaskID": "q010",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 6196,
+      "PromptTokens": 9457,
+      "CompletionTokens": 810,
+      "CitedSpans": [
+        [
+          4032,
+          4473
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          6272,
+          6784
+        ]
+      ],
+      "CitedDocs": [
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "README.md",
+        "README.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/implementation_plan_p4-audit-remediation.md"
+      ]
+    },
+    {
+      "TaskID": "q011",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 7,
+      "LatencyMS": 4252,
+      "PromptTokens": 4172,
+      "CompletionTokens": 644,
+      "CitedSpans": [
+        [
+          896,
+          1408
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          8960,
+          9472
+        ],
+        [
+          896,
+          1408
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0016-sse-task-progress-stream.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/adr/0016-sse-task-progress-stream.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md"
+      ]
+    },
+    {
+      "TaskID": "q011",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 7,
+      "LatencyMS": 4019,
+      "PromptTokens": 4172,
+      "CompletionTokens": 506,
+      "CitedSpans": [
+        [
+          896,
+          1408
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          8960,
+          9472
+        ],
+        [
+          896,
+          1408
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0016-sse-task-progress-stream.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/adr/0016-sse-task-progress-stream.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md"
+      ]
+    },
+    {
+      "TaskID": "q011",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 7,
+      "LatencyMS": 4698,
+      "PromptTokens": 4172,
+      "CompletionTokens": 552,
+      "CitedSpans": [
+        [
+          896,
+          1408
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          8960,
+          9472
+        ],
+        [
+          896,
+          1408
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0016-sse-task-progress-stream.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/adr/0016-sse-task-progress-stream.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md"
+      ]
+    },
+    {
+      "TaskID": "q012",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 5209,
+      "PromptTokens": 9260,
+      "CompletionTokens": 670,
+      "CitedSpans": [
+        [
+          3584,
+          4096
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          8512,
+          9024
+        ],
+        [
+          0,
+          451
+        ],
+        [
+          16576,
+          17088
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          28224,
+          28736
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          2688,
+          3200
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "prompts/eval-template-v2.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "handoff-agent-api.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p2-observe.md"
+      ]
+    },
+    {
+      "TaskID": "q012",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 5399,
+      "PromptTokens": 9190,
+      "CompletionTokens": 719,
+      "CitedSpans": [
+        [
+          3584,
+          4096
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          8512,
+          9024
+        ],
+        [
+          0,
+          451
+        ],
+        [
+          16576,
+          17088
+        ],
+        [
+          12544,
+          13056
+        ],
+        [
+          28672,
+          29184
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          17472,
+          17984
+        ],
+        [
+          31808,
+          32320
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          28224,
+          28736
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "prompts/eval-template-v2.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/interview/go-basics.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md"
+      ]
+    },
+    {
+      "TaskID": "q012",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 17,
+      "LatencyMS": 7197,
+      "PromptTokens": 17950,
+      "CompletionTokens": 854,
+      "CitedSpans": [
+        [
+          3584,
+          4096
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          8512,
+          9024
+        ],
+        [
+          0,
+          451
+        ],
+        [
+          16576,
+          17088
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          12992,
+          13504
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          28672,
+          29184
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          17024,
+          17536
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          17472,
+          17984
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "prompts/eval-template-v2.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "handoff-agent-api.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/interview/go-basics.md",
+        "docs/adr/0003-security-resilience-design.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md"
+      ]
+    },
+    {
+      "TaskID": "q013",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 17,
+      "LatencyMS": 7523,
+      "PromptTokens": 9473,
+      "CompletionTokens": 1038,
+      "CitedSpans": [
+        [
+          5376,
+          5888
+        ],
+        [
+          13440,
+          13952
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          9408,
+          9920
+        ],
+        [
+          11648,
+          12160
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          2240,
+          2752
+        ]
+      ],
+      "CitedDocs": [
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "README.md",
+        "README.md",
+        "README.md",
+        "docs/adr/0009-configuration-loading.md",
+        "docs/adr/0009-configuration-loading.md",
+        "README.md"
+      ]
+    },
+    {
+      "TaskID": "q013",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 20,
+      "LatencyMS": 9389,
+      "PromptTokens": 13958,
+      "CompletionTokens": 1174,
+      "CitedSpans": [
+        [
+          5376,
+          5888
+        ],
+        [
+          13440,
+          13952
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          9408,
+          9920
+        ],
+        [
+          11648,
+          12160
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          1344,
+          1578
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          5824,
+          6336
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          5824,
+          6336
+        ],
+        [
+          22848,
+          23360
+        ],
+        [
+          23296,
+          23808
+        ]
+      ],
+      "CitedDocs": [
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "README.md",
+        "docs/adr/0009-configuration-loading.md",
+        "README.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "README.md",
+        "README.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p6-production-alignment.md"
+      ]
+    },
+    {
+      "TaskID": "q013",
+      "Scope": "in-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 15,
+      "LatencyMS": 7228,
+      "PromptTokens": 8817,
+      "CompletionTokens": 817,
+      "CitedSpans": [
+        [
+          5376,
+          5888
+        ],
+        [
+          13440,
+          13952
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          9408,
+          9920
+        ],
+        [
+          11648,
+          12160
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          0,
+          512
+        ]
+      ],
+      "CitedDocs": [
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "README.md",
+        "README.md",
+        "README.md",
+        "docs/adr/0009-configuration-loading.md"
+      ]
+    },
+    {
+      "TaskID": "q014",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 9534,
+      "PromptTokens": 15612,
+      "CompletionTokens": 1464,
+      "CitedSpans": [
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          1344,
+          1673
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1344,
+          1762
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          4928,
+          5055
+        ],
+        [
+          8512,
+          8990
+        ],
+        [
+          5376,
+          5857
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          7616,
+          8128
+        ],
+        [
+          1344,
+          1751
+        ],
+        [
+          1344,
+          1735
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          7168,
+          7599
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          5376,
+          5888
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0007-resume-positioning-and-optimization.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0005-polling-vs-server-push.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "WORKMEMORY/PROTOCOL.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "docs/interview/interview-answers.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0005-polling-vs-server-push.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0006-worker-concurrency-count.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0009-configuration-loading.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md"
+      ]
+    },
+    {
+      "TaskID": "q014",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 9408,
+      "PromptTokens": 15612,
+      "CompletionTokens": 1510,
+      "CitedSpans": [
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          1344,
+          1673
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1344,
+          1762
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          4928,
+          5055
+        ],
+        [
+          8512,
+          8990
+        ],
+        [
+          5376,
+          5857
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          7616,
+          8128
+        ],
+        [
+          1344,
+          1751
+        ],
+        [
+          1344,
+          1735
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          7168,
+          7599
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          5376,
+          5888
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0007-resume-positioning-and-optimization.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0005-polling-vs-server-push.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "WORKMEMORY/PROTOCOL.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "docs/interview/interview-answers.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0005-polling-vs-server-push.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0006-worker-concurrency-count.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0009-configuration-loading.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md"
+      ]
+    },
+    {
+      "TaskID": "q014",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 9070,
+      "PromptTokens": 14982,
+      "CompletionTokens": 1367,
+      "CitedSpans": [
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          1344,
+          1673
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1344,
+          1762
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          4928,
+          5055
+        ],
+        [
+          8512,
+          8990
+        ],
+        [
+          5376,
+          5857
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          2688,
+          2802
+        ],
+        [
+          896,
+          1408
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0007-resume-positioning-and-optimization.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0005-polling-vs-server-push.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "WORKMEMORY/PROTOCOL.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "docs/interview/interview-answers.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/adr/0007-resume-positioning-and-optimization.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/adr/0003-security-resilience-design.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md"
+      ]
+    },
+    {
+      "TaskID": "q015",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 7,
+      "LatencyMS": 5515,
+      "PromptTokens": 4989,
+      "CompletionTokens": 717,
+      "CitedSpans": [
+        [
+          0,
+          512
+        ],
+        [
+          4032,
+          4473
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          1344,
+          1614
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          4480,
+          4992
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "README.md",
+        "README.md",
+        "README.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md"
+      ]
+    },
+    {
+      "TaskID": "q015",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 11,
+      "LatencyMS": 6902,
+      "PromptTokens": 9731,
+      "CompletionTokens": 903,
+      "CitedSpans": [
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          5376,
+          5857
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          24640,
+          25152
+        ],
+        [
+          4032,
+          4473
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1344,
+          1614
+        ],
+        [
+          896,
+          1408
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "README.md",
+        "docs/interview/interview-answers.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "README.md",
+        "docs/interview/go-basics.md",
+        "docs/interview/go-basics.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md"
+      ]
+    },
+    {
+      "TaskID": "q015",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 7,
+      "LatencyMS": 5358,
+      "PromptTokens": 4989,
+      "CompletionTokens": 660,
+      "CitedSpans": [
+        [
+          0,
+          512
+        ],
+        [
+          4032,
+          4473
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          1344,
+          1614
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          4480,
+          4992
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "README.md",
+        "README.md",
+        "README.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md"
+      ]
+    },
+    {
+      "TaskID": "q016",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 0.5513418903150525,
+      "FirstError": "",
+      "Steps": 11,
+      "LatencyMS": 6739,
+      "PromptTokens": 8406,
+      "CompletionTokens": 921,
+      "CitedSpans": [
+        [
+          5376,
+          5888
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          0,
+          512
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "handoff-agent-api.md",
+        "docs/interview/project-qa.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/interview/project-qa.md",
+        "docs/adr/0016-sse-task-progress-stream.md"
+      ]
+    },
+    {
+      "TaskID": "q016",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 0.5513418903150525,
+      "FirstError": "",
+      "Steps": 7,
+      "LatencyMS": 5082,
+      "PromptTokens": 5270,
+      "CompletionTokens": 742,
+      "CitedSpans": [
+        [
+          5376,
+          5888
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "handoff-agent-api.md",
+        "docs/interview/project-qa.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md"
+      ]
+    },
+    {
+      "TaskID": "q016",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 0.5513418903150525,
+      "FirstError": "",
+      "Steps": 11,
+      "LatencyMS": 6446,
+      "PromptTokens": 8408,
+      "CompletionTokens": 860,
+      "CitedSpans": [
+        [
+          5376,
+          5888
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          0,
+          512
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "handoff-agent-api.md",
+        "docs/interview/project-qa.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/interview/project-qa.md",
+        "docs/adr/0016-sse-task-progress-stream.md"
+      ]
+    },
+    {
+      "TaskID": "q017",
+      "Scope": "cross-chunk",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "right-span-wrong-reasoning",
+      "Steps": 26,
+      "LatencyMS": 8004,
+      "PromptTokens": 39453,
+      "CompletionTokens": 584,
+      "CitedSpans": [
+        [
+          896,
+          1408
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          24640,
+          25152
+        ],
+        [
+          4032,
+          4473
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          4032,
+          4473
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          4032,
+          4473
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          4032,
+          4473
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          11648,
+          12160
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          12096,
+          12608
+        ],
+        [
+          12544,
+          13056
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          1344,
+          1751
+        ],
+        [
+          7168,
+          7680
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1344,
+          1730
+        ],
+        [
+          20160,
+          20672
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          4032,
+          4473
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          3584,
+          4096
+        ]
+      ],
+      "CitedDocs": [
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "README.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/interview/go-basics.md",
+        "docs/interview/go-basics.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/grill/adr-0012-sse-rejection/README.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/adr/0016-sse-task-progress-stream.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "README.md"
+      ]
+    },
+    {
+      "TaskID": "q017",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 7891,
+      "PromptTokens": 13280,
+      "CompletionTokens": 1139,
+      "CitedSpans": [
+        [
+          896,
+          1408
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          24640,
+          25152
+        ],
+        [
+          4032,
+          4473
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          4032,
+          4473
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          4032,
+          4473
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          4032,
+          4544
+        ]
+      ],
+      "CitedDocs": [
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "README.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/interview/go-basics.md",
+        "docs/interview/go-basics.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md"
+      ]
+    },
+    {
+      "TaskID": "q017",
+      "Scope": "cross-chunk",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "right-span-wrong-reasoning",
+      "Steps": 26,
+      "LatencyMS": 8691,
+      "PromptTokens": 38001,
+      "CompletionTokens": 715,
+      "CitedSpans": [
+        [
+          896,
+          1408
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          24640,
+          25152
+        ],
+        [
+          4032,
+          4473
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          4032,
+          4473
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          4032,
+          4473
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          11648,
+          12160
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          12096,
+          12608
+        ],
+        [
+          12544,
+          13056
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          14784,
+          15166
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          4032,
+          4544
+        ]
+      ],
+      "CitedDocs": [
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "README.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/interview/go-basics.md",
+        "docs/interview/go-basics.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "README.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/adr/0002-async-task-worker-pool-architecture.md",
+        "docs/adr/0016-sse-task-progress-stream.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/adr/0016-sse-task-progress-stream.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0016-sse-task-progress-stream.md",
+        "docs/adr/0016-sse-task-progress-stream.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0016-sse-task-progress-stream.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "README.md",
+        "README.md"
+      ]
+    },
+    {
+      "TaskID": "q018",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 0.6666666666666666,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 6497,
+      "PromptTokens": 10165,
+      "CompletionTokens": 931,
+      "CitedSpans": [
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          3584,
+          4096
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md"
+      ]
+    },
+    {
+      "TaskID": "q018",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 0.6666666666666666,
+      "FirstError": "",
+      "Steps": 9,
+      "LatencyMS": 6155,
+      "PromptTokens": 5298,
+      "CompletionTokens": 1065,
+      "CitedSpans": [
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md"
+      ]
+    },
+    {
+      "TaskID": "q018",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 0.6666666666666666,
+      "FirstError": "",
+      "Steps": 9,
+      "LatencyMS": 6100,
+      "PromptTokens": 5298,
+      "CompletionTokens": 1090,
+      "CitedSpans": [
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1792,
+          2304
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md"
+      ]
+    },
+    {
+      "TaskID": "q019",
+      "Scope": "cross-chunk",
+      "Success": false,
+      "SpanRecall": 0.3938802083333333,
+      "FirstError": "wrong-span",
+      "Steps": 12,
+      "LatencyMS": 6576,
+      "PromptTokens": 11660,
+      "CompletionTokens": 881,
+      "CitedSpans": [
+        [
+          1344,
+          1856
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          8064,
+          8576
+        ],
+        [
+          9856,
+          10368
+        ],
+        [
+          7616,
+          8128
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          8064,
+          8576
+        ],
+        [
+          9856,
+          10368
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md"
+      ]
+    },
+    {
+      "TaskID": "q019",
+      "Scope": "cross-chunk",
+      "Success": false,
+      "SpanRecall": 0.3938802083333333,
+      "FirstError": "wrong-span",
+      "Steps": 12,
+      "LatencyMS": 6376,
+      "PromptTokens": 11658,
+      "CompletionTokens": 868,
+      "CitedSpans": [
+        [
+          1344,
+          1856
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          8064,
+          8576
+        ],
+        [
+          9856,
+          10368
+        ],
+        [
+          7616,
+          8128
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          8064,
+          8576
+        ],
+        [
+          9856,
+          10368
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md"
+      ]
+    },
+    {
+      "TaskID": "q019",
+      "Scope": "cross-chunk",
+      "Success": false,
+      "SpanRecall": 0.3938802083333333,
+      "FirstError": "wrong-span",
+      "Steps": 12,
+      "LatencyMS": 5980,
+      "PromptTokens": 11658,
+      "CompletionTokens": 739,
+      "CitedSpans": [
+        [
+          1344,
+          1856
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          8064,
+          8576
+        ],
+        [
+          9856,
+          10368
+        ],
+        [
+          7616,
+          8128
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          8064,
+          8576
+        ],
+        [
+          9856,
+          10368
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md"
+      ]
+    },
+    {
+      "TaskID": "q020",
+      "Scope": "cross-chunk",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "right-span-wrong-reasoning",
+      "Steps": 26,
+      "LatencyMS": 7679,
+      "PromptTokens": 22297,
+      "CompletionTokens": 538,
+      "CitedSpans": [
+        [
+          2240,
+          2752
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          2688,
+          3196
+        ],
+        [
+          7616,
+          8128
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          10752,
+          11264
+        ],
+        [
+          18368,
+          18880
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          2688,
+          3196
+        ],
+        [
+          10752,
+          11264
+        ],
+        [
+          18368,
+          18880
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          8064,
+          8576
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          1344,
+          1856
+        ]
+      ],
+      "CitedDocs": [
+        "docs/interview/m1-async-worker-pool.md",
+        "handoff-agent-api.md",
+        "docs/interview/m2-llm-timeout.md",
+        "docs/interview/pitch-3min.md",
+        "docs/interview/go-basics.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/interview/m1-async-worker-pool.md",
+        "handoff-agent-api.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/interview/pitch-3min.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/grill/adr-0012-sse-rejection/02-backend-concurrency-grill.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0017-retrieval-as-tool.md"
+      ]
+    },
+    {
+      "TaskID": "q020",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 20,
+      "LatencyMS": 8987,
+      "PromptTokens": 29485,
+      "CompletionTokens": 982,
+      "CitedSpans": [
+        [
+          2240,
+          2752
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          2688,
+          3196
+        ],
+        [
+          7616,
+          8128
+        ],
+        [
+          18816,
+          19328
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          10304,
+          10816
+        ],
+        [
+          17920,
+          18432
+        ],
+        [
+          32704,
+          33216
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          13888,
+          14295
+        ],
+        [
+          7168,
+          7599
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          10752,
+          11264
+        ],
+        [
+          18368,
+          18880
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          1344,
+          1673
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          4032,
+          4544
+        ]
+      ],
+      "CitedDocs": [
+        "docs/interview/m1-async-worker-pool.md",
+        "handoff-agent-api.md",
+        "docs/interview/m2-llm-timeout.md",
+        "docs/interview/pitch-3min.md",
+        "docs/interview/go-basics.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "WORKMEMORY/PROTOCOL.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/adr/0003-security-resilience-design.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/interview/project-qa.md",
+        "docs/interview/go-basics.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/GO-CHEATSHEET.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md"
+      ]
+    },
+    {
+      "TaskID": "q020",
+      "Scope": "cross-chunk",
+      "Success": false,
+      "SpanRecall": 0.4144634525660964,
+      "FirstError": "wrong-span",
+      "Steps": 7,
+      "LatencyMS": 3586,
+      "PromptTokens": 4051,
+      "CompletionTokens": 482,
+      "CitedSpans": [
+        [
+          1792,
+          2304
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          2688,
+          3196
+        ],
+        [
+          7616,
+          8128
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/interview/m1-async-worker-pool.md",
+        "handoff-agent-api.md",
+        "docs/interview/m2-llm-timeout.md",
+        "docs/interview/pitch-3min.md",
+        "docs/interview/go-basics.md"
+      ]
+    },
+    {
+      "TaskID": "q021",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 6625,
+      "PromptTokens": 7166,
+      "CompletionTokens": 901,
+      "CitedSpans": [
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "docs/interview/m2-llm-timeout.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "docs/implementation_plan_p4-audit-remediation.md"
+      ]
+    },
+    {
+      "TaskID": "q021",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 6680,
+      "PromptTokens": 8887,
+      "CompletionTokens": 981,
+      "CitedSpans": [
+        [
+          896,
+          1408
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1344,
+          1751
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          3136,
+          3648
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md"
+      ]
+    },
+    {
+      "TaskID": "q021",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 7297,
+      "PromptTokens": 8887,
+      "CompletionTokens": 1121,
+      "CitedSpans": [
+        [
+          896,
+          1408
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1344,
+          1751
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          3136,
+          3648
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "docs/adr/0014-user-initiated-task-cancellation.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0011-task-timeout-and-graceful-shutdown.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md"
+      ]
+    },
+    {
+      "TaskID": "q022",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 0.5,
+      "FirstError": "",
+      "Steps": 26,
+      "LatencyMS": 9199,
+      "PromptTokens": 16626,
+      "CompletionTokens": 1020,
+      "CitedSpans": [
+        [
+          1344,
+          1856
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          9408,
+          9920
+        ],
+        [
+          7168,
+          7680
+        ],
+        [
+          11200,
+          11712
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          24640,
+          25152
+        ],
+        [
+          14336,
+          14848
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          13888,
+          14400
+        ],
+        [
+          20608,
+          21120
+        ],
+        [
+          10752,
+          11264
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          24640,
+          25152
+        ],
+        [
+          25088,
+          25600
+        ],
+        [
+          23296,
+          23808
+        ],
+        [
+          26432,
+          26944
+        ]
+      ],
+      "CitedDocs": [
+        "docs/implementation_plan_p1.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p5-retrieval.md"
+      ]
+    },
+    {
+      "TaskID": "q022",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 0.5,
+      "FirstError": "",
+      "Steps": 19,
+      "LatencyMS": 7638,
+      "PromptTokens": 11976,
+      "CompletionTokens": 683,
+      "CitedSpans": [
+        [
+          1344,
+          1856
+        ],
+        [
+          5824,
+          6336
+        ],
+        [
+          24640,
+          25152
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          24640,
+          25152
+        ],
+        [
+          25088,
+          25600
+        ],
+        [
+          23296,
+          23808
+        ],
+        [
+          26432,
+          26944
+        ]
+      ],
+      "CitedDocs": [
+        "docs/implementation_plan_p1.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p5-retrieval.md"
+      ]
+    },
+    {
+      "TaskID": "q022",
+      "Scope": "cross-chunk",
+      "Success": false,
+      "SpanRecall": 0.5,
+      "FirstError": "right-span-wrong-reasoning",
+      "Steps": 32,
+      "LatencyMS": 7742,
+      "PromptTokens": 13469,
+      "CompletionTokens": 619,
+      "CitedSpans": [
+        [
+          1344,
+          1856
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          9408,
+          9920
+        ],
+        [
+          7168,
+          7680
+        ],
+        [
+          11200,
+          11712
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          24640,
+          25152
+        ],
+        [
+          8512,
+          9024
+        ],
+        [
+          15680,
+          16192
+        ],
+        [
+          8960,
+          9472
+        ],
+        [
+          23744,
+          24256
+        ],
+        [
+          5824,
+          6336
+        ],
+        [
+          13888,
+          14400
+        ],
+        [
+          13440,
+          13952
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          14336,
+          14848
+        ],
+        [
+          23744,
+          24256
+        ],
+        [
+          26432,
+          26944
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          23744,
+          24256
+        ],
+        [
+          22848,
+          23360
+        ]
+      ],
+      "CitedDocs": [
+        "docs/implementation_plan_p1.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p6-production-alignment.md"
+      ]
+    },
+    {
+      "TaskID": "q023",
+      "Scope": "cross-chunk",
+      "Success": false,
+      "SpanRecall": 0.39979542748463703,
+      "FirstError": "wrong-span",
+      "Steps": 15,
+      "LatencyMS": 9925,
+      "PromptTokens": 23859,
+      "CompletionTokens": 1319,
+      "CitedSpans": [
+        [
+          0,
+          512
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          1344,
+          1735
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          14784,
+          15296
+        ],
+        [
+          22848,
+          23360
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1344,
+          1751
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          12992,
+          13504
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          0,
+          512
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/adr/0007-resume-positioning-and-optimization.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/adr/0006-worker-concurrency-count.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "README.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0005-polling-vs-server-push.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md"
+      ]
+    },
+    {
+      "TaskID": "q023",
+      "Scope": "cross-chunk",
+      "Success": false,
+      "SpanRecall": 0.39979542748463703,
+      "FirstError": "wrong-span",
+      "Steps": 12,
+      "LatencyMS": 7980,
+      "PromptTokens": 13383,
+      "CompletionTokens": 1097,
+      "CitedSpans": [
+        [
+          0,
+          512
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          1344,
+          1735
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          14784,
+          15296
+        ],
+        [
+          22848,
+          23360
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1344,
+          1751
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          28224,
+          28736
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/adr/0007-resume-positioning-and-optimization.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/adr/0006-worker-concurrency-count.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "README.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md"
+      ]
+    },
+    {
+      "TaskID": "q023",
+      "Scope": "cross-chunk",
+      "Success": true,
+      "SpanRecall": 0.8646864686468647,
+      "FirstError": "",
+      "Steps": 17,
+      "LatencyMS": 9323,
+      "PromptTokens": 25461,
+      "CompletionTokens": 1202,
+      "CitedSpans": [
+        [
+          0,
+          512
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          1344,
+          1735
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          14784,
+          15296
+        ],
+        [
+          22848,
+          23360
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          1344,
+          1751
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          12992,
+          13504
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          12992,
+          13504
+        ],
+        [
+          896,
+          1408
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/adr/0007-resume-positioning-and-optimization.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/adr/0006-worker-concurrency-count.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "README.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0007-resume-positioning-and-optimization.md",
+        "docs/adr/0007-resume-positioning-and-optimization.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "README.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md"
+      ]
+    },
+    {
+      "TaskID": "q024",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 7,
+      "LatencyMS": 3000,
+      "PromptTokens": 4941,
+      "CompletionTokens": 224,
+      "CitedSpans": [
+        [
+          4032,
+          4306
+        ],
+        [
+          7168,
+          7680
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          7168,
+          7680
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          26880,
+          27392
+        ]
+      ],
+      "CitedDocs": [
+        "handoff-agent-api.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "handoff-agent-api.md",
+        "handoff-agent-api.md",
+        "README.md",
+        "docs/adr/0007-resume-positioning-and-optimization.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "README.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p6-production-alignment.md"
+      ]
+    },
+    {
+      "TaskID": "q024",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 12,
+      "LatencyMS": 5279,
+      "PromptTokens": 6030,
+      "CompletionTokens": 288,
+      "CitedSpans": [
+        [
+          4032,
+          4306
+        ],
+        [
+          7168,
+          7680
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          2240,
+          2752
+        ]
+      ],
+      "CitedDocs": [
+        "handoff-agent-api.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "handoff-agent-api.md",
+        "handoff-agent-api.md",
+        "README.md"
+      ]
+    },
+    {
+      "TaskID": "q024",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 12,
+      "LatencyMS": 4485,
+      "PromptTokens": 9681,
+      "CompletionTokens": 317,
+      "CitedSpans": [
+        [
+          4032,
+          4306
+        ],
+        [
+          7168,
+          7680
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          4032,
+          4306
+        ],
+        [
+          13888,
+          14400
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          3584,
+          4096
+        ],
+        [
+          32704,
+          33216
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          13888,
+          14400
+        ],
+        [
+          8512,
+          9024
+        ],
+        [
+          9856,
+          10368
+        ]
+      ],
+      "CitedDocs": [
+        "handoff-agent-api.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "handoff-agent-api.md",
+        "handoff-agent-api.md",
+        "README.md",
+        "handoff-agent-api.md",
+        "docs/implementation_plan_p4-audit-remediation.md",
+        "handoff-agent-api.md",
+        "handoff-agent-api.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0015-crash-recovery-and-task-rehydration.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p6-production-alignment.md"
+      ]
+    },
+    {
+      "TaskID": "q025",
+      "Scope": "out-of-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 4652,
+      "PromptTokens": 8280,
+      "CompletionTokens": 387,
+      "CitedSpans": [
+        [
+          1344,
+          1856
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ]
+      ],
+      "CitedDocs": [
+        "WORKMEMORY/PROTOCOL.md",
+        "WORKMEMORY/PROTOCOL.md",
+        "WORKMEMORY/PROTOCOL.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/interview/pitch-3min.md",
+        "docs/interview/pitch-3min.md",
+        "handoff-agent-api.md"
+      ]
+    },
+    {
+      "TaskID": "q025",
+      "Scope": "out-of-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 5124,
+      "PromptTokens": 6484,
+      "CompletionTokens": 433,
+      "CitedSpans": [
+        [
+          1344,
+          1856
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ]
+      ],
+      "CitedDocs": [
+        "WORKMEMORY/PROTOCOL.md",
+        "WORKMEMORY/PROTOCOL.md",
+        "WORKMEMORY/PROTOCOL.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p3-decouple.md"
+      ]
+    },
+    {
+      "TaskID": "q025",
+      "Scope": "out-of-corpus",
+      "Success": true,
+      "SpanRecall": 1,
+      "FirstError": "",
+      "Steps": 12,
+      "LatencyMS": 5013,
+      "PromptTokens": 6484,
+      "CompletionTokens": 460,
+      "CitedSpans": [
+        [
+          1344,
+          1856
+        ],
+        [
+          4032,
+          4544
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ]
+      ],
+      "CitedDocs": [
+        "WORKMEMORY/PROTOCOL.md",
+        "WORKMEMORY/PROTOCOL.md",
+        "WORKMEMORY/PROTOCOL.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p3-decouple.md"
+      ]
+    },
+    {
+      "TaskID": "q026",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 12,
+      "LatencyMS": 5892,
+      "PromptTokens": 12111,
+      "CompletionTokens": 589,
+      "CitedSpans": [
+        [
+          3136,
+          3648
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          5824,
+          6336
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          7168,
+          7680
+        ],
+        [
+          14336,
+          14848
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          13888,
+          14400
+        ],
+        [
+          20608,
+          21120
+        ],
+        [
+          7168,
+          7680
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          26880,
+          27392
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          448,
+          960
+        ]
+      ],
+      "CitedDocs": [
+        "docs/GO-STANDARDS.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/interview/project-qa.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "README.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "README.md",
+        "handoff-agent-api.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "handoff-agent-api.md"
+      ]
+    },
+    {
+      "TaskID": "q026",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 12,
+      "LatencyMS": 7084,
+      "PromptTokens": 12107,
+      "CompletionTokens": 866,
+      "CitedSpans": [
+        [
+          3136,
+          3648
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          5824,
+          6336
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          7168,
+          7680
+        ],
+        [
+          14336,
+          14848
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          13888,
+          14400
+        ],
+        [
+          20608,
+          21120
+        ],
+        [
+          7168,
+          7680
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          26880,
+          27392
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          448,
+          960
+        ]
+      ],
+      "CitedDocs": [
+        "docs/GO-STANDARDS.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/interview/project-qa.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "README.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "README.md",
+        "handoff-agent-api.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "handoff-agent-api.md"
+      ]
+    },
+    {
+      "TaskID": "q026",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 12,
+      "LatencyMS": 5805,
+      "PromptTokens": 12107,
+      "CompletionTokens": 562,
+      "CitedSpans": [
+        [
+          3136,
+          3648
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          5824,
+          6336
+        ],
+        [
+          6272,
+          6784
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          7168,
+          7680
+        ],
+        [
+          14336,
+          14848
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          13888,
+          14400
+        ],
+        [
+          20608,
+          21120
+        ],
+        [
+          7168,
+          7680
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          26880,
+          27392
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          448,
+          960
+        ]
+      ],
+      "CitedDocs": [
+        "docs/GO-STANDARDS.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/adr/0013-decouple-agent-kernel-and-dependency-inversion.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/interview/project-qa.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "docs/implementation_plan_p2-observe.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "README.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "README.md",
+        "handoff-agent-api.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "handoff-agent-api.md"
+      ]
+    },
+    {
+      "TaskID": "q027",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 7,
+      "LatencyMS": 3827,
+      "PromptTokens": 5479,
+      "CompletionTokens": 412,
+      "CitedSpans": [
+        [
+          4928,
+          5440
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          27776,
+          28288
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          23296,
+          23808
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          3136,
+          3648
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md"
+      ]
+    },
+    {
+      "TaskID": "q027",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 17,
+      "LatencyMS": 8106,
+      "PromptTokens": 22796,
+      "CompletionTokens": 809,
+      "CitedSpans": [
+        [
+          4928,
+          5440
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          27776,
+          28288
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          23296,
+          23808
+        ],
+        [
+          33152,
+          33664
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          21504,
+          22016
+        ],
+        [
+          7168,
+          7599
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          5824,
+          6336
+        ],
+        [
+          33600,
+          34049
+        ],
+        [
+          7168,
+          7599
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          26432,
+          26944
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          21504,
+          22016
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          3136,
+          3648
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "WORKMEMORY/INDEX-topics.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md"
+      ]
+    },
+    {
+      "TaskID": "q027",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 7,
+      "LatencyMS": 4101,
+      "PromptTokens": 5483,
+      "CompletionTokens": 405,
+      "CitedSpans": [
+        [
+          4928,
+          5440
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          27776,
+          28288
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          23296,
+          23808
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          0,
+          512
+        ],
+        [
+          3136,
+          3648
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md",
+        "docs/adr/0018-retrieval-evaluation-harness.md"
+      ]
+    },
+    {
+      "TaskID": "q028",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 12,
+      "LatencyMS": 5484,
+      "PromptTokens": 10614,
+      "CompletionTokens": 576,
+      "CitedSpans": [
+        [
+          19264,
+          19776
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          21952,
+          22464
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          12096,
+          12608
+        ],
+        [
+          13888,
+          14400
+        ],
+        [
+          12544,
+          13056
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          12096,
+          12608
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1792,
+          2304
+        ]
+      ],
+      "CitedDocs": [
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/adr/0009-configuration-loading.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "README.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "docs/grill/adr-0012-sse-rejection/01-product-ux-interrogation.md",
+        "docs/grill/adr-0012-sse-rejection/03-sre-resilience-grill.md"
+      ]
+    },
+    {
+      "TaskID": "q028",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 7,
+      "LatencyMS": 3927,
+      "PromptTokens": 4913,
+      "CompletionTokens": 336,
+      "CitedSpans": [
+        [
+          19264,
+          19776
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          21952,
+          22464
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          12096,
+          12608
+        ],
+        [
+          13888,
+          14400
+        ],
+        [
+          12544,
+          13056
+        ],
+        [
+          5376,
+          5888
+        ]
+      ],
+      "CitedDocs": [
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/adr/0009-configuration-loading.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "README.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md"
+      ]
+    },
+    {
+      "TaskID": "q028",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 7,
+      "LatencyMS": 3743,
+      "PromptTokens": 4913,
+      "CompletionTokens": 347,
+      "CitedSpans": [
+        [
+          19264,
+          19776
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          1792,
+          2304
+        ],
+        [
+          21952,
+          22464
+        ],
+        [
+          4928,
+          5440
+        ],
+        [
+          12096,
+          12608
+        ],
+        [
+          13888,
+          14400
+        ],
+        [
+          12544,
+          13056
+        ],
+        [
+          5376,
+          5888
+        ]
+      ],
+      "CitedDocs": [
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/adr/0009-configuration-loading.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "README.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/implementation_plan_p6-production-alignment.md",
+        "docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md"
+      ]
+    },
+    {
+      "TaskID": "q029",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 12,
+      "LatencyMS": 5279,
+      "PromptTokens": 8188,
+      "CompletionTokens": 552,
+      "CitedSpans": [
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          9856,
+          10368
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          5824,
+          6329
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p1.md",
+        "README.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/implementation_plan_p1.md"
+      ]
+    },
+    {
+      "TaskID": "q029",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 12,
+      "LatencyMS": 5754,
+      "PromptTokens": 8267,
+      "CompletionTokens": 548,
+      "CitedSpans": [
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          1344,
+          1856
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          5824,
+          6329
+        ],
+        [
+          2240,
+          2752
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/implementation_plan_p1.md",
+        "README.md",
+        "docs/implementation_plan_p1.md",
+        "docs/adr/0007-resume-positioning-and-optimization.md"
+      ]
+    },
+    {
+      "TaskID": "q029",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 12,
+      "LatencyMS": 6297,
+      "PromptTokens": 11455,
+      "CompletionTokens": 668,
+      "CitedSpans": [
+        [
+          896,
+          1408
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          3136,
+          3648
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          7168,
+          7680
+        ],
+        [
+          448,
+          960
+        ],
+        [
+          5376,
+          5888
+        ],
+        [
+          4480,
+          4992
+        ],
+        [
+          9856,
+          10368
+        ],
+        [
+          896,
+          1408
+        ],
+        [
+          5824,
+          6329
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0010-persistence-sqlite.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "WORKMEMORY/PROJECT_OVERVIEW.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0004-no-persistence-no-message-queue.md",
+        "docs/implementation_plan_p1.md",
+        "README.md",
+        "docs/implementation_plan_p3-decouple.md",
+        "docs/adr/0010-persistence-sqlite.md",
+        "docs/implementation_plan_p1.md"
+      ]
+    },
+    {
+      "TaskID": "q030",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 12,
+      "LatencyMS": 5809,
+      "PromptTokens": 11514,
+      "CompletionTokens": 546,
+      "CitedSpans": [
+        [
+          2240,
+          2752
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          8512,
+          9024
+        ],
+        [
+          29568,
+          30080
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          8512,
+          9024
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          30016,
+          30528
+        ],
+        [
+          32256,
+          32768
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          29568,
+          30080
+        ],
+        [
+          8512,
+          9024
+        ],
+        [
+          2688,
+          3200
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md"
+      ]
+    },
+    {
+      "TaskID": "q030",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 12,
+      "LatencyMS": 5161,
+      "PromptTokens": 13175,
+      "CompletionTokens": 543,
+      "CitedSpans": [
+        [
+          2240,
+          2752
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          8512,
+          9024
+        ],
+        [
+          29568,
+          30080
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          8512,
+          9024
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          30016,
+          30528
+        ],
+        [
+          32256,
+          32768
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          29568,
+          30080
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          8512,
+          9024
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          30016,
+          30528
+        ],
+        [
+          8512,
+          9024
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md"
+      ]
+    },
+    {
+      "TaskID": "q030",
+      "Scope": "out-of-corpus",
+      "Success": false,
+      "SpanRecall": 1,
+      "FirstError": "wrong-span",
+      "Steps": 12,
+      "LatencyMS": 5929,
+      "PromptTokens": 13175,
+      "CompletionTokens": 583,
+      "CitedSpans": [
+        [
+          2240,
+          2752
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          8512,
+          9024
+        ],
+        [
+          29568,
+          30080
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          8512,
+          9024
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          30016,
+          30528
+        ],
+        [
+          32256,
+          32768
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          29568,
+          30080
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          8512,
+          9024
+        ],
+        [
+          2688,
+          3200
+        ],
+        [
+          2240,
+          2752
+        ],
+        [
+          6720,
+          7232
+        ],
+        [
+          30016,
+          30528
+        ],
+        [
+          8512,
+          9024
+        ]
+      ],
+      "CitedDocs": [
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0012-next-step-observation-transport-decoupling.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/adr/0017-retrieval-as-tool.md",
+        "docs/implementation_plan_p5-retrieval.md",
+        "docs/implementation_plan_p5-retrieval.md"
+      ]
+    }
+  ],
+  "Aggregates": {
+    "first_error_distribution": {
+      "none": 61,
+      "right-span-wrong-reasoning": 5,
+      "wrong-span": 24
+    },
+    "latency_p50": 6412.5,
+    "latency_p95": 9477.3,
+    "span_recall_median": 1,
+    "span_recall_p25": 1,
+    "span_recall_p75": 1,
+    "steps_mean": 12.722222222222221,
+    "success_median": 1,
+    "success_p25": 0,
+    "success_p75": 1,
+    "tasks": [
+      {
+        "first_error": "none",
+        "id": "q001",
+        "latency_ms_median": 8927,
+        "scope": "in-corpus",
+        "span_recall_median": 1,
+        "steps_median": 17,
+        "success": true,
+        "success_rate": 0.6666666666666666
+      },
+      {
+        "first_error": "none",
+        "id": "q002",
+        "latency_ms_median": 5780,
+        "scope": "in-corpus",
+        "span_recall_median": 1,
+        "steps_median": 10,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "none",
+        "id": "q003",
+        "latency_ms_median": 7572,
+        "scope": "in-corpus",
+        "span_recall_median": 1,
+        "steps_median": 12,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "none",
+        "id": "q004",
+        "latency_ms_median": 7123,
+        "scope": "in-corpus",
+        "span_recall_median": 1,
+        "steps_median": 17,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "none",
+        "id": "q005",
+        "latency_ms_median": 10747,
+        "scope": "in-corpus",
+        "span_recall_median": 1,
+        "steps_median": 20,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "none",
+        "id": "q006",
+        "latency_ms_median": 5883,
+        "scope": "in-corpus",
+        "span_recall_median": 0.9719953325554259,
+        "steps_median": 7,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "none",
+        "id": "q007",
+        "latency_ms_median": 4131,
+        "scope": "in-corpus",
+        "span_recall_median": 1,
+        "steps_median": 7,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "none",
+        "id": "q008",
+        "latency_ms_median": 7068,
+        "scope": "in-corpus",
+        "span_recall_median": 1,
+        "steps_median": 12,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "none",
+        "id": "q009",
+        "latency_ms_median": 6014,
+        "scope": "in-corpus",
+        "span_recall_median": 1,
+        "steps_median": 10,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "none",
+        "id": "q010",
+        "latency_ms_median": 6379,
+        "scope": "in-corpus",
+        "span_recall_median": 1,
+        "steps_median": 12,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "none",
+        "id": "q011",
+        "latency_ms_median": 4252,
+        "scope": "in-corpus",
+        "span_recall_median": 1,
+        "steps_median": 7,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "none",
+        "id": "q012",
+        "latency_ms_median": 5399,
+        "scope": "in-corpus",
+        "span_recall_median": 1,
+        "steps_median": 12,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "none",
+        "id": "q013",
+        "latency_ms_median": 7523,
+        "scope": "in-corpus",
+        "span_recall_median": 1,
+        "steps_median": 17,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "none",
+        "id": "q014",
+        "latency_ms_median": 9408,
+        "scope": "cross-chunk",
+        "span_recall_median": 1,
+        "steps_median": 12,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "none",
+        "id": "q015",
+        "latency_ms_median": 5515,
+        "scope": "cross-chunk",
+        "span_recall_median": 1,
+        "steps_median": 7,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "none",
+        "id": "q016",
+        "latency_ms_median": 6446,
+        "scope": "cross-chunk",
+        "span_recall_median": 0.5513418903150525,
+        "steps_median": 11,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "right-span-wrong-reasoning",
+        "id": "q017",
+        "latency_ms_median": 8004,
+        "scope": "cross-chunk",
+        "span_recall_median": 1,
+        "steps_median": 26,
+        "success": false,
+        "success_rate": 0.3333333333333333
+      },
+      {
+        "first_error": "none",
+        "id": "q018",
+        "latency_ms_median": 6155,
+        "scope": "cross-chunk",
+        "span_recall_median": 0.6666666666666666,
+        "steps_median": 9,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "wrong-span",
+        "id": "q019",
+        "latency_ms_median": 6376,
+        "scope": "cross-chunk",
+        "span_recall_median": 0.3938802083333333,
+        "steps_median": 12,
+        "success": false,
+        "success_rate": 0
+      },
+      {
+        "first_error": "right-span-wrong-reasoning",
+        "id": "q020",
+        "latency_ms_median": 7679,
+        "scope": "cross-chunk",
+        "span_recall_median": 1,
+        "steps_median": 20,
+        "success": false,
+        "success_rate": 0.3333333333333333
+      },
+      {
+        "first_error": "none",
+        "id": "q021",
+        "latency_ms_median": 6680,
+        "scope": "cross-chunk",
+        "span_recall_median": 1,
+        "steps_median": 12,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "none",
+        "id": "q022",
+        "latency_ms_median": 7742,
+        "scope": "cross-chunk",
+        "span_recall_median": 0.5,
+        "steps_median": 26,
+        "success": true,
+        "success_rate": 0.6666666666666666
+      },
+      {
+        "first_error": "wrong-span",
+        "id": "q023",
+        "latency_ms_median": 9323,
+        "scope": "cross-chunk",
+        "span_recall_median": 0.39979542748463703,
+        "steps_median": 15,
+        "success": false,
+        "success_rate": 0.3333333333333333
+      },
+      {
+        "first_error": "wrong-span",
+        "id": "q024",
+        "latency_ms_median": 4485,
+        "scope": "out-of-corpus",
+        "span_recall_median": 1,
+        "steps_median": 12,
+        "success": false,
+        "success_rate": 0
+      },
+      {
+        "first_error": "none",
+        "id": "q025",
+        "latency_ms_median": 5013,
+        "scope": "out-of-corpus",
+        "span_recall_median": 1,
+        "steps_median": 12,
+        "success": true,
+        "success_rate": 1
+      },
+      {
+        "first_error": "wrong-span",
+        "id": "q026",
+        "latency_ms_median": 5892,
+        "scope": "out-of-corpus",
+        "span_recall_median": 1,
+        "steps_median": 12,
+        "success": false,
+        "success_rate": 0
+      },
+      {
+        "first_error": "wrong-span",
+        "id": "q027",
+        "latency_ms_median": 4101,
+        "scope": "out-of-corpus",
+        "span_recall_median": 1,
+        "steps_median": 7,
+        "success": false,
+        "success_rate": 0
+      },
+      {
+        "first_error": "wrong-span",
+        "id": "q028",
+        "latency_ms_median": 3927,
+        "scope": "out-of-corpus",
+        "span_recall_median": 1,
+        "steps_median": 7,
+        "success": false,
+        "success_rate": 0
+      },
+      {
+        "first_error": "wrong-span",
+        "id": "q029",
+        "latency_ms_median": 5754,
+        "scope": "out-of-corpus",
+        "span_recall_median": 1,
+        "steps_median": 12,
+        "success": false,
+        "success_rate": 0
+      },
+      {
+        "first_error": "wrong-span",
+        "id": "q030",
+        "latency_ms_median": 5809,
+        "scope": "out-of-corpus",
+        "span_recall_median": 1,
+        "steps_median": 12,
+        "success": false,
+        "success_rate": 0
+      }
+    ]
+  },
+  "Env": {
+    "Group": "lexical",
+    "Seed": 0,
+    "Model": "deepseek-chat",
+    "TemplateVersion": "eval-template-v2",
+    "CorpusDir": ".",
+    "Repeat": 3,
+    "DBPath": "agent-runtime.db",
+    "SetPath": "eval/tasks/retrieval_v1.json",
+    "SetHash": "5bb1c1fb87393dc93f5e01d5f8f3fbc05dd7025c1df1172daeece4a57e4feea1",
+    "TokenCounting": "llm-usage"
+  },
+  "MarkdownPath": "",
+  "JSONPath": ""
+}

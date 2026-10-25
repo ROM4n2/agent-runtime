@@ -1,12 +1,13 @@
 # 3分钟项目陈述 (Project Pitch)
 
-本文件整理自 2026-08-17 对话，2026-08-23 根据实战演练修正。用于面试前的项目陈述复习。
+本文件整理自 2026-08-17 对话，2026-10-25 根据 P6 阶段生产级闭环（混合检索 + AST 架构门禁 + 本地嵌入）全面重写。用于面试前的项目陈述复习。
 
 ---
 
 ## 30 秒电梯版（必须张口就来）
 
-> 这是一个 Go 写的异步任务 API。核心问题是 **LLM 调用太慢**（10 秒以上），同步等待会占死 HTTP 连接。所以拆成两步：接到请求立刻返回 `202` 和一个 task_id，真正的 LLM 调用在后台 worker pool 里跑，客户端拿 task_id 轮询结果。
+> **agent-runtime** 是一个用 Go 编写的高并发 Agent 异步运行时系统。核心解决 **LLM 慢调用阻塞 HTTP 连接** 与 **单体 Agent 多轮迭代后架构熵增腐化** 两大痛点。
+> 架构拆为两阶段：接入层立即返回 `202 Accepted`，后台在纯化的 Worker Pool 中驱动带 Context 抢占与 Trace 观测的 ReAct 认知循环，支持用户主动取消、崩溃恢复、FTS5+vec0 向量混合检索，并通过根级 AST DAG 白名单与 400 行体积预算机械门禁锁死分层边界。
 
 ---
 
@@ -14,64 +15,44 @@
 
 ### 1. 痛点与背景 (0:00 - 0:30)
 
-> LLM 接口调用极慢（10s+），若使用同步 HTTP 请求会严重阻塞连接资源，拖垮服务吞吐量。
->
-> 设计了异步任务架构：在 [api/handler.go](../../api/handler.go) 中解析并创建任务后，立刻返回 `202 Accepted` 释放 HTTP 连接，具体 LLM 请求在后台异步队列中执行。
+> 在生产级 Agent 系统中，有两大现实挑战：
+> 1. **I/O 阻塞与吞吐**：LLM 接口与多步工具循环耗时长达数十秒，同步等待会占死 HTTP 连接，瞬间拖垮服务吞吐；
+> 2. **架构熵增与反向依赖**：多版本迭代后，调度池为了识别终态容易直接穿刺依赖具体工具（如 Worker 直接 import 检索包），单文件膨胀失控，最终退化为网状泥潭。
+> 
+> 我主导设计的 **agent-runtime** 通过异步任务分层解耦与防御性机械门禁，构建了一个生产级高并发 Agent 运行底座。
 
 ### 2. 关键架构决策 (0:30 - 1:30)
 
-> **决策一（状态唯一权威）**：在 [worker/pool.go](../../worker/pool.go) 队列里只传 task ID，不传整个 Task 实体。
+> **决策一（状态唯一权威与协议下沉解耦）**：
+> - 任务队列里**只传递 Task ID，不传实体大对象**。因为 Task 是有状态的可变对象，传 ID 强制 Worker 每次从持久化 Store 读取最新状态，杜绝快照过期，Store 是唯一权威。
+> - 在多版本迭代后，工具终态需要向任务级脱敏状态映射（如 `"index missing"`）。我们没有让 Worker 直接 import `retrieval`，而是在底层 `agent/tool` 契约层抽象了 `TerminalClassifier` 接口，具体工具实现协议，Worker 仅面向接口做 `errors.As` 判别，彻底切断了通用并发池对具体工具的依赖。
 >
-> 因为 Task 是**有状态的可变对象**，传副本会导致 worker 手上的和 store 里的不一致，或者拿到过期快照。传 ID 强制 worker 每次从 store 读最新状态——**store 是唯一权威**。顺带也省掉了 channel 传大对象的拷贝开销。
+> **决策二（AST 架构适应度门禁与文件体积预算）**：
+> - 杜绝口头架构约定，在仓库根目录编写 `architecture_test.go`。利用 Go 标准库 `go/parser` 扫描全仓 import 拓扑，显式维护 12 个内部包的 DAG 白名单；
+> - 遵循「Package 是封装边界、File 是阅读边界」的哲学，对超 400 行的文件在同包内按正交职责切分（如 `main.go` 拆 `cli.go`、`handler.go` 拆 `events.go`、`search.go` 拆 `vector_search.go`），并把「生产代码 ≤ 400 行、测试代码 ≤ 800 行」固化为每次 CI/测试必跑的硬性红线。
 >
-> ⚠️ 主次不能颠倒：**正确性是主要理由，性能只是顺带好处**。如果只说"减少开销"，面试官会追问"Task 才几十字节，值得吗"——就被问住了。
-
-> **决策二（零依赖手写）**：在 [llm/client.go](../../llm/client.go) 中手写对接 DeepSeek API 的 HTTP 客户端，而非引入官方 SDK。
->
-> 三个理由，从弱到强：
-> 1. 只用到单次 chat completions 接口，SDK 太重
-> 2. 零依赖，go.mod 干净，避免供应链风险
-> 3. **SDK 会把代码绑死在供应商的类型系统上**——用 OpenAI SDK，函数签名里会出现 `openai.ChatCompletionRequest`，扩散到整个 codebase，换供应商就是全局重构。手写版本对外只暴露 `Chat(ctx, prompt) (string, error)`，**签名里没有任何供应商特定类型**。这才是"无缝切换"的真正原因，不只是改 BaseURL。
+> **决策三（混合知识检索即工具与受控评测闭环）**：
+> - 将混合知识检索以 `search_docs` 工具形式暴露给 ReAct 循环，基于 SQLite 原生 FTS5 BM25 词法检索与本地 Ollama `nomic-embed-text`（768 维）向量 KNN 进行 RRF 倒数排序融合；
+> - 建设了自动化受控评测 Harness（ADR-0018），锁定 Seed、Temperature=0 与版本化 System Prompt，对 30 题任务集进行 N=3 受控对照，实测将跨文档综合成功率从 33% 提升至 100%，认知步数下降 0.88 步并节省 5.2% Token 成本。
 
 ### 3. 踩坑与排障 (1:30 - 2:30) ← 最重要
 
-> **故障链（五步，必须背下来）**：
+> **故障链一：HTTP 客户端沉默挂起**
+> - `http.Client` 若未设 Timeout（默认零值 = 永不超时），遇到上游 TCP 握手成功但服务端思考时不回字节的「沉默挂起」，`Do()` 将无限阻塞。
+> - 导致 3 个 Worker goroutine 全数僵死，缓冲队列塞满，后续请求在 Handler 的 `Enqueue` 裸发送处全站卡死。
+> - **两层防御**：`llm.NewClient` 设置 60s 库级安全网超时；在 Worker 任务调度中派生 `context.WithTimeout` 并配合 `select + default` 快速失败回退 503 + `Retry-After: 1`。
 >
-> ```
-> http.Client 没设 Timeout（零值 = 永不超时）
->   ↓
-> 上游"沉默挂起"（TCP 连上了但不返回任何字节）
->   ↓
-> Do() 无限阻塞 → worker goroutine 僵死
->   ↓
-> 3 个 worker 全僵死 → 队列（缓冲区 = 3）塞满
->   ↓
-> 新请求在 Enqueue 卡死 → handler 阻塞 → 全站不可用
-> ```
->
-> **三个易错点**：
-> - 不是「ctx 没设超时」，是**`http.Client` 没设 `Timeout`**
-> - 不是「上游挂了」，是**沉默挂起**——TCP 连接建立成功但不返回数据，`Do()` 不知道对方是"正在想"还是"死了"。这句不说，故障链不成立
-> - 别漏「队列塞满」这一环：worker 僵死 → 不消费 → 队列填满 → `Enqueue` 往满 channel 发送 → 阻塞
+> **故障链二：SSE 长连接写超时掐断**
+> - Go 标准库 `http.Server.WriteTimeout` 是整个连接生命周期的硬上限（如 30s）。当 Agent 思考或工具调用较多时，SSE 流式连接会被底层主动掐死。
+> - **解决之道**：在流式 Handler 中通过 `http.NewResponseController(w).SetWriteDeadline(time.Time{})` 动态清空写截止时间，并为客户端提供非阻塞投递与快照对账重放机制。
 
-> **修复：两层防护**
->
-> | | `http.Client.Timeout` | `context.WithTimeout` |
-> |---|---|---|
-> | 谁设 | **库自己**（安全网） | **调用方**（业务控制） |
-> | 作用范围 | 该 client 的所有请求 | 单次调用 |
-> | 能否取消 | 不能 | 能（`cancel()`） |
-> | 零值 | **永不超时** ← bug 根源 | 无零值概念 |
->
-> 现在代码里两层都有：`NewClient` 里 `Timeout: 60s` 兜底，`process` 里 `context.WithTimeout(p.ctx, 60s)` 做单次控制，配 `defer cancel()` 及时回收连接和 goroutine。
+### 4. 演进历程与工程成熟度 (2:30 - 3:00)
 
-### 4. 技术债与后续迭代 (2:30 - 3:00)
-
-> **内存存储**：现在 store 和队列都在进程内存里，重启全丢。这是**刻意的取舍**——M1 阶段目标是把异步架构跑通，加持久化会同时引入连接管理、迁移、序列化三个新问题，把学习重点冲散了。生产要上，第一步会换 Redis（队列 + 状态都能覆盖），或者 SQLite（如果要求单机部署零依赖）。
->
-> **优雅停机**：现在 `main` 里的 `defer p.Stop()` **实际上永远不会执行**——因为 `log.Fatal` 内部调 `os.Exit`，而 `os.Exit` 跳过所有 defer。正确做法是 `signal.NotifyContext` 捕获 SIGTERM，然后 `srv.Shutdown` 等在飞的请求结束。容器化部署必须有，K8s 滚动更新时会先发 SIGTERM。
->
-> ⚠️ 技术债这段考的不是"你知道自己有什么没做"，而是**"你能不能判断什么时候该做"**。只说"应该上 Redis"听起来像偷懒；要说清**当前选择是有意识的权衡**。
+> 本项目经历从 M1 到 P6 的严密演进：
+> - **P2/P3**：实现两阶段优雅停机、Prometheus 指标、SSE 实时事件流与依赖倒置（DIP）解耦；
+> - **P4**：基于 SQLite WAL 实现断电重灌与崩溃恢复（Rehydration），基于 `context.WithCancelCause` 实现用户主动抢占式取消；
+> - **P5/P6**：完成混合知识检索作为工具接入、本地 Ollama 免密向量嵌入、API 真实 Usage 跨步累加，以及 AST DAG 白名单与体积预算双门禁。
+> 全仓 12 个包通过 260 个单元测试（422 个分支）全绿且 100% 通过 `-race` 并发竞争检测，无 CGO 依赖，纯 Go 跨平台自包含。
 
 ---
 

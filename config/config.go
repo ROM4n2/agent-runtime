@@ -23,6 +23,7 @@ type Config struct {
 	EmbedAPIKey  string
 	EmbedModel   string
 	EmbedDim     int // 0 = 不建 vec0 表；>0 才启用混合召回；负值启动失败
+	Model        string // LLM 模型名称，默认空串由装配层兜底 "deepseek-chat"
 }
 
 // defaultPath 是约定俗成的配置文件位置，相对进程工作目录。
@@ -68,6 +69,7 @@ func Load(path string) (Config, error) {
 		EmbedAPIKey:        firstNonEmpty(os.Getenv("EMBED_API_KEY"), fileCfg.EmbedAPIKey),
 		EmbedModel:         firstNonEmpty(os.Getenv("EMBED_MODEL"), fileCfg.EmbedModel),
 		EmbedDim:           embedDim,
+		Model:              firstNonEmpty(os.Getenv("MODEL"), fileCfg.Model),
 	}, nil
 }
 
@@ -142,8 +144,10 @@ func loadFile(path string) (Config, error) {
 				return cfg, fmt.Errorf("config: %s:%d embed_dim 不能为负：%d", path, lineNo, n)
 			}
 			cfg.EmbedDim = n
+		case "model":
+			cfg.Model = value
 		default:
-			return cfg, fmt.Errorf("config: %s:%d 未知配置项 %q（只支持 deepseek_api_key、api_auth_key、db_path、task_timeout_seconds、embed_base_url、embed_api_key、embed_model、embed_dim）", path, lineNo, key)
+			return cfg, fmt.Errorf("config: %s:%d 未知配置项 %q（只支持 deepseek_api_key、api_auth_key、db_path、task_timeout_seconds、embed_base_url、embed_api_key、embed_model、embed_dim、model）", path, lineNo, key)
 		}
 	}
 	if err := sc.Err(); err != nil {

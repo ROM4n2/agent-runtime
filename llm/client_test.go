@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -206,5 +207,206 @@ func TestEmbed_EmptyTexts(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Errorf("Embed(nil) = %v, want empty slice", got)
+	}
+}
+
+func TestJoinEndpoint(t *testing.T) {
+	tests := []struct {
+		baseURL      string
+		endpointPath string
+		want         string
+	}{
+		{
+			baseURL:      "http://host/v1",
+			endpointPath: "/v1/embeddings",
+			want:         "http://host/v1/embeddings",
+		},
+		{
+			baseURL:      "http://host",
+			endpointPath: "/v1/embeddings",
+			want:         "http://host/v1/embeddings",
+		},
+		{
+			baseURL:      "http://host/v1/",
+			endpointPath: "/v1/embeddings",
+			want:         "http://host/v1/embeddings",
+		},
+		{
+			baseURL:      "http://host/",
+			endpointPath: "/v1/embeddings",
+			want:         "http://host/v1/embeddings",
+		},
+		{
+			baseURL:      "http://host/v1",
+			endpointPath: "/v1/chat/completions",
+			want:         "http://host/v1/chat/completions",
+		},
+		{
+			baseURL:      "http://host",
+			endpointPath: "/v1/chat/completions",
+			want:         "http://host/v1/chat/completions",
+		},
+		{
+			baseURL:      "http://host/v1/",
+			endpointPath: "/v1/chat/completions",
+			want:         "http://host/v1/chat/completions",
+		},
+		{
+			baseURL:      "http://host/",
+			endpointPath: "/v1/chat/completions",
+			want:         "http://host/v1/chat/completions",
+		},
+		{
+			baseURL:      "http://host/v1",
+			endpointPath: "v1/chat/completions",
+			want:         "http://host/v1/chat/completions",
+		},
+		{
+			baseURL:      "http://host",
+			endpointPath: "v1/chat/completions",
+			want:         "http://host/v1/chat/completions",
+		},
+	}
+
+	for _, tc := range tests {
+		got := joinEndpoint(tc.baseURL, tc.endpointPath)
+		if got != tc.want {
+			t.Errorf("joinEndpoint(%q, %q) = %q, want %q", tc.baseURL, tc.endpointPath, got, tc.want)
+		}
+	}
+}
+
+func TestEmbed_KeylessLocalProvider(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method = %v, want %v", r.Method, http.MethodPost)
+		}
+		if r.URL.Path != "/v1/embeddings" {
+			t.Errorf("path = %v, want /v1/embeddings", r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "" {
+			t.Errorf("Authorization header should be omitted for keyless provider, got %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"data":[{"embedding":[0.1,0.2,0.3]}]}`)
+	}))
+	defer srv.Close()
+
+	// EmbedBaseURL 带 /v1，且 EmbedAPIKey 为空串
+	c := NewClient(Config{
+		EmbedBaseURL: srv.URL + "/v1",
+		EmbedAPIKey:  "",
+		EmbedModel:   "nomic-embed-text",
+	})
+
+	got, err := c.Embed(context.Background(), []string{"test document"})
+	if err != nil {
+		t.Fatalf("Embed: %v", err)
+	}
+	want := [][]float32{{0.1, 0.2, 0.3}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Embed = %v, want %v", got, want)
+	}
+}
+
+func TestChatWithTools_TemperatureAndSeed(t *testing.T) {
+	t.Run("sends temperature and seed when configured", func(t *testing.T) {
+		var receivedBody map[string]any
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			b, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(b, &receivedBody)
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"choices":[{"message":{"content":"ok"}}]}`)
+		}))
+		defer srv.Close()
+
+		temp := 0.7
+		seed := int64(12345)
+		c := NewClient(Config{
+			APIKey:      "test-key",
+			BaseURL:     srv.URL,
+			Model:       "test-model",
+			Temperature: &temp,
+			Seed:        &seed,
+		})
+
+		_, err := c.ChatWithTools(context.Background(), []Message{{Role: "user", Content: "hello"}}, nil)
+		if err != nil {
+			t.Fatalf("ChatWithTools: %v", err)
+		}
+
+		if got, ok := receivedBody["temperature"].(float64); !ok || got != 0.7 {
+			t.Errorf("temperature = %v, want 0.7", receivedBody["temperature"])
+		}
+		if got, ok := receivedBody["seed"].(float64); !ok || int64(got) != 12345 {
+			t.Errorf("seed = %v, want 12345", receivedBody["seed"])
+		}
+	})
+
+	t.Run("omits temperature and seed when nil", func(t *testing.T) {
+		var rawBody string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			b, _ := io.ReadAll(r.Body)
+			rawBody = string(b)
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"choices":[{"message":{"content":"ok"}}]}`)
+		}))
+		defer srv.Close()
+
+		c := NewClient(Config{
+			APIKey:  "test-key",
+			BaseURL: srv.URL,
+			Model:   "test-model",
+		})
+
+		_, err := c.ChatWithTools(context.Background(), []Message{{Role: "user", Content: "hello"}}, nil)
+		if err != nil {
+			t.Fatalf("ChatWithTools: %v", err)
+		}
+
+		if strings.Contains(rawBody, `"temperature"`) {
+			t.Errorf("rawBody should not contain temperature, got: %s", rawBody)
+		}
+		if strings.Contains(rawBody, `"seed"`) {
+			t.Errorf("rawBody should not contain seed, got: %s", rawBody)
+		}
+	})
+}
+
+func TestChatWithTools_UsageParsing(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{
+			"choices": [{"message": {"content": "result text"}}],
+			"usage": {
+				"prompt_tokens": 12,
+				"completion_tokens": 5,
+				"total_tokens": 17
+			}
+		}`)
+	}))
+	defer srv.Close()
+
+	c := NewClient(Config{
+		APIKey:  "test-key",
+		BaseURL: srv.URL,
+		Model:   "test-model",
+	})
+
+	turn, err := c.ChatWithTools(context.Background(), []Message{{Role: "user", Content: "hi"}}, nil)
+	if err != nil {
+		t.Fatalf("ChatWithTools: %v", err)
+	}
+
+	if turn.Content != "result text" {
+		t.Errorf("Content = %q, want 'result text'", turn.Content)
+	}
+	wantUsage := Usage{
+		PromptTokens:     12,
+		CompletionTokens: 5,
+		TotalTokens:      17,
+	}
+	if turn.Usage != wantUsage {
+		t.Errorf("Usage = %+v, want %+v", turn.Usage, wantUsage)
 	}
 }

@@ -8,12 +8,25 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
 const chatCompletionsPath = "/v1/chat/completions"
 const embeddingsPath = "/v1/embeddings"
 const maxResponseBytes = 1024 * 1024 // 1MB
+
+// joinEndpoint 幂等拼接 baseURL 与 endpointPath，规范化处理尾随斜杠与 /v1 前缀重叠。
+func joinEndpoint(baseURL, endpointPath string) string {
+	baseURL = strings.TrimRight(baseURL, "/")
+	if !strings.HasPrefix(endpointPath, "/") {
+		endpointPath = "/" + endpointPath
+	}
+	if strings.HasSuffix(baseURL, "/v1") && strings.HasPrefix(endpointPath, "/v1/") {
+		endpointPath = strings.TrimPrefix(endpointPath, "/v1")
+	}
+	return baseURL + endpointPath
+}
 
 // APIError 表示上游返回了非 2xx 状态码。
 type APIError struct {
@@ -57,13 +70,15 @@ type choice struct {
 
 // Client 调用 OpenAI 兼容的 chat completions 接口。
 type Client struct {
-	apiKey  string
-	baseURL string
-	model   string
-	http    *http.Client // 复用连接，且用来设超时
+	apiKey       string
+	baseURL      string
+	model        string
+	temperature  *float64
+	seed         *int64
+	http         *http.Client // 复用连接，且用来设超时
 
 	// 向量通道独立凭证（与 chat 分离，ADR-0017 决策 3）：
-	// 任一项为空 → Embed 返回 ErrEmbedderNotConfigured。
+	// embedBaseURL 或 embedModel 为空 → Embed 返回 ErrEmbedderNotConfigured。
 	embedBaseURL string
 	embedAPIKey  string
 	embedModel   string
@@ -73,6 +88,8 @@ type Config struct {
 	APIKey      string
 	BaseURL     string
 	Model       string
+	Temperature *float64
+	Seed        *int64
 	HTTPTimeout time.Duration
 	// 向量通道独立凭证：默认全空 = 仅词法检索（lexical only，ADR-0017 决策 3）。
 	EmbedBaseURL string
@@ -90,6 +107,8 @@ func NewClient(cfg Config) *Client {
 		apiKey:       cfg.APIKey,
 		baseURL:      cfg.BaseURL,
 		model:        cfg.Model,
+		temperature:  cfg.Temperature,
+		seed:         cfg.Seed,
 		http:         &http.Client{Timeout: timeout},
 		embedBaseURL: cfg.EmbedBaseURL,
 		embedAPIKey:  cfg.EmbedAPIKey,
@@ -114,7 +133,7 @@ func (c *Client) Chat(ctx context.Context, prompt string) (string, error) {
 	}
 
 	// 3. http.NewRequestWithContext 建请求（POST、URL、body）
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+chatCompletionsPath, bytes.NewReader(chatReqJSON))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, joinEndpoint(c.baseURL, chatCompletionsPath), bytes.NewReader(chatReqJSON))
 	if err != nil {
 		return "", fmt.Errorf("llm: create request: %w", err)
 	}
@@ -152,10 +171,10 @@ func (c *Client) Chat(ctx context.Context, prompt string) (string, error) {
 
 // Embed 调用 OpenAI 兼容的 embeddings 端点，把一批文本嵌入为 float32 向量。
 // 与 Chat 同纪律：复用 c.http 与 maxResponseBytes 1MB 响应上限，非 2xx → APIError。
-// 向量通道默认关闭（ADR-0017 决策 3）：embed 配置任一项为空即 ErrEmbedderNotConfigured。
+// 向量通道默认关闭（ADR-0017 决策 3）：embedBaseURL 或 embedModel 为空即 ErrEmbedderNotConfigured。
 func (c *Client) Embed(ctx context.Context, texts []string) ([][]float32, error) {
-	// 配置守卫先行：缺任一项即显式失败，不发起半截请求。
-	if c.embedBaseURL == "" || c.embedAPIKey == "" || c.embedModel == "" {
+	// 配置守卫先行：缺任一项必填即显式失败，不发起半截请求。允许 embedAPIKey 为空以支持 Ollama 等本地免密引擎。
+	if c.embedBaseURL == "" || c.embedModel == "" {
 		return nil, ErrEmbedderNotConfigured
 	}
 	if len(texts) == 0 {
@@ -172,11 +191,13 @@ func (c *Client) Embed(ctx context.Context, texts []string) ([][]float32, error)
 		return nil, fmt.Errorf("llm: marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.embedBaseURL+embeddingsPath, bytes.NewReader(reqJSON))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, joinEndpoint(c.embedBaseURL, embeddingsPath), bytes.NewReader(reqJSON))
 	if err != nil {
 		return nil, fmt.Errorf("llm: create request: %w", err)
 	}
-	httpReq.Header.Set("Authorization", "Bearer "+c.embedAPIKey)
+	if c.embedAPIKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.embedAPIKey)
+	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.http.Do(httpReq)
@@ -241,10 +262,18 @@ type ToolCallFn struct {
 	Arguments string `json:"arguments"` // JSON 字符串，需再 json.Unmarshal
 }
 
+// Usage 记录模型调用的 token 消耗。
+type Usage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
 // AssistantTurn 抽象模型一次返回：要么有最终文本，要么请求调用工具。
 type AssistantTurn struct {
 	Content   string     `json:"content"`
 	ToolCalls []ToolCall `json:"tool_calls"`
+	Usage     Usage      `json:"usage"`
 }
 
 // ChatWithTools 发送带工具定义的对话，返回模型本轮的回复。
@@ -252,17 +281,25 @@ type AssistantTurn struct {
 // 再次调用本方法，直到 ToolCalls 为空（终态文本）。
 func (c *Client) ChatWithTools(ctx context.Context, msgs []Message, tools []Tool) (*AssistantTurn, error) {
 	reqBody := struct {
-		Model    string    `json:"model"`
-		Messages []Message `json:"messages"`
-		Tools    []Tool    `json:"tools,omitempty"`
-	}{Model: c.model, Messages: msgs, Tools: tools}
+		Model       string    `json:"model"`
+		Messages    []Message `json:"messages"`
+		Tools       []Tool    `json:"tools,omitempty"`
+		Temperature *float64  `json:"temperature,omitempty"`
+		Seed        *int64    `json:"seed,omitempty"`
+	}{
+		Model:       c.model,
+		Messages:    msgs,
+		Tools:       tools,
+		Temperature: c.temperature,
+		Seed:        c.seed,
+	}
 
 	body, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("llm: marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+chatCompletionsPath, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, joinEndpoint(c.baseURL, chatCompletionsPath), bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("llm: create request: %w", err)
 	}
@@ -284,6 +321,7 @@ func (c *Client) ChatWithTools(ctx context.Context, msgs []Message, tools []Tool
 		Choices []struct {
 			Message AssistantTurn `json:"message"`
 		} `json:"choices"`
+		Usage Usage `json:"usage"`
 	}
 	if err := json.NewDecoder(limited).Decode(&parsed); err != nil {
 		return nil, fmt.Errorf("llm: decode response: %w", err)
@@ -291,5 +329,7 @@ func (c *Client) ChatWithTools(ctx context.Context, msgs []Message, tools []Tool
 	if len(parsed.Choices) == 0 {
 		return nil, errors.New("llm: no choices in response")
 	}
-	return &parsed.Choices[0].Message, nil
+	turn := parsed.Choices[0].Message
+	turn.Usage = parsed.Usage
+	return &turn, nil
 }

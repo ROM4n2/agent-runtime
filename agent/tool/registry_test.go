@@ -341,3 +341,29 @@ func TestRegistry_ExecuteErr(t *testing.T) {
 		}
 	})
 }
+
+// fakeCustomTerminalErr 用于验证 TerminalClassifier 接口契约与包装穿透。
+type fakeCustomTerminalErr struct {
+	status string
+}
+
+func (e fakeCustomTerminalErr) Error() string {
+	return "custom terminal error"
+}
+
+func (e fakeCustomTerminalErr) TerminalStatus() string {
+	return e.status
+}
+
+func TestTerminalClassifier_ErrorsAsThroughWrapping(t *testing.T) {
+	orig := fakeCustomTerminalErr{status: "custom status"}
+	wrapped := fmt.Errorf("wrap level 2: %w", fmt.Errorf("wrap level 1: %w", orig))
+
+	var tc TerminalClassifier
+	if !errors.As(wrapped, &tc) {
+		t.Fatal("errors.As failed to find TerminalClassifier through wrapping")
+	}
+	if got := tc.TerminalStatus(); got != "custom status" {
+		t.Errorf("tc.TerminalStatus() = %q, want %q", got, "custom status")
+	}
+}

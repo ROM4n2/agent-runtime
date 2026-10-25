@@ -16,6 +16,7 @@ import (
 	"agent-runtime/agent"
 	"agent-runtime/agent/tool"
 	"agent-runtime/llm"
+	"agent-runtime/prompts"
 	"agent-runtime/retrieval"
 )
 
@@ -213,7 +214,7 @@ func newRunFixture(t *testing.T, text string) (RunConfig, *evalFakeChatter) {
 		DBPath:          filepath.Join(t.TempDir(), "index.db"),
 		Seed:            7,
 		Model:           "test-model",
-		TemplateVersion: "test-template",
+		TemplateVersion: prompts.EvalV1,
 		Chatter:         chatter,
 	}
 	return cfg, chatter
@@ -270,7 +271,7 @@ func TestRun_FakeChainDistributionAndAggregates(t *testing.T) {
 	// 环境四元组：RunConfig 单处读取，原样进报表（成对受控的对账锚）。
 	env := report.Env
 	if env.Group != GroupLexical || env.Seed != 7 || env.Model != "test-model" ||
-		env.TemplateVersion != "test-template" || env.CorpusDir != cfg.CorpusDir ||
+		env.TemplateVersion != prompts.EvalV1 || env.CorpusDir != cfg.CorpusDir ||
 		env.Repeat != 2 || env.SetPath != cfg.SetPath {
 		t.Errorf("env mismatch: %+v (cfg group=%q seed=%d model=%q tpl=%q corpus=%q repeat=%d set=%q)",
 			env, cfg.Group, cfg.Seed, cfg.Model, cfg.TemplateVersion, cfg.CorpusDir, cfg.Repeat, cfg.SetPath)
@@ -481,7 +482,7 @@ func TestRun_StaleIndexAutoRebuild(t *testing.T) {
 		DBPath:          dbPath,
 		Chatter:         chatter,
 		Model:           "test-model",
-		TemplateVersion: "test-template",
+		TemplateVersion: prompts.EvalV1,
 	})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -581,5 +582,94 @@ func TestRun_TokenCounterInjection(t *testing.T) {
 		if r.PromptTokens <= 0 || r.CompletionTokens <= 0 {
 			t.Errorf("task %s tokens = %d/%d, want both > 0", r.TaskID, r.PromptTokens, r.CompletionTokens)
 		}
+	}
+}
+
+func TestRun_InvalidTemplateVersion_FailsFast(t *testing.T) {
+	cfg, _ := newRunFixture(t, evalDocText)
+	cfg.TemplateVersion = "non-existent-template"
+	_, err := Run(context.Background(), cfg)
+	if err == nil {
+		t.Fatal("expected error for non-existent template version, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid TemplateVersion") {
+		t.Fatalf("expected error containing %q, got: %v", "invalid TemplateVersion", err)
+	}
+}
+
+type usageMockChatter struct {
+	turn int
+}
+
+func (m *usageMockChatter) ChatWithTools(ctx context.Context, msgs []llm.Message, tools []llm.Tool) (*llm.AssistantTurn, error) {
+	m.turn++
+	if m.turn == 1 {
+		return &llm.AssistantTurn{
+			ToolCalls: []llm.ToolCall{
+				{
+					ID:   "call_1",
+					Type: "function",
+					Function: llm.ToolCallFn{
+						Name:      "calculate",
+						Arguments: `{"expression":"1+1"}`,
+					},
+				},
+			},
+			Usage: llm.Usage{
+				PromptTokens:     10,
+				CompletionTokens: 5,
+				TotalTokens:      15,
+			},
+		}, nil
+	}
+	return &llm.AssistantTurn{
+		Content: "result is 2",
+		Usage: llm.Usage{
+			PromptTokens:     8,
+			CompletionTokens: 4,
+			TotalTokens:      12,
+		},
+	}, nil
+}
+
+func TestRun_RealLLMUsageAccumulation(t *testing.T) {
+	set := `[
+  {
+    "id": "q_usage",
+    "prompt": "calculate 1+1",
+    "scope": "in-corpus",
+    "expect_docs": ["doc1.md"],
+    "expect_spans": []
+  }
+]`
+	setPath := writeTaskSet(t, set)
+	chatter := &usageMockChatter{}
+	cfg := RunConfig{
+		SetPath:         setPath,
+		Group:           GroupBaseline,
+		Repeat:          1,
+		CorpusDir:       t.TempDir(),
+		TemplateVersion: prompts.EvalV1,
+		Chatter:         chatter,
+	}
+	report, err := Run(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+	if len(report.TaskResults) != 1 {
+		t.Fatalf("expected 1 task result, got %d", len(report.TaskResults))
+	}
+	tr := report.TaskResults[0]
+	if tr.PromptTokens != 18 {
+		t.Errorf("PromptTokens = %d, want 18", tr.PromptTokens)
+	}
+	if tr.CompletionTokens != 9 {
+		t.Errorf("CompletionTokens = %d, want 9", tr.CompletionTokens)
+	}
+	if report.Env.TokenCounting != "llm-usage" {
+		t.Errorf("TokenCounting = %q, want %q", report.Env.TokenCounting, "llm-usage")
+	}
+	if note := tokenCountingNote("llm-usage"); note != "llm-usage（API 实测返回）" {
+		t.Errorf("tokenCountingNote(\"llm-usage\") = %q, want %q", note, "llm-usage（API 实测返回）")
 	}
 }
