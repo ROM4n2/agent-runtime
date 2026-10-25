@@ -240,6 +240,14 @@ func (m *mockTaskStore) RecoverTasks(ctx context.Context) ([]string, int, error)
 	return nil, 0, nil
 }
 
+func (m *mockTaskStore) ClaimNext(ctx context.Context) (store.Task, error) {
+	return store.Task{}, store.ErrNoTaskAvailable
+}
+
+func (m *mockTaskStore) PendingCount(ctx context.Context) (int64, error) {
+	return 0, nil
+}
+
 func TestProcess_UpdateErrorSetsFailed(t *testing.T) {
 	mock := &mockTaskStore{
 		updateErr: errors.New("db update error"),

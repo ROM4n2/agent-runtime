@@ -203,3 +203,59 @@ func (s *SQLStore) RecoverTasks(ctx context.Context) ([]string, int, error) {
 	}
 	return pending, int(n), nil
 }
+
+// PendingCount 返回处于 pending 状态的任务积压数。
+// 纯只读统计，WAL 模式下并发安全且不阻塞写操作。
+func (s *SQLStore) PendingCount(ctx context.Context) (int64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	var count int64
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM tasks WHERE status = ?", StatusPending).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// ClaimNext 原子抢占并返回最老的一个 pending 任务，并将其状态迁移为 running。
+// 利用互斥锁串行化写操作，结合 CAS（WHERE id = ? AND status = 'pending'）保证
+// 高并发争抢下同一任务绝不被重复消费。无待处理任务时返回 ErrNoTaskAvailable。
+func (s *SQLStore) ClaimNext(ctx context.Context) (Task, error) {
+	if err := ctx.Err(); err != nil {
+		return Task{}, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var t Task
+	err := s.db.QueryRowContext(ctx,
+		"SELECT id, prompt, result, error FROM tasks WHERE status = ? ORDER BY id ASC LIMIT 1",
+		StatusPending,
+	).Scan(&t.ID, &t.Prompt, &t.Result, &t.Error)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Task{}, ErrNoTaskAvailable
+	}
+	if err != nil {
+		return Task{}, err
+	}
+
+	res, err := s.db.ExecContext(ctx,
+		"UPDATE tasks SET status = ? WHERE id = ? AND status = ?",
+		StatusRunning, t.ID, StatusPending,
+	)
+	if err != nil {
+		return Task{}, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return Task{}, err
+	}
+	if n == 0 {
+		return Task{}, ErrNoTaskAvailable
+	}
+
+	t.Status = StatusRunning
+	return t, nil
+}
