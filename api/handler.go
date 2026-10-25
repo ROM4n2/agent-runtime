@@ -74,6 +74,9 @@ func (h *Handler) Routes() *http.ServeMux {
 	// 主动抢占取消（用户点击「停止生成」）与 SSE 实时步进推送。
 	mux.Handle("POST /tasks/{id}/cancel", wrap(http.HandlerFunc(h.HandleCancel)))
 	mux.Handle("GET /tasks/{id}/events", wrap(http.HandlerFunc(h.HandleEvents)))
+	// 会话状态机与多轮消息查询
+	mux.Handle("GET /sessions/{id}", wrap(http.HandlerFunc(h.HandleGetSession)))
+	mux.Handle("GET /sessions/{id}/messages", wrap(http.HandlerFunc(h.HandleGetSessionMessages)))
 	return mux
 }
 
@@ -85,14 +88,17 @@ func healthz(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.WriteString(w, "ok")
 }
 
+type runRequest struct {
+	Prompt    string `json:"prompt"`
+	SessionID string `json:"session_id,omitempty"`
+}
+
 // HandleRun 接收任务并立即返回 task_id，不等待执行结果。
 //
 // 返回 202 而非 200：任务此刻尚未开始执行，200 的语义是「已处理完成」，
 // 用它会误导调用方。调用方应拿 task_id 轮询 GET /tasks/{id}。
 func (h *Handler) HandleRun(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Prompt string
-	}
+	var req runRequest
 	// 限制请求体大小，避免客户端发大文件导致内存耗尽。
 	r.Body = http.MaxBytesReader(w, r.Body, 32<<10)
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -108,7 +114,12 @@ func (h *Handler) HandleRun(w http.ResponseWriter, r *http.Request) {
 
 	// 先落库再入队：Enqueue 之后 worker 可能立刻开始处理，
 	// 此时该 ID 必须已经存在于 store 中。
-	id := h.store.Create(req.Prompt)
+	var id string
+	if req.SessionID != "" {
+		id = h.store.CreateInSession(req.Prompt, req.SessionID)
+	} else {
+		id = h.store.Create(req.Prompt)
+	}
 	if err := h.runner.Enqueue(id); err != nil {
 		if delErr := h.store.Delete(id); delErr != nil {
 			slog.Error("reclaim task on enqueue failure", "task_id", id, "error", delErr)
@@ -122,14 +133,17 @@ func (h *Handler) HandleRun(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusAccepted)
-	err = json.NewEncoder(w).Encode(map[string]string{"task_id": id})
+	respMap := map[string]string{"task_id": id}
+	if req.SessionID != "" {
+		respMap["session_id"] = req.SessionID
+	}
+	err = json.NewEncoder(w).Encode(respMap)
 
 	// 响应头已写出，此时无法再改状态码，编码失败只能记日志。
 	// 且这类失败基本只源于客户端断连，重试没有意义。
 	if err != nil {
 		slog.Error("encode response", "error", err)
 	}
-
 }
 
 type taskWithTrace struct {
