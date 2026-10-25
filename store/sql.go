@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 	"sync"
 
 	_ "modernc.org/sqlite"
@@ -50,7 +52,10 @@ func NewSQLStore(path string) (*SQLStore, error) {
 		return nil, err
 	}
 	// 兼容已有数据库迁移，确保 session_id 列存在
-	_, _ = db.Exec("ALTER TABLE tasks ADD COLUMN session_id TEXT NOT NULL DEFAULT ''")
+	if _, err := db.Exec("ALTER TABLE tasks ADD COLUMN session_id TEXT NOT NULL DEFAULT ''"); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		db.Close()
+		return nil, fmt.Errorf("sqlstore: migrate tasks session_id: %w", err)
+	}
 	if err := initSessionSchema(db); err != nil {
 		db.Close()
 		return nil, err

@@ -4,6 +4,7 @@ import (
 	"agent-runtime/llm"
 	"agent-runtime/store"
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -251,4 +252,62 @@ func TestSession_NilSessionStore(t *testing.T) {
 	if task.Result != "ok" {
 		t.Fatalf("task result = %s, want 'ok'", task.Result)
 	}
+}
+
+type mockRoleFailingSessionStore struct {
+	failOnRole string
+	err        error
+}
+
+func (m *mockRoleFailingSessionStore) GetOrCreateSession(ctx context.Context, id string) (store.Session, error) {
+	return store.Session{ID: id}, nil
+}
+
+func (m *mockRoleFailingSessionStore) AppendSessionMessage(ctx context.Context, msg store.SessionMessage) error {
+	if m.failOnRole == "" || msg.Role == m.failOnRole {
+		return m.err
+	}
+	return nil
+}
+
+func (m *mockRoleFailingSessionStore) GetSessionMessages(ctx context.Context, sessionID string, limit int) ([]store.SessionMessage, error) {
+	return nil, nil
+}
+
+// TestRecordSessionTurn_ErrorPropagation 验证当会话存储 AppendSessionMessage 失败时，
+// recordSessionTurn 能够向上如实透传并包装非空 error。
+func TestRecordSessionTurn_ErrorPropagation(t *testing.T) {
+	expectedErr := errors.New("simulated append failure")
+
+	t.Run("user message append error", func(t *testing.T) {
+		mockStore := &mockRoleFailingSessionStore{failOnRole: "user", err: expectedErr}
+		p := &Pool{sessionStore: mockStore}
+
+		err := p.recordSessionTurn(context.Background(), "session-123", "user prompt", "assistant reply")
+		if err == nil {
+			t.Fatal("expected recordSessionTurn to return error, got nil")
+		}
+		if !errors.Is(err, expectedErr) {
+			t.Fatalf("expected error wrapping %v, got %v", expectedErr, err)
+		}
+		if !strings.Contains(err.Error(), "append user message") {
+			t.Fatalf("expected error message to contain 'append user message', got: %v", err)
+		}
+	})
+
+	t.Run("assistant message append error", func(t *testing.T) {
+		mockStore := &mockRoleFailingSessionStore{failOnRole: "assistant", err: expectedErr}
+		p := &Pool{sessionStore: mockStore}
+
+		err := p.recordSessionTurn(context.Background(), "session-123", "user prompt", "assistant reply")
+		if err == nil {
+			t.Fatal("expected recordSessionTurn to return error, got nil")
+		}
+		if !errors.Is(err, expectedErr) {
+			t.Fatalf("expected error wrapping %v, got %v", expectedErr, err)
+		}
+		if !strings.Contains(err.Error(), "append assistant message") {
+			t.Fatalf("expected error message to contain 'append assistant message', got: %v", err)
+		}
+	})
 }

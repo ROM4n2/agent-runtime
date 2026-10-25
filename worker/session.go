@@ -5,6 +5,7 @@ import (
 	"agent-runtime/llm"
 	"agent-runtime/store"
 	"context"
+	"fmt"
 )
 
 // SetSessionStore 注入会话存储接口，用于多轮对话历史拉取与写回。
@@ -57,15 +58,19 @@ func (p *Pool) recordSessionTurn(ctx context.Context, sessionID, prompt, reply s
 		return nil
 	}
 
-	_ = p.sessionStore.AppendSessionMessage(ctx, store.SessionMessage{
+	if err := p.sessionStore.AppendSessionMessage(ctx, store.SessionMessage{
 		SessionID: sessionID,
 		Role:      "user",
 		Content:   prompt,
-	})
-	_ = p.sessionStore.AppendSessionMessage(ctx, store.SessionMessage{
+	}); err != nil {
+		return fmt.Errorf("append user message: %w", err)
+	}
+	if err := p.sessionStore.AppendSessionMessage(ctx, store.SessionMessage{
 		SessionID: sessionID,
 		Role:      "assistant",
 		Content:   reply,
-	})
+	}); err != nil {
+		return fmt.Errorf("append assistant message: %w", err)
+	}
 	return nil
 }
