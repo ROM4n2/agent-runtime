@@ -141,3 +141,10 @@ dfs-bootstrap v0.2.3 同步更新（4 件套 → 5 件套 热/温分离 + 锚点
 - Phase 1 核验：.gitignore 11 项敏感规则齐全；.githooks/pre-commit 与模板逐字节一致（LF 无 BOM，core.hooksPath=.githooks）；.gitattributes 已锁死 LF。
 - Phase 2 锚点同步：CLAUDE.md、.agent-rules.md、.cursorrules 统一对齐 dfs-bootstrap v0.2.3 规范锚点（修复 .agent-rules.md 与 .cursorrules 中陈旧的 08-Inbox 路径为 99-Inbox，补齐 search_vault MCP 与 $WIKI_PATH/$OBSIDIAN_VAULT_PATH 解析说明）。
 - Phase 3.5 WORKMEMORY 升级为 5 件套：新建 WORKMEMORY/INDEX-topics.md（WARM 层），将原 INDEX.md 中的「主题索引」与 2 条 P5 蒸馏登记迁移至 INDEX-topics.md；收缩 WORKMEMORY/INDEX.md 为纯 HOT 索引（仅保留 Configuration / 文件清单 / Active handoffs / 已归档 handoffs）；同步更新 WORKMEMORY/PROTOCOL.md 中关于 INDEX-topics.md 与 notes/ 外置超限事件的条款。
+
+### 2026-10-23 23:05 | gemini-4-argon-high__hermes-agent | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec, git, mcp-vault
+完成结构熵增治理模式沉淀（/dfs-save）与 P6 实施计划编制（/dfs-plan）：
+- 知识沉淀（/dfs-save）：经 search_vault 查重后，将「多版本迭代后的结构熵增治理：错误协议下沉、同包按职责切分与 AST 依赖/体积机械闸」写入知识库 99-Inbox/2026-10-23-多版本迭代后的结构熵增治理：错误协议下沉、同包按职责切分与-ast-依赖体积机械闸.md（A-MAC 通过，YAML frontmatter 8 键核验通过），并在正文与 WORKMEMORY/INDEX-topics.md 登记归档目标（01-Rules/LAYERED-ARCHITECTURE.md §5）及演进路线（先在本项目 P6 试点，本会话不跨仓修改 dfs-* 技能，待试点合入后并入 dfs-* 技能）。
+- 规格与计划产出（/dfs-spark + /dfs-plan）：生成设计规格书 docs/specs/2026-10-23-p6-production-alignment-and-hybrid-eval-design.md 与 7 任务 TDD 实施计划 docs/implementation_plan_p6-production-alignment.md（覆盖：Task 1 TerminalClassifier 协议下沉斩断 worker->retrieval；Task 2 切分 5 个 >400 行文件 + 根级 AST DAG 与行数预算门禁；Task 3 LLM /v1 幂等拼接、Ollama 免密嵌入、Temperature/Seed 与 Usage 解析；Task 4 prompts/ 版本化系统提示词与 agent.RunWithOptions 跨步 Usage 累加；Task 5 eval/CLI 接线闭环；Task 6 本地 Ollama nomic-embed-text:latest 768 维 hybrid + lexical v2 实跑评测；Batch 7 README/ADR/面试军火库全量刷新）。
+- 隐私与门禁核验：全仓受跟踪文件零本机盘符/隐私目录命中。
