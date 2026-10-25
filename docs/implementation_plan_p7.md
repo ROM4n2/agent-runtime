@@ -322,4 +322,4 @@
 
 | plan text | what was actually built | why |
 | --- | --- | --- |
-| *(待执行后据实填写；无偏差填「无偏差」)* | | |
+| Task 1–5 接口与架构实现 | 均严格按计划规范交付（TaskStore 事务抢占接口、Worker Push-Notify 唤醒池、llm/stream.go 流式解析、agent 内核增量钩子、api/events.go SSE 打字机分发） | 无偏差，所有接口方法签名、错误语义、并发安全与行数预算 100% 对齐规格 |

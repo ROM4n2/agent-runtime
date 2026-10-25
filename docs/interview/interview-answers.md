@@ -16,9 +16,9 @@
 **考点**：能否一句话让面试官知道项目价值，而非报组件名。
 
 **标准答法**：
-> agent-runtime 是一个高并发 Agent 异步运行时服务：`POST /run` 提交任务立即回 **202**，后台纯化的 worker pool 驱动带抢占式取消的 ReAct 认知循环，支持计算器、时间与 FTS5+vec0 向量混合知识检索工具，客户端可通过轮询或 SSE 实时获取事件流。
+> agent-runtime 是一个高并发 Agent 异步运行时服务：`POST /run` 提交任务立即回 **202**，后台纯化的 worker pool 驱动带抢占式取消的 ReAct 认知循环，支持计算器、时间与 FTS5+vec0 向量混合知识检索工具，客户端可通过轮询或 SSE 实时获取事件流（含 `event: delta` Token 级打字机推送）。
 >
-> 技术亮点：Worker Pool 调度限流、context 抢占式取消树、SQLite WAL 断电崩溃恢复（Rehydration）、依赖倒置与 `tool.TerminalClassifier` 错误协议下沉、根级 AST DAG 白名单与 400 行代码体积机械门禁、以及受控评测 Harness 实证提升。
+> 技术亮点：基于 SQLite WAL 的事务性任务队列与 Push-Notify 抢占调度（消除 503 丢单、支持 10,000+ 削峰）、SSE 原生打字机流式推断、context 抢占式取消树、SQLite WAL 断电崩溃恢复（Rehydration）、依赖倒置与 `tool.TerminalClassifier` 错误协议下沉、根级 AST DAG 白名单与 400 行代码体积机械门禁、以及受控评测 Harness 实证提升。
 
 ---
 
@@ -54,44 +54,50 @@
 
 ---
 
-## Q3 队列满了之后 `Enqueue` 会发生什么？（易错点）
+## Q3 队列满了之后 `Enqueue` 会发生什么？（演进与演进后对比）
 
-**考点**：能否看见自己代码的**缺陷**。答得出说明真懂架构边界。
+**考点**：能否讲清架构从「原型通道阻塞」到「生产事务队列削峰」的演进过程。
 
 **标准答法**：
-> `queue` 缓冲大小 = worker 数 = 3。
-> - 第 **4~6** 个请求：进缓冲**排队等**
-> - 第 **7** 个（队列 + worker 全满）：`Enqueue` 是**裸 channel 发送 → 阻塞调用方 HTTP handler，不是拒绝**
->
-> 危害：异步瞬间**退化成同步**，handler goroutine 堆积 → 可能拖垮服务器。这是已知缺陷，生产应改 `select + default` 快速失败。
-
-**常见追问**：
-- *为什么不是 503 拒绝？* → 因为代码里 `Enqueue` 是 `p.queue <- id` 的裸发送，没有 `default` 分支，所以满时阻塞而非报错。这正是要修的点。
-- *无缓冲 channel（size 0）会怎样？* → 每次入队都得等某个 worker 正好在 `<-p.queue` 上才能交接，缓冲吸收突发流量的能力归零，阻塞概率大增。
+> - **早期阶段（定长内存 Channel）**：`queue` 缓冲大小 = worker 数 = 3。第 4~6 个请求进缓冲排队，第 7 个请求因裸 channel 发送导致 `Enqueue` **阻塞 HTTP handler**，异步退化为同步，存在全站宕机风险；若加了 `select + default`，则第 4 个请求就会直接被 503 丢弃，造成业务丢单。
+> - **P7 生产阶段（事务队列 + Push-Notify 抢占）**：
+>   1. 任务 `Create` 落库即持久化，默认排队上限提高到 **10,000+**（`max_queue_size` 可配置）；
+>   2. `Enqueue` 仅非阻塞投递给容量为 1 的唤醒信标 `wakeUp chan struct{}`，空闲 Worker 抢到信号后在 SQLite 中通过原子 CAS 事务（`ClaimNext`）主动拉单；
+>   3. 只有当积压真实超过 10,000 时，`Enqueue` 才会非阻塞快速失败返回 `503 Service Unavailable` + `Retry-After: 1`。
+>   **既彻底消除了无谓的 503 丢单，又防止了内存通道满时的阻塞风险。**
 
 ---
 
-## Q4 `Enqueue` 快速失败怎么写？（落到代码）
+## Q4 `Enqueue` 快速失败与削峰逻辑怎么写？（落到代码）
 
-**考点**：能不能把"已知缺陷"变成"已修复 + 有测试"。
+**考点**：能不能把"架构设计"准确映射到"生产级 Go 代码"。
 
 **标准答法**——给出代码并讲清语义：
 ```go
-// ErrQueueFull 队列已满，调用方应快速失败（如返回 HTTP 503 让客户端退避重试）。
-var ErrQueueFull = errors.New("worker: queue full")
+// ErrQueueFull 队列已满，调用方应快速失败（返回 HTTP 503 让客户端退避重试）。
+var ErrQueueFull = errors.New("task queue is full")
 
-// Enqueue 把任务 id 送入队列。队列满时立即返回 ErrQueueFull，
-// 而非阻塞调用方——避免 HTTP handler 堆积，导致异步退化为同步。
+// Enqueue 将任务置入调度视野。检查排队上限后通过信标非阻塞唤醒 Worker，避免阻塞 HTTP Handler。
 func (p *Pool) Enqueue(id string) error {
-    select {
-    case p.queue <- id:
-        return nil
-    default:
+    if p.stopping.Load() || p.size == 0 {
         return ErrQueueFull
     }
+    // 检查积压容量（默认 10,000）
+    if p.maxQueueSize > 0 {
+        cnt, err := p.tasks.PendingCount(p.ctx)
+        if err == nil && cnt > int64(p.maxQueueSize) {
+            return ErrQueueFull
+        }
+    }
+    // 非阻塞通知唤醒空闲 Worker
+    select {
+    case p.wakeUp <- struct{}{}:
+    default:
+    }
+    return nil
 }
 ```
-> handler 收到 `ErrQueueFull` → 回 **503**；队列满时把已落库的任务标 `failed`，避免成为永远 `pending` 的孤儿任务。
+> handler 收到 `ErrQueueFull` → 清理未排上的孤儿记录并回 **503** + `Retry-After: 1`。
 
 **常见追问**：
 - *为什么用 503 而不是 429？* → 429 是"**你**请求太频繁"（针对单客户端），503 是"**我**处理不过来"（服务端整体过载）。队列满属于后者。
@@ -171,8 +177,9 @@ func (p *Pool) Enqueue(id string) error {
 
 | 缺陷 | 影响 | 修法 | 状态 |
 |---|---|---|---|
-| 队列满阻塞 handler | 异步退化为同步 | `select` + `default` → 503 | ✅ 已修（`ErrQueueFull` + `TestEnqueue_Full`） |
-| store 为内存态 | 进程重启丢全部任务 | 持久化（SQLite / Redis） | ✅ SQLite 可插拔（`db_path`） |
+| 队列满阻塞 handler / 内存 channel 容量小易丢单 | 异步退化为同步或突发丢单 | 基于 SQLite WAL 事务抢占 + Push-Notify 削峰，支持 10,000+ 排队 | ✅ 已修（P7 事务任务队列） |
+| store 为内存态 | 进程重启丢全部任务 | 持久化（SQLite WAL） | ✅ SQLite 可插拔（`db_path`） |
 | 无 graceful shutdown | 实为已实现（见下）| `signal.NotifyContext` + `srv.Shutdown` + `defer p.Stop()` 取消树；在飞任务标记 failed 而非静默丢弃 | ✅ 已实现 |
 | 单次 LLM 超时 60s 偏长 | 慢上游时 worker 占太久 | 可配置 `task_timeout_seconds`（默认 30s，事故期可降到 8s 止血）| ✅ 已实现 |
+| SSE 无打字机逐字回显 | 任务推导长时交互等待感强 | `llm.ChatWithToolsStream` + `agent.RunOptions.OnDelta` 增量推送 | ✅ 已实现（P7 `event: delta`） |
 | pool size 硬编码 | 无法按环境调整 | 提为配置项 / 环境变量 | 待做 |

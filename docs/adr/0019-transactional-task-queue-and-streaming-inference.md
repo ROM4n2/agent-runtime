@@ -1,7 +1,7 @@
 # ADR-0019：事务性持久化任务队列与 SSE 实时打字机流式推断
 
 - **日期**：2026-10-25
-- **状态**：已接受（待实施，P7 里程碑）
+- **状态**：已实施（P7 里程碑通过，2026-10-25）
 - **上游依赖**：ADR-0002（异步任务与并发池）、ADR-0005（轮询 vs 推送）、ADR-0010（SQLite 持久化）、ADR-0013（分层解耦）、ADR-0014（抢占式取消）、ADR-0016（SSE 任务进度流）
 - **下游影响**：`store.TaskStore` 扩展、`worker.Pool` 队列模型重构、`llm.Client` 流式解析、`agent.RunWithOptions` 增量回调、`api/events.go` 流式帧推送
 - **上位规范**：vault `01-Rules/LAYERED-ARCHITECTURE.md`（依赖单向性与分层契约）、`01-Rules/CONCURRENCY-PATTERNS.md`

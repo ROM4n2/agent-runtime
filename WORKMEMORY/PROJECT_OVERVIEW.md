@@ -22,11 +22,14 @@
   1. **工业级契约闭环**：`llm.joinEndpoint` 幂等防 `/v1/v1` 404；允许空 `EmbedAPIKey` 支持本地 Ollama 免密嵌入；`ChatWithTools` 透传 `Temperature=0` 与 `Seed`；解析 `llm.Usage` 并在 `agent.RunWithOptions` 支持多步 Token 累加；`config.Model` 9 项配置支持。
   2. **结构熵增治理三件套**：在 `agent/tool` 下沉 `TerminalClassifier` 接口，`retrieval.ErrIndexMissing` 实现协议，`worker/pool.go` 面向接口做 `errors.As` 提取终态，彻底移除 `worker → retrieval` 反向依赖；在不引入外部子包的前提下同包正交拆分 5 个巨型文件（`main.go → cli.go`、`api/handler.go → api/events.go`、`retrieval/search.go → retrieval/vector_search.go`、`retrieval/index.go → retrieval/schema.go`、`eval/run.go → eval/collector.go`）；新增根级 `architecture_test.go`，用 `go/parser` 扫描全仓建立 12 包 AST DAG 白名单与生产 ≤ 400 行 / 测试 ≤ 800 行代码体积预算机械闸。
   3. **版本化 Prompt 与实证评测闭环**：创建 `prompts/` 包（`go:embed` 内嵌 `eval-template-v1`、`eval-template-v2`、`default-v1`），在本地 Ollama `nomic-embed-text:latest`（768 维）与 DeepSeek-V3 下完成 30 题 × 3 重复（每组 90 轮）实跑。实证验证混合检索将跨文档综合题（`cross-chunk`）成功率提升至 100%，平均步数下降至 11.84 步，单轮评测节省 54,608 个 Prompt Context Tokens，端到端延迟仅微增 188ms。
+- **P7 事务性持久化任务队列与 SSE 打字机流式推断完整交付（2026-10-25）**：
+  1. **事务持久队列与削峰调度**：在 `store.TaskStore` 扩展 `ClaimNext`（原子 FIFO 抢占）与 `PendingCount`（积压统计）；在 SQLite WAL 模式下利用 CAS 更新（`status='running' WHERE id=? AND status='pending'`）原子抢占任务；`worker.Pool` 彻底移除定长内存 channel，改为持有无缓冲通知信标 `wakeUp chan struct{}` 进行 Push-Notify 唤醒；通过 `max_queue_size`（默认 10,000）削峰填谷，彻底消除并发突发下的 503 丢单。
+  2. **原生 Token 级打字机流式推断**：`llm.Client` 新增 `ChatWithToolsStream` 逐行解析上游 SSE 并处理分块工具参数组装；`agent.RunWithOptions` 引入 `OnDelta` 回调；`TraceBuffer` 支持 `AppendDelta` 与 `SubscribeEvents` 双轨广播；`api/events.go` 实时下发 `event: delta`，首字延迟（TTFT）从数秒降至数百毫秒，兼顾打字机流畅性与断网快照自愈对账。
 - **评测结论（docs/eval/2026-10-25-*-r3.md）**：
   - Baseline：0.00 [0.00, 0.00]（0/90）；
   - Lexical（v2 提示词）：1.00 [0.00, 1.00]（61/90，none×61, wrong-span×24, right-span-wrong-reasoning×5，总 Token 1042K+72K）；
   - Hybrid（v2 提示词 + nomic-embed-text 768维）：1.00 [0.25, 1.00]（67/90，none×67, wrong-span×20, right-span-wrong-reasoning×3，总 Token 987K+71K）→ **合入**。
-- 测试基线：`GOWORK=off go test -race ./... -count=1` 12 包全绿（260 个 `func Test` / 422 RUN，0 数据竞争）。代码规模 71 个 Go 文件（33 生产 / 38 测试，共 15,319 行）。
+- 测试基线：`GOWORK=off go test -race ./... -count=1` 12 包全绿（278 个 `func Test` / 442 RUN，0 数据竞争）。代码规模 73 个 Go 文件（34 生产 / 39 测试，共 16,638 行）。
 - 架构领域分层：
   - `prompts`: 版本化系统提示词管理（`go:embed`，提供 `Get`，内嵌反幻觉与 Grounded Citation 铁律）；
   - `agent/tool`: 独立工具系统与 Tool 注册表（内置纯 AST 算术引擎与时区工具，提供 `TerminalClassifier` 协议下沉接口）；
