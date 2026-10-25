@@ -11,6 +11,23 @@ import (
 	"time"
 )
 
+// ReportEnv 是报表「环境」固定节的环境快照（ADR-0018 决策 4）。
+// SetHash 用内容 SHA-256：同 hash 即同题，复跑与审计都按它对账。
+type ReportEnv struct {
+	Group           string
+	Seed            int64
+	Model           string
+	TemplateVersion string
+	CorpusDir       string
+	Repeat          int
+	DBPath          string
+	SetPath         string
+	SetHash         string
+	// TokenCounting 标注 token 计数口径："injected"（注入计数函数）或
+	// "not-wired"（未接入，明细记 0）。
+	TokenCounting string
+}
+
 // reportFileLayout 是报表文件名的时间布局（ADR-0018 决策 1）：
 // YYYY-MM-DD-<group>-r<N>.{md,json}。日期用本地时区的当天——同一天跑的三组
 // 报表按组名区分，跨天自然分文件，不需要额外版本号。
