@@ -2,32 +2,40 @@
 
 异步任务 + Worker Pool + LLM Agent 的 Go 后端服务。客户端提交 prompt，服务异步调用 DeepSeek：
 worker 以 **think → call tool → observe** 的多步认知循环执行 agent（内置 `calculate` / `current_time` / `search_docs` 工具），
-通过轮询或 SSE 获取结果。支持用户主动取消、掉电崩溃恢复、FTS5+vec0 RRF 混合知识检索、SQLite WAL 事务持久队列削峰与 SSE 原生打字机流式推断。
+通过轮询或 SSE 获取结果。支持用户主动取消、掉电崩溃恢复、FTS5+vec0 RRF 混合知识检索、SQLite WAL 事务持久队列削峰、SSE 原生打字机流式推断、多轮会话状态机与纯算法滑动上下文安全压缩。
 
 ## Architecture
 
 ```text
 客户端                     服务器
-  │ POST /run (prompt)     │
-  │───────────────────────→│ api: store.Create(prompt) → task_id (202)
+  │ POST /run (prompt, opt:session_id)
+  │───────────────────────→│ api: store.CreateInSession → task_id, session_id (202)
   │                         │         ▼
-  │                         │   Transactional Queue (SQLite / Memory)
+  │                         │   Transactional Queue (SQLite WAL / Memory)
   │                         │   Push-Notify (wakeUp beacon)
   │                         │         ▼
-  │                         │  [worker 1][worker 2][worker 3]
+  │                         │  [worker 1] ... [worker N] (concurrency configurable)
   │                         │   tasks.ClaimNext (atomic pending→running)
+  │                         │         ▼
+  │                         │   assembleSessionMessages:
+  │                         │     SessionStore.GetSessionMessages ⇄ CompactMessages
   │                         │         ▼
   │                         │   runAgent: ChatWithToolsStream ⇄ 工具(calc/time/search_docs)
   │                         │         │      ▼ onDelta
   │                         │         │   TraceBuffer.AppendDelta
   │                         │         ▼
   │                         │   store.Complete → done / failed
+  │                         │   recordSessionTurn → SessionStore (user + assistant)
   │ GET /tasks/{id} 轮询    │
   │───────────────────────→│ api: store.Get(id) → Task JSON (200)
   │ GET /tasks/{id}/events  │
   │───────────────────────→│ SSE: event: delta (打字机) + step + done
   │ POST /tasks/{id}/cancel │
   │───────────────────────→│ api: Pool.Cancel → context 物理中断上游
+  │ GET /sessions/{id}      │
+  │───────────────────────→│ api: SessionStore.GetOrCreateSession → Session JSON (200)
+  │ GET /sessions/{id}/msgs │
+  │───────────────────────→│ api: SessionStore.GetSessionMessages(limit) → Messages (200)
 ```
 
 > 中间件链：`Recover → RequestID → 限流(20/s, 突发40) → 鉴权(Bearer)`。
@@ -57,7 +65,7 @@ Copy-Item config.yaml.example config.yaml   # 然后填真实值
 go run .
 ```
 
-`config.yaml` 已被 `.gitignore` 忽略。只支持扁平的 `key: value`，解析到嵌套或未知 key 会直接启动失败，不静默忽略。已支持 10 项配置：`deepseek_api_key`、`api_auth_key`、`model`、`db_path`、`task_timeout_seconds`、`embed_base_url`、`embed_api_key`、`embed_model`、`embed_dim`、`max_queue_size`：
+`config.yaml` 已被 `.gitignore` 忽略。只支持扁平的 `key: value`，解析到嵌套或未知 key 会直接启动失败，不静默忽略。已支持 12 项配置：`deepseek_api_key`、`api_auth_key`、`model`、`db_path`、`task_timeout_seconds`、`embed_base_url`、`embed_api_key`、`embed_model`、`embed_dim`、`max_queue_size`、`worker_concurrency`、`max_context_tokens`：
 
 ```yaml
 deepseek_api_key: "sk-你的key"
@@ -66,6 +74,8 @@ model: "deepseek-chat"   # 可选：默认 deepseek-chat，环境变量 MODEL �
 db_path: ""   # 可选：填 SQLite 文件路径（如 agent-runtime.db）即启用持久化，留空用内存存储
 task_timeout_seconds: 30   # 可选：单次任务 LLM 调用超时（正整数，0=默认 30s）
 max_queue_size: 10000   # 可选：最大允许排队积压的任务数（超出返回 503），默认 10000
+worker_concurrency: 3   # 可选：后台并发 Worker 数量（正整数，默认 3），环境变量 WORKER_CONCURRENCY 优先级更高
+max_context_tokens: 16000 # 可选：会话多轮对话上下文 Token 预算上限（正整数，默认 16000），环境变量 MAX_CONTEXT_TOKENS 优先级更高
 # embed_* 四项为检索功能的向量通道配置（ADR-0017），全部留空 = 纯词法检索（lexical）
 # 本地 Ollama 等免密向量引擎无需鉴权时，embed_api_key 可以留空
 embed_base_url: "http://localhost:11434/v1"   # OpenAI 兼容 embeddings 端点
@@ -124,17 +134,19 @@ Invoke-RestMethod -Uri http://localhost:8080/metrics
 
 | Method | Path | 说明 | Request Body | Response |
 |--------|------|------|-------------|----------|
-| POST | `/run` | 提交任务 | `{"prompt":"..."}` | `202 {"task_id":"1"}` |
+| POST | `/run` | 提交任务（支持可选绑定会话） | `{"prompt":"...","session_id":"..."}` | `202 {"task_id":"1","session_id":"..."}` |
 | GET | `/tasks/{id}` | 查询状态（轮询） | - | `{"id":"1","status":"done","prompt":"...","result":"...","error":""}` |
 | POST | `/tasks/{id}/cancel` | 主动取消在飞任务 | `{"reason":"user_aborted"}`（可选） | `202 {"id":"1","status":"canceling"}`；任务不在飞返回 `409` |
 | GET | `/tasks/{id}/events` | SSE 实时流式推送 | - | `text/event-stream`：`event: delta` (打字机增量) / `event: step` / `event: done` |
+| GET | `/sessions/{id}` | 获取会话元数据 | - | `200 {"id":"sess_1","created_at":"...","updated_at":"..."}` |
+| GET | `/sessions/{id}/messages` | 获取会话多轮历史 | `?limit=N`（可选，默认 100） | `200 [{"id":1,"role":"user","content":"..."},...]` |
 | GET | `/healthz` | 存活探针 | - | `200 ok`（纯文本） |
 | GET | `/metrics` | Prometheus 指标 | - | `agent_tasks_*` 文本格式 |
 | GET | `/` | 单页 Demo | - | `text/html` 页面 |
 
 Status 取值：`pending` → `running` → `done` / `failed`
 
-并发上限 3 个任务同时执行，超出部分排队（基于 SQLite WAL 事务队列削峰，默认支撑 10,000+ 任务排队）。
+并发执行数量通过 `worker_concurrency`（默认 3）弹性调节，超出部分排队（基于 SQLite WAL 事务队列削峰，默认支撑 10,000+ 任务排队）。多轮对话自动基于 `max_context_tokens` 触发滑动窗口折半压缩。
 
 ## Observability
 
@@ -164,17 +176,17 @@ Token 框填一次就会存进浏览器 `localStorage`，下次打开自动回�
 ## Testing
 
 ```powershell
-GOWORK=off go test -race ./... -count=1  # 278 个测试用例 / 442 个测试分支全绿，零 race
+GOWORK=off go test -race ./... -count=1  # 321 个测试用例 / 498 个测试分支全绿，零 race
 go test -bench=. -benchmem ./worker/     # 基准测试
 ```
 
-- **单测体系**：涵盖 12 个分层包，覆盖 store 状态机、worker 并发与取消树、agent 认知循环、tool 注册表与 AST 算术求解器、retrieval 词法/向量/RRF 融合召回、eval 自动化判题器。
+- **单测体系**：涵盖 12 个分层包，覆盖 store 状态机与 SessionStore 会话流、worker 并发与取消树、agent 认知循环与滑动窗口压缩、tool 注册表与 AST 算术求解器、retrieval 词法/向量/RRF 融合召回、eval 自动化判题器。
 - **静态架构与体积门禁**（`architecture_test.go`）：
   - **AST DAG 白名单**：用 `go/parser` 扫描全包 import 关系，严格锁死单向分层，杜绝跨层反向依赖（如 worker 严禁 import retrieval，api 严禁 import worker）；
   - **代码体积预算（Line Budget）**：强制生产 `.go` 文件 ≤ 400 行、测试文件 ≤ 800 行，多版本迭代防腐化。
-- **集成测试**：`api/integration_test.go` 用 `httptest` 端到端验证 `POST /run → 轮询 → done` 与 SSE 流式事件。
+- **集成测试**：`api/integration_test.go` 用 `httptest` 端到端验证 `POST /run → 轮询 → done`、SSE 流式事件与 Session 多轮交互。
 - **Benchmark**：
-  - `BenchmarkPoolEnqueue` ≈ 1.5 µs/op（3 worker 调度吞吐）
+  - `BenchmarkPoolEnqueue` ≈ 1.5 µs/op（Worker 调度吞吐）
   - `BenchmarkRunAgent` ≈ 84 ns/op（单步 agent 循环开销）
 
 ## 检索实证对照（Evaluation Benchmark）
@@ -198,19 +210,22 @@ agent-runtime/
 ├── architecture_test.go  # 根级架构守卫：AST DAG 白名单 + 400 行体积预算门禁
 ├── api/                  # HTTP 传输层（依赖 agent、metrics、store）
 │   ├── handler.go        # REST CRUD：/run、/tasks/{id}、/healthz、/metrics
-│   ├── events.go         # SSE 实时事件流与写超时管理
+│   ├── session_handler.go # REST 会话路由：/sessions/{id}、/sessions/{id}/messages
+│   ├── events.go         # SSE 实时事件流（event: delta / step / done）与写超时管理
 │   ├── middleware.go     # Recover / RequestID / 令牌桶限流 / Bearer 鉴权
 │   ├── demo.go / demo.html # go:embed 零依赖离线单页 Demo
 ├── agent/                # 认知内核（ReAct 循环，支持 context 抢占与 OnUsage 累加）
 │   ├── engine.go         # Run / RunWithOptions 多步决策循环
-│   ├── trace.go          # 有界 TraceBuffer 环形缓冲与 512B 安全截断
+│   ├── compactor.go      # 纯算法无逃逸滑动窗口压缩器（轮次安全截断与折叠注记）
+│   ├── trace.go          # 有界 TraceBuffer 环形缓冲与实时 TraceEvent 双轨广播
 │   └── tool/             # 独立工具注册表与契约
 │       ├── tool.go       # Tool、RetryableError、TerminalClassifier 解耦接口
 │       ├── registry.go   # 工具注册表（Errors-As-Messages）
 │       ├── calculate.go  # AST 递归下降算术求值器（防代码注入）
 │       └── time.go       # IANA 时区解析时间工具
 ├── worker/               # 任务调度执行层（Worker Pool，纯化并发池）
-│   └── pool.go           # Push-Notify 事务性抢占并发池、两阶段停机、排队排空、取消树管理
+│   ├── pool.go           # Push-Notify 事务性抢占并发池、两阶段停机、排队排空、取消树管理
+│   └── session.go        # 会话多轮组装（历史拉取+上下文压缩）与轮次写回（防 pool.go 膨胀）
 ├── retrieval/            # 混合检索即工具（独立领域包，零反向依赖）
 │   ├── index.go          # 索引生命周期：Open、Close、CheckFresh、Rebuild
 │   ├── schema.go         # SQLite DDL、FTS5 表结构与版本指纹
@@ -229,9 +244,11 @@ agent-runtime/
 │   ├── default-v1.md     # 生产服务默认提示词
 │   ├── eval-template-v1.md # 历史对照空提示词
 │   └── eval-template-v2.md # Grounded Citation 铁律与反幻觉拒答规范
-├── store/                # 任务状态存储（TaskStore 接口，消除数据竞争）
-│   ├── store.go          # 内存原子存储（默认）
-│   └── sql.go            # modernc SQLite WAL 持久化、原子 CAS 抢占与崩溃补偿
+├── store/                # 任务状态存储（TaskStore & SessionStore 接口）
+│   ├── store.go          # 内存原子存储（默认任务存储）
+│   ├── session.go        # 内存会话与多轮消息存储
+│   ├── sql.go            # modernc SQLite WAL 持久化、原子 CAS 抢占与崩溃补偿
+│   └── sql_session.go    # SQLite 会话与历史消息持久化（复合索引优化）
 ├── llm/                  # 模型适配层（OpenAI 兼容协议封装）
 │   ├── client.go         # ChatWithTools、幂等 joinEndpoint、Usage 解析
 │   └── stream.go         # ChatWithToolsStream 原生 SSE 流式解析与工具分块组装

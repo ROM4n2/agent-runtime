@@ -24,3 +24,6 @@ embed_dim: 0
 
 # 可选：最大允许积压的任务数，超出回 503。默认 10000。环境变量 MAX_QUEUE_SIZE 优先级更高。
 max_queue_size: 10000
+
+worker_concurrency: 3   # 可选：后台并发 Worker 数量（正整数，默认 3）。环境变量 WORKER_CONCURRENCY 优先级更高。
+max_context_tokens: 16000 # 可选：会话多轮对话上下文 Token 预算上限（正整数，默认 16000）。环境变量 MAX_CONTEXT_TOKENS 优先级更高。

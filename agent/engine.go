@@ -51,9 +51,10 @@ func waitBackoff(ctx context.Context, d time.Duration) bool {
 
 // RunOptions 控制 Agent 运行的可选参数。
 type RunOptions struct {
-	SystemPrompt string
-	OnUsage      func(llm.Usage)
-	OnDelta      func(step int, text string)
+	SystemPrompt    string
+	HistoryMessages []llm.Message
+	OnUsage         func(llm.Usage)
+	OnDelta         func(step int, text string)
 }
 
 // RunWithOptions 使用可选参数执行认知循环。
@@ -86,7 +87,10 @@ func RunWithOptions(ctx context.Context, c Chatter, prompt string, reg *tool.Reg
 	}
 
 	var turns []llm.Message
-	if opts.SystemPrompt != "" {
+	if len(opts.HistoryMessages) > 0 {
+		turns = make([]llm.Message, len(opts.HistoryMessages))
+		copy(turns, opts.HistoryMessages)
+	} else if opts.SystemPrompt != "" {
 		turns = []llm.Message{
 			{Role: "system", Content: opts.SystemPrompt},
 			{Role: "user", Content: prompt},

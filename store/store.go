@@ -35,6 +35,7 @@ const ErrMsgServerRestart = "server restarted unexpectedly"
 // （ADR-0010：SQLite 持久化可插拔，默认内存）。
 type TaskStore interface {
 	Create(prompt string) (id string)
+	CreateInSession(prompt, sessionID string) (id string)
 	Update(id, status string) error
 	Get(id string) (Task, error)
 	Complete(id, result string, err error) error
@@ -57,9 +58,12 @@ type TaskStore interface {
 // map 本身不支持并发写（会直接 panic），且 Update/Complete 都是
 // 读-改-写的复合操作，必须整段加锁才不会丢更新。
 type Store struct {
-	tasks  map[string]Task
-	mu     sync.Mutex
-	nextID int
+	tasks       map[string]Task
+	mu          sync.Mutex
+	nextID      int
+	sessions    map[string]Session
+	sessionMsgs map[string][]SessionMessage
+	nextMsgID   int64
 }
 
 // Task 是一个异步任务的全部状态。
@@ -71,11 +75,12 @@ type Store struct {
 // （ID/Status/...，首字母大写），前端按小写字段读就会拿到 undefined。
 // 序列化的字段名是对外契约，由 tag 固定，改字段名不会静默破坏调用方。
 type Task struct {
-	ID     string `json:"id"`
-	Status string `json:"status"` // pending | running | done | failed
-	Prompt string `json:"prompt"`
-	Result string `json:"result"` // 仅 done 时有值
-	Error  string `json:"error"`  // 仅 failed 时有值，且必须是脱敏后的粗粒度分类
+	ID        string `json:"id"`
+	Status    string `json:"status"` // pending | running | done | failed
+	Prompt    string `json:"prompt"`
+	Result    string `json:"result"` // 仅 done 时有值
+	Error     string `json:"error"`  // 仅 failed 时有值，且必须是脱敏后的粗粒度分类
+	SessionID string `json:"session_id,omitempty"`
 }
 
 // NewStore 返回一个可用的空 Store。
@@ -83,25 +88,32 @@ type Task struct {
 func NewStore() *Store {
 	var store Store
 	store.tasks = make(map[string]Task)
+	store.sessions = make(map[string]Session)
+	store.sessionMsgs = make(map[string][]SessionMessage)
 	return &store
 }
 
-// Create 登记一个新任务并返回其 ID，初始状态为 pending。
-func (s *Store) Create(prompt string) (id string) {
+// CreateInSession 登记一个绑定会话的新任务并返回其 ID，初始状态为 pending。
+func (s *Store) CreateInSession(prompt, sessionID string) (id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// 自增计数器保证 ID 唯一；用 prompt 作键会让重复提交互相覆盖
 	s.nextID++
 	id = strconv.Itoa(s.nextID)
 
 	s.tasks[id] = Task{
-		ID:     id,
-		Prompt: prompt,
-		Status: StatusPending,
+		ID:        id,
+		Prompt:    prompt,
+		Status:    StatusPending,
+		SessionID: sessionID,
 	}
 
 	return id
+}
+
+// Create 登记一个独立任务（SessionID 为空）并返回其 ID。
+func (s *Store) Create(prompt string) (id string) {
+	return s.CreateInSession(prompt, "")
 }
 
 // Update 只迁移状态，不触碰 Result 和 Error。

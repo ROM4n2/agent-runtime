@@ -16,9 +16,9 @@
 **考点**：能否一句话让面试官知道项目价值，而非报组件名。
 
 **标准答法**：
-> agent-runtime 是一个高并发 Agent 异步运行时服务：`POST /run` 提交任务立即回 **202**，后台纯化的 worker pool 驱动带抢占式取消的 ReAct 认知循环，支持计算器、时间与 FTS5+vec0 向量混合知识检索工具，客户端可通过轮询或 SSE 实时获取事件流（含 `event: delta` Token 级打字机推送）。
+> agent-runtime 是一个高并发 Agent 异步运行时服务：`POST /run` 提交任务立即回 **202**，后台纯化的 worker pool 驱动带抢占式取消的 ReAct 认知循环，支持计算器、时间与 FTS5+vec0 向量混合知识检索工具，客户端可通过轮询或 SSE 实时获取事件流（含 `event: delta` Token 级打字机推送），并具备完整的多轮会话持久化与滑动上下文安全压缩。
 >
-> 技术亮点：基于 SQLite WAL 的事务性任务队列与 Push-Notify 抢占调度（消除 503 丢单、支持 10,000+ 削峰）、SSE 原生打字机流式推断、context 抢占式取消树、SQLite WAL 断电崩溃恢复（Rehydration）、依赖倒置与 `tool.TerminalClassifier` 错误协议下沉、根级 AST DAG 白名单与 400 行代码体积机械门禁、以及受控评测 Harness 实证提升。
+> 技术亮点：基于 SQLite WAL 的事务性任务队列与 Push-Notify 抢占调度（消除 503 丢单、支持 10,000+ 削峰）、多轮会话状态机与纯算法滑动窗口折半压缩（`agent.CompactMessages`，零外部调用防上下文超限）、SSE 原生打字机流式推断、context 抢占式取消树、SQLite WAL 断电崩溃恢复（Rehydration）、依赖倒置与 `tool.TerminalClassifier` 错误协议下沉、根级 AST DAG 白名单与 400 行代码体积机械门禁、以及受控评测 Harness 实证提升。
 
 ---
 
@@ -182,4 +182,6 @@ func (p *Pool) Enqueue(id string) error {
 | 无 graceful shutdown | 实为已实现（见下）| `signal.NotifyContext` + `srv.Shutdown` + `defer p.Stop()` 取消树；在飞任务标记 failed 而非静默丢弃 | ✅ 已实现 |
 | 单次 LLM 超时 60s 偏长 | 慢上游时 worker 占太久 | 可配置 `task_timeout_seconds`（默认 30s，事故期可降到 8s 止血）| ✅ 已实现 |
 | SSE 无打字机逐字回显 | 任务推导长时交互等待感强 | `llm.ChatWithToolsStream` + `agent.RunOptions.OnDelta` 增量推送 | ✅ 已实现（P7 `event: delta`） |
-| pool size 硬编码 | 无法按环境调整 | 提为配置项 / 环境变量 | 待做 |
+| pool size 硬编码为 3 | 无法按环境机型弹性调整 | 提为配置项 `worker_concurrency`（默认 3）支持环境变量重写 | ✅ 已修（P8 弹性并发） |
+| 单轮任务孤岛无上下文状态 | 无法支持多轮问答与复杂迭代 | 实现 `SessionStore` 与 `POST /run` session 绑定 | ✅ 已修（P8 会话状态机） |
+| 多轮历史导致上下文超限爆炸 | 超过窗口引发 400 会话瘫痪 | 纯算法滑动窗口折半压缩（`agent.CompactMessages`），绝对锚定 System 提示与最新一轮 | ✅ 已修（P8 上下文压缩） |

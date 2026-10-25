@@ -210,6 +210,7 @@ type mockTaskStore struct {
 }
 
 func (m *mockTaskStore) Create(prompt string) string { return "mock-id" }
+func (m *mockTaskStore) CreateInSession(prompt, sessionID string) string { return m.Create(prompt) }
 func (m *mockTaskStore) Update(id, status string) error { return m.updateErr }
 func (m *mockTaskStore) Get(id string) (store.Task, error) {
 	if m.getErr != nil {

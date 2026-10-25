@@ -19,6 +19,8 @@ func isolateEnv(t *testing.T) {
 	t.Setenv("EMBED_DIM", "")
 	t.Setenv("MODEL", "")
 	t.Setenv("MAX_QUEUE_SIZE", "")
+	t.Setenv("WORKER_CONCURRENCY", "")
+	t.Setenv("MAX_CONTEXT_TOKENS", "")
 }
 
 func writeCfg(t *testing.T, content string) string {
@@ -36,7 +38,7 @@ func TestLoad_MissingFileIsNotAnError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("配置文件可选，不应报错：%v", err)
 	}
-	want := Config{MaxQueueSize: 10000}
+	want := Config{MaxQueueSize: 10000, WorkerConcurrency: 3, MaxContextTokens: 16000}
 	if cfg != want {
 		t.Errorf("cfg = %+v, want %+v", cfg, want)
 	}
@@ -256,6 +258,7 @@ func TestLoad_UnknownKeyErrorListsAllKeys(t *testing.T) {
 	for _, key := range []string{
 		"deepseek_api_key", "api_auth_key", "db_path", "task_timeout_seconds",
 		"embed_base_url", "embed_api_key", "embed_model", "embed_dim", "model", "max_queue_size",
+		"worker_concurrency", "max_context_tokens",
 	} {
 		if !strings.Contains(msg, key) {
 			t.Errorf("错误文案应列举合法 key %q：%s", key, msg)
@@ -325,3 +328,131 @@ func TestLoad_MaxQueueSizeDefault(t *testing.T) {
 		t.Errorf("MaxQueueSize = %d, want default 10000", cfg.MaxQueueSize)
 	}
 }
+
+func TestLoad_WorkerConcurrencyFromFile(t *testing.T) {
+	isolateEnv(t)
+	p := writeCfg(t, "worker_concurrency: 5\n")
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.WorkerConcurrency != 5 {
+		t.Errorf("WorkerConcurrency = %d, want 5", cfg.WorkerConcurrency)
+	}
+}
+
+func TestLoad_WorkerConcurrencyEnvPriority(t *testing.T) {
+	isolateEnv(t)
+	t.Setenv("WORKER_CONCURRENCY", "8")
+	p := writeCfg(t, "worker_concurrency: 5\n")
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.WorkerConcurrency != 8 {
+		t.Errorf("WorkerConcurrency = %d, want 8 (环境变量优先)", cfg.WorkerConcurrency)
+	}
+}
+
+func TestLoad_WorkerConcurrencyDefault(t *testing.T) {
+	isolateEnv(t)
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.WorkerConcurrency != 3 {
+		t.Errorf("WorkerConcurrency = %d, want default 3", cfg.WorkerConcurrency)
+	}
+}
+
+func TestLoad_WorkerConcurrencyValidation(t *testing.T) {
+	isolateEnv(t)
+	for _, v := range []string{"abc", "0", "-1"} {
+		t.Run(v, func(t *testing.T) {
+			p := writeCfg(t, "worker_concurrency: "+v+"\n")
+			if _, err := Load(p); err == nil {
+				t.Errorf("worker_concurrency: %s 应返回 error", v)
+			}
+		})
+	}
+}
+
+func TestLoad_MaxContextTokensFromFile(t *testing.T) {
+	isolateEnv(t)
+	p := writeCfg(t, "max_context_tokens: 32000\n")
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MaxContextTokens != 32000 {
+		t.Errorf("MaxContextTokens = %d, want 32000", cfg.MaxContextTokens)
+	}
+}
+
+func TestLoad_MaxContextTokensEnvPriority(t *testing.T) {
+	isolateEnv(t)
+	t.Setenv("MAX_CONTEXT_TOKENS", "64000")
+	p := writeCfg(t, "max_context_tokens: 32000\n")
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MaxContextTokens != 64000 {
+		t.Errorf("MaxContextTokens = %d, want 64000 (环境变量优先)", cfg.MaxContextTokens)
+	}
+}
+
+func TestLoad_MaxContextTokensDefault(t *testing.T) {
+	isolateEnv(t)
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MaxContextTokens != 16000 {
+		t.Errorf("MaxContextTokens = %d, want default 16000", cfg.MaxContextTokens)
+	}
+}
+
+func TestLoad_MaxContextTokensValidation(t *testing.T) {
+	isolateEnv(t)
+	for _, v := range []string{"abc", "0", "-1"} {
+		t.Run(v, func(t *testing.T) {
+			p := writeCfg(t, "max_context_tokens: "+v+"\n")
+			if _, err := Load(p); err == nil {
+				t.Errorf("max_context_tokens: %s 应返回 error", v)
+			}
+		})
+	}
+}
+
+func TestLoad_WorkerConcurrencyAndMaxContextTokensEnvInvalid(t *testing.T) {
+	isolateEnv(t)
+	t.Setenv("WORKER_CONCURRENCY", "invalid")
+	if _, err := Load(""); err == nil {
+		t.Error("invalid WORKER_CONCURRENCY should return error")
+	}
+
+	isolateEnv(t)
+	t.Setenv("MAX_CONTEXT_TOKENS", "invalid")
+	if _, err := Load(""); err == nil {
+		t.Error("invalid MAX_CONTEXT_TOKENS should return error")
+	}
+}
+
+func TestLoad_WorkerConcurrencyAndMaxContextTokensEnvZeroFallback(t *testing.T) {
+	isolateEnv(t)
+	p := writeCfg(t, "worker_concurrency: 5\nmax_context_tokens: 32000\n")
+	t.Setenv("WORKER_CONCURRENCY", "0")
+	t.Setenv("MAX_CONTEXT_TOKENS", "-10")
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.WorkerConcurrency != 5 {
+		t.Errorf("WorkerConcurrency = %d, want fallback 5", cfg.WorkerConcurrency)
+	}
+	if cfg.MaxContextTokens != 32000 {
+		t.Errorf("MaxContextTokens = %d, want fallback 32000", cfg.MaxContextTokens)
+	}
+}
+
