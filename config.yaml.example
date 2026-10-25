@@ -21,3 +21,6 @@ embed_base_url: ""
 embed_api_key: ""
 embed_model: ""
 embed_dim: 0
+
+# 可选：最大允许积压的任务数，超出回 503。默认 10000。环境变量 MAX_QUEUE_SIZE 优先级更高。
+max_queue_size: 10000

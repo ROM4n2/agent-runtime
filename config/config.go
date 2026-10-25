@@ -22,8 +22,9 @@ type Config struct {
 	EmbedBaseURL string
 	EmbedAPIKey  string
 	EmbedModel   string
-	EmbedDim     int // 0 = 不建 vec0 表；>0 才启用混合召回；负值启动失败
+	EmbedDim     int    // 0 = 不建 vec0 表；>0 才启用混合召回；负值启动失败
 	Model        string // LLM 模型名称，默认空串由装配层兜底 "deepseek-chat"
+	MaxQueueSize int    // 最大允许积压的任务数，超出回 503，默认 10000
 }
 
 // defaultPath 是约定俗成的配置文件位置，相对进程工作目录。
@@ -60,6 +61,17 @@ func Load(path string) (Config, error) {
 		}
 		embedDim = v
 	}
+	maxQueueSize := fileCfg.MaxQueueSize
+	if envQueue := os.Getenv("MAX_QUEUE_SIZE"); envQueue != "" {
+		v, err := strconv.Atoi(envQueue)
+		if err != nil {
+			return Config{}, fmt.Errorf("config: invalid MAX_QUEUE_SIZE %q: %w", envQueue, err)
+		}
+		maxQueueSize = v
+	}
+	if maxQueueSize <= 0 {
+		maxQueueSize = 10000
+	}
 	return Config{
 		DeepSeekAPIKey:     firstNonEmpty(os.Getenv("DEEPSEEK_API_KEY"), fileCfg.DeepSeekAPIKey),
 		APIAuthKey:         firstNonEmpty(os.Getenv("API_AUTH_KEY"), fileCfg.APIAuthKey),
@@ -70,6 +82,7 @@ func Load(path string) (Config, error) {
 		EmbedModel:         firstNonEmpty(os.Getenv("EMBED_MODEL"), fileCfg.EmbedModel),
 		EmbedDim:           embedDim,
 		Model:              firstNonEmpty(os.Getenv("MODEL"), fileCfg.Model),
+		MaxQueueSize:       maxQueueSize,
 	}, nil
 }
 
@@ -146,8 +159,14 @@ func loadFile(path string) (Config, error) {
 			cfg.EmbedDim = n
 		case "model":
 			cfg.Model = value
+		case "max_queue_size":
+			n, err := strconv.Atoi(value)
+			if err != nil {
+				return cfg, fmt.Errorf("config: %s:%d max_queue_size 必须是整数：%q", path, lineNo, value)
+			}
+			cfg.MaxQueueSize = n
 		default:
-			return cfg, fmt.Errorf("config: %s:%d 未知配置项 %q（只支持 deepseek_api_key、api_auth_key、db_path、task_timeout_seconds、embed_base_url、embed_api_key、embed_model、embed_dim、model）", path, lineNo, key)
+			return cfg, fmt.Errorf("config: %s:%d 未知配置项 %q（只支持 deepseek_api_key、api_auth_key、db_path、task_timeout_seconds、embed_base_url、embed_api_key、embed_model、embed_dim、model、max_queue_size）", path, lineNo, key)
 		}
 	}
 	if err := sc.Err(); err != nil {

@@ -27,15 +27,13 @@ const DefaultMaxTraces = 1000
 // Pool 用固定数量的 worker goroutine 消费任务队列，
 // 以此限制同时在飞的 LLM 请求数——上游的限流和计费按并发量算。
 type Pool struct {
-	// 缓冲区大小等于 worker 数：满了 Enqueue 会阻塞调用方（HTTP handler），
-	// 使异步退化为同步。生产上应改为 select+default 快速失败或换持久化队列。
-	queue       chan string
-	tasks       store.TaskStore
-	size        int
-	taskTimeout time.Duration // 单次任务 LLM 调用上限，超时即失败
+	wakeUp           chan struct{} // 通知空闲 worker 有新任务可领的唤醒信号（容量 1 缓冲通道）
+	tasks            store.TaskStore
+	size             int
+	maxQueueSize     int           // 最大允许排队积压的任务数，超出回 ErrQueueFull
+	taskTimeout      time.Duration // 单次任务 LLM 调用上限，超时即失败
 	// ctx/cancel 是关闭信号的广播机制：Stop 一次 cancel，
 	// 所有 worker 与派生出去的请求 ctx 同时收到通知。
-	// 用 cancel 而非 close(queue)，避免向已关闭 channel 发送导致 panic。
 	ctx              context.Context
 	cancel           context.CancelFunc
 	stopWorkerCtx    context.Context
@@ -56,15 +54,21 @@ type Pool struct {
 	inFlight sync.Map
 }
 
+// SetMaxQueueSize 设置最大允许排队积压的任务数，供测试和自定义配置使用。
+func (p *Pool) SetMaxQueueSize(n int) {
+	p.maxQueueSize = n
+}
+
 func NewPool(size int, taskTimeout time.Duration, s store.TaskStore, client agent.Chatter) *Pool {
 	ctx, cancel := context.WithCancel(context.Background())
 	stopWorkerCtx, stopWorkerCancel := context.WithCancel(context.Background())
 
 	p := Pool{
 		size:             size,
+		maxQueueSize:     10000,
 		taskTimeout:      taskTimeout,
 		tasks:            s,
-		queue:            make(chan string, size),
+		wakeUp:           make(chan struct{}, 1),
 		ctx:              ctx,
 		cancel:           cancel,
 		stopWorkerCtx:    stopWorkerCtx,
@@ -124,21 +128,21 @@ func (p *Pool) Stop(ctxs ...context.Context) error {
 		<-done     // 等待 worker 收到 cancel 后退出
 	}
 
-	// 排空队列中残留未消费的任务，标定明确终态，消除 pending 僵尸任务
+	// 排空 store 中残留未消费的 pending 任务，标定明确终态，消除 pending 僵尸任务
 	for {
-		select {
-		case id := <-p.queue:
-			metrics.IncFailed()
-			if err := p.tasks.Complete(id, "", errors.New("server shutdown")); err != nil {
-				slog.Error("worker: complete drained task failed", "task_id", id, "error", err)
-			}
-		default:
-			return waitErr
+		task, err := p.tasks.ClaimNext(context.Background())
+		if err != nil {
+			break
+		}
+		metrics.IncFailed()
+		if err := p.tasks.Complete(task.ID, "", errors.New("server shutdown")); err != nil {
+			slog.Error("worker: complete drained task failed", "task_id", task.ID, "error", err)
 		}
 	}
+	return waitErr
 }
 
-// worker 是常驻 goroutine：循环抢队列里的任务，直到收到关闭信号。
+// worker 是常驻 goroutine：循环抢占 store 里的任务，直到收到关闭信号。
 // wg.Done 用 defer，保证 panic 退出时也不会让 Stop 永久阻塞在 Wait。
 func (p *Pool) worker() {
 	defer p.wg.Done()
@@ -149,10 +153,24 @@ func (p *Pool) worker() {
 		default:
 		}
 
-		select {
-		case id := <-p.queue:
-			p.process(id)
+		// 主动从 store 抢占任务
+		task, err := p.tasks.ClaimNext(p.ctx)
+		if err == nil {
+			p.process(task.ID)
+			continue // 连续抢占直到无待执行任务
+		}
+		if !errors.Is(err, store.ErrNoTaskAvailable) {
+			select {
+			case <-p.stopWorkerCtx.Done():
+				return
+			default:
+			}
+		}
 
+		// 无任务可用，挂起等待新任务信号或 100ms 兜底定时器或停机信号
+		select {
+		case <-p.wakeUp:
+		case <-time.After(100 * time.Millisecond):
 		case <-p.stopWorkerCtx.Done():
 			return
 		}
@@ -249,19 +267,25 @@ func (p *Pool) process(id string) {
 	}
 }
 
-// Enqueue 把任务 ID 送入队列。队列满（worker 全忙且缓冲已满）或正在停机时立即返回
-// ErrQueueFull 而非阻塞 handler —— 让「异步」退化为「同步失败」而不是「同步等待」，
-// 调用方据此回 503，把背压显式交给客户端/网关，而非让 HTTP 连接挂死。
+// Enqueue 通知调度器有新任务可执行。
+// 若池正在停机或 worker 数为 0，返回 ErrQueueFull；
+// 若 pending 任务数超过 maxQueueSize，快速失败返回 ErrQueueFull，调用方据此回 503；
+// 否则以非阻塞方式向 wakeUp 发送信号唤醒空闲 worker。
 func (p *Pool) Enqueue(id string) error {
-	if p.stopping.Load() {
+	if p.stopping.Load() || p.size == 0 {
 		return ErrQueueFull
+	}
+	if p.maxQueueSize > 0 {
+		cnt, err := p.tasks.PendingCount(p.ctx)
+		if err == nil && cnt > int64(p.maxQueueSize) {
+			return ErrQueueFull
+		}
 	}
 	select {
-	case p.queue <- id:
-		return nil
+	case p.wakeUp <- struct{}{}:
 	default:
-		return ErrQueueFull
 	}
+	return nil
 }
 
 // Trace 返回指定任务已记录的步骤快照。若任务不存在或尚未记录 trace，返回 nil。
@@ -316,17 +340,30 @@ func (p *Pool) Cancel(id, reason string) error {
 }
 
 // EnqueueWait 阻塞式入队，用于崩溃恢复时重灌 pending 积压：
-// 既不丢任务（队列满时等待空位），也不无限挂死（停机或 ctx 取消即返回）。
+// 循环等待直到待处理任务数未超出容量限制，既不丢任务也不无限挂死。
 func (p *Pool) EnqueueWait(ctx context.Context, id string) error {
-	if p.stopping.Load() {
+	if p.stopping.Load() || p.size == 0 {
 		return ErrQueueFull
 	}
-	select {
-	case p.queue <- id:
-		return nil
-	case <-p.stopWorkerCtx.Done():
-		return ErrQueueFull
-	case <-ctx.Done():
-		return ctx.Err()
+	for {
+		if p.stopping.Load() {
+			return ErrQueueFull
+		}
+		if p.maxQueueSize > 0 {
+			cnt, err := p.tasks.PendingCount(ctx)
+			if err == nil && cnt <= int64(p.maxQueueSize) {
+				return p.Enqueue(id)
+			}
+		} else {
+			return p.Enqueue(id)
+		}
+
+		select {
+		case <-time.After(10 * time.Millisecond):
+		case <-p.stopWorkerCtx.Done():
+			return ErrQueueFull
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 }

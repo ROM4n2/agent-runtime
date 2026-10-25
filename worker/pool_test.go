@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -36,7 +37,9 @@ func TestWorker_ProcessesTask(t *testing.T) {
 	defer p.Stop()
 
 	id := s.Create("hello")
-	p.queue <- id
+	if err := p.Enqueue(id); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
 
 	deadline := time.Now().Add(time.Second) // 最多等 1s
 	for {
@@ -61,7 +64,6 @@ func TestWorker_ProcessesTask(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond) // 喘口气再查
 	}
-
 }
 
 func TestWorker_UpdateNotFound(t *testing.T) {
@@ -70,7 +72,7 @@ func TestWorker_UpdateNotFound(t *testing.T) {
 	p.Start()
 	defer p.Stop()
 
-	p.queue <- "不存在的id"
+	_ = p.Enqueue("不存在的id")
 
 	// 等一下，确认没变成 running
 	time.Sleep(200 * time.Millisecond)
@@ -86,18 +88,18 @@ func TestPool_LimitsConcurrency(t *testing.T) {
 	p.Start()
 	defer p.Stop()
 
-	// Create 6 个任务，ID 存进 ids（名字用 strconv.Itoa 拼：s.Create("task-" + strconv.Itoa(i))）
-	// 全塞进 p.queue
+	// Create 6 个任务，ID 存进 ids
 	var ids []string
 	for i := 0; i < 6; i++ {
 		ids = append(ids, s.Create("task-"+strconv.Itoa(i)))
 	}
 	for _, id := range ids {
-		p.queue <- id
+		if err := p.Enqueue(id); err != nil {
+			t.Fatalf("enqueue: %v", err)
+		}
 	}
 
 	// 轮询（1s deadline）：等到 running 数量 == 3
-	//   统计 running 数：for 循环遍历 ids，s.Get(id) 数 status == StatusRunning 的
 	deadline := time.Now().Add(time.Second)
 	for {
 		running := 0
@@ -116,7 +118,7 @@ func TestPool_LimitsConcurrency(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	// 断言：此时 pending 数量 == 3（遍历数 status == StatusPending）
+	// 断言：此时 pending 数量 == 3
 	pending := 0
 	for _, id := range ids {
 		task, _ := s.Get(id)
@@ -131,23 +133,21 @@ func TestPool_LimitsConcurrency(t *testing.T) {
 	// 轮询（5s deadline）：等到全部 6 个 done
 	deadline = time.Now().Add(5 * time.Second)
 	for {
-		done := 0
+		doneCount := 0
 		for _, id := range ids {
 			task, _ := s.Get(id)
 			if task.Status == store.StatusDone {
-				done++
+				doneCount++
 			}
 		}
-		if done == 6 {
+		if doneCount == 6 {
 			break
 		}
-
 		if time.Now().After(deadline) {
 			t.Fatal("5s 内没全 done")
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-
 }
 
 func TestWorker_ChatFailure(t *testing.T) {
@@ -158,7 +158,9 @@ func TestWorker_ChatFailure(t *testing.T) {
 	defer p.Stop()
 
 	id := s.Create("hello")
-	p.queue <- id
+	if err := p.Enqueue(id); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
 
 	// 等到 done（不是 running）——因为失败后 Complete 会把状态设为 failed
 	deadline := time.Now().Add(time.Second)
@@ -183,14 +185,15 @@ func TestWorker_ChatFailure(t *testing.T) {
 func TestEnqueue_Full(t *testing.T) {
 	s := store.NewStore()
 	p := NewPool(1, 30*time.Second, s, fakeChatter{0, nil})
-	p.Start()
-	defer p.Stop()
+	p.SetMaxQueueSize(1)
 
-	// 占住唯一的缓冲位（size=1），且不消费，使队列满
-	occupy := s.Create("occupy")
-	p.queue <- occupy
+	id1 := s.Create("t1")
+	if err := p.Enqueue(id1); err != nil {
+		t.Fatalf("first enqueue failed: %v", err)
+	}
 
-	if err := p.Enqueue("extra"); !errors.Is(err, ErrQueueFull) {
+	id2 := s.Create("t2")
+	if err := p.Enqueue(id2); !errors.Is(err, ErrQueueFull) {
 		t.Errorf("Enqueue on full queue = %v, want ErrQueueFull", err)
 	}
 }
@@ -206,24 +209,14 @@ type mockTaskStore struct {
 	completeCalled  bool
 }
 
-func (m *mockTaskStore) Create(prompt string) string {
-	return "mock-id"
-}
-
-func (m *mockTaskStore) Update(id, status string) error {
-	if m.updateErr != nil {
-		return m.updateErr
-	}
-	return nil
-}
-
+func (m *mockTaskStore) Create(prompt string) string { return "mock-id" }
+func (m *mockTaskStore) Update(id, status string) error { return m.updateErr }
 func (m *mockTaskStore) Get(id string) (store.Task, error) {
 	if m.getErr != nil {
 		return store.Task{}, m.getErr
 	}
 	return store.Task{ID: id, Prompt: "mock prompt"}, nil
 }
-
 func (m *mockTaskStore) Complete(id, result string, err error) error {
 	m.completeCalled = true
 	m.completedID = id
@@ -231,22 +224,12 @@ func (m *mockTaskStore) Complete(id, result string, err error) error {
 	m.completedErr = err
 	return m.completeErr
 }
-
-func (m *mockTaskStore) Delete(id string) error {
-	return nil
-}
-
-func (m *mockTaskStore) RecoverTasks(ctx context.Context) ([]string, int, error) {
-	return nil, 0, nil
-}
-
+func (m *mockTaskStore) Delete(id string) error { return nil }
+func (m *mockTaskStore) RecoverTasks(ctx context.Context) ([]string, int, error) { return nil, 0, nil }
 func (m *mockTaskStore) ClaimNext(ctx context.Context) (store.Task, error) {
 	return store.Task{}, store.ErrNoTaskAvailable
 }
-
-func (m *mockTaskStore) PendingCount(ctx context.Context) (int64, error) {
-	return 0, nil
-}
+func (m *mockTaskStore) PendingCount(ctx context.Context) (int64, error) { return 0, nil }
 
 func TestProcess_UpdateErrorSetsFailed(t *testing.T) {
 	mock := &mockTaskStore{
@@ -386,14 +369,12 @@ func TestShutdown_DrainsQueuedTasks(t *testing.T) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-
 	// 此时 worker 忙于执行 task-1，Enqueue 一个新任务进入队列排队
 	id2 := s.Create("task-2")
 	if err := p.Enqueue(id2); err != nil {
 		t.Fatalf("enqueue task-2 failed: %v", err)
 	}
 
-	// 启动 goroutine 执行 Stop(context.Background())
 	stopDone := make(chan error, 1)
 	go func() {
 		stopDone <- p.Stop(context.Background())
@@ -416,7 +397,6 @@ func TestShutdown_DrainsQueuedTasks(t *testing.T) {
 	if t1.Status != store.StatusDone {
 		t.Errorf("task-1 status = %q, want %q", t1.Status, store.StatusDone)
 	}
-
 	// 队列中排队的任务 task-2 状态应被更新为 StatusFailed，错误为 "server shutdown"
 	t2, err := s.Get(id2)
 	if err != nil {
@@ -698,13 +678,8 @@ type fakeTerminalErr struct {
 
 var _ tool.TerminalClassifier = fakeTerminalErr{}
 
-func (e fakeTerminalErr) Error() string {
-	return e.msg
-}
-
-func (e fakeTerminalErr) TerminalStatus() string {
-	return e.status
-}
+func (e fakeTerminalErr) Error() string          { return e.msg }
+func (e fakeTerminalErr) TerminalStatus() string { return e.status }
 
 // TestProcess_IndexMissingTerminalClassification 固化基于 tool.TerminalClassifier 的终态脱敏协议：
 // worker 仅依赖下层 tool.TerminalClassifier 接口，不再直接依赖 retrieval 包；
@@ -717,10 +692,8 @@ func TestProcess_IndexMissingTerminalClassification(t *testing.T) {
 		// 终态分类据此经 errors.As 匹配 tool.TerminalClassifier 并提取脱敏终态文案。
 		chat := fakeChatter{err: fmt.Errorf("tool failed: %w", fakeTerminalErr{msg: "sensitive internal error", status: "index missing"})}
 		p := NewPool(1, 30*time.Second, s, chat)
-
 		id := s.Create("query the docs")
 		p.process(id)
-
 		task, err := s.Get(id)
 		if err != nil {
 			t.Fatalf("get task: %v", err)
@@ -737,10 +710,8 @@ func TestProcess_IndexMissingTerminalClassification(t *testing.T) {
 		s := store.NewStore()
 		chat := fakeChatter{err: fmt.Errorf("tool failed: %w", fakeTerminalErr{msg: "empty status error", status: ""})}
 		p := NewPool(1, 30*time.Second, s, chat)
-
 		id := s.Create("query with empty status")
 		p.process(id)
-
 		task, err := s.Get(id)
 		if err != nil {
 			t.Fatalf("get task: %v", err)
@@ -757,10 +728,8 @@ func TestProcess_IndexMissingTerminalClassification(t *testing.T) {
 		s := store.NewStore()
 		chat := fakeChatter{err: fmt.Errorf("plain wrapped error: %w", errors.New("raw failure"))}
 		p := NewPool(1, 30*time.Second, s, chat)
-
 		id := s.Create("query with plain error")
 		p.process(id)
-
 		task, err := s.Get(id)
 		if err != nil {
 			t.Fatalf("get task: %v", err)
@@ -772,4 +741,55 @@ func TestProcess_IndexMissingTerminalClassification(t *testing.T) {
 			t.Errorf("task.Error = %q, want %q (non-classifier error must be upstream error)", task.Error, "upstream error")
 		}
 	})
+}
+
+func TestPool_HighConcurrencyEnqueue50TasksNoLoss(t *testing.T) {
+	s := store.NewStore()
+	p := NewPool(3, 30*time.Second, s, fakeChatter{delay: 1 * time.Millisecond})
+	p.SetMaxQueueSize(100)
+
+	const taskCount = 50
+	ids := make([]string, taskCount)
+	for i := 0; i < taskCount; i++ {
+		ids[i] = s.Create(fmt.Sprintf("prompt-%d", i))
+	}
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, taskCount)
+	for _, id := range ids {
+		wg.Add(1)
+		go func(taskID string) {
+			defer wg.Done()
+			if err := p.Enqueue(taskID); err != nil {
+				errCh <- err
+			}
+		}(id)
+	}
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		t.Fatalf("unexpected Enqueue error: %v", err)
+	}
+
+	p.Start()
+	defer p.Stop()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		doneCount := 0
+		for _, id := range ids {
+			task, err := s.Get(id)
+			if err == nil && task.Status == store.StatusDone {
+				doneCount++
+			}
+		}
+		if doneCount == taskCount {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for 50 tasks to complete, doneCount=%d", doneCount)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }

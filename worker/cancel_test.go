@@ -75,16 +75,19 @@ func TestPool_CancelQueuedTaskNotYetRunning(t *testing.T) {
 
 func TestPool_EnqueueWaitBlocksUntilSpace(t *testing.T) {
 	s := store.NewStore()
-	// 不启动 worker：size=1 的缓冲只能容纳一个，第二个 EnqueueWait 必须等待。
+	// 设置容量为 1：第一个任务占满配额，第二个 EnqueueWait 必须等待。
 	p := NewPool(1, time.Second, s, fakeChatter{})
+	p.SetMaxQueueSize(1)
 
-	if err := p.EnqueueWait(context.Background(), "first"); err != nil {
+	id1 := s.Create("t1")
+	if err := p.EnqueueWait(context.Background(), id1); err != nil {
 		t.Fatalf("first EnqueueWait: %v", err)
 	}
 
+	id2 := s.Create("t2")
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
-	if err := p.EnqueueWait(ctx, "second"); !errors.Is(err, context.DeadlineExceeded) {
+	if err := p.EnqueueWait(ctx, id2); !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("second EnqueueWait = %v, want context.DeadlineExceeded", err)
 	}
 }
@@ -96,5 +99,32 @@ func TestPool_EnqueueWaitStopping(t *testing.T) {
 
 	if err := p.EnqueueWait(context.Background(), "any"); !errors.Is(err, ErrQueueFull) {
 		t.Errorf("EnqueueWait while stopping = %v, want ErrQueueFull", err)
+	}
+}
+
+func TestWorker_WakesUpImmediatelyOnEnqueue(t *testing.T) {
+	s := store.NewStore()
+	p := NewPool(1, 30*time.Second, s, fakeChatter{})
+	p.Start()
+	defer p.Stop()
+
+	// 等待 worker 启动进入空闲等待
+	time.Sleep(10 * time.Millisecond)
+
+	id := s.Create("wake-check")
+	start := time.Now()
+	if err := p.Enqueue(id); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+
+	for {
+		task, err := s.Get(id)
+		if err == nil && task.Status != store.StatusPending {
+			break
+		}
+		if time.Since(start) > 50*time.Millisecond {
+			t.Fatalf("worker did not wake up immediately: took %v (expected < 50ms, backup timer is 100ms)", time.Since(start))
+		}
+		time.Sleep(1 * time.Millisecond)
 	}
 }
