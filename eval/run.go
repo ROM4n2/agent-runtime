@@ -9,6 +9,7 @@ import (
 	"agent-runtime/agent"
 	"agent-runtime/agent/tool"
 	"agent-runtime/llm"
+	"agent-runtime/prompts"
 	"agent-runtime/retrieval"
 )
 
@@ -148,7 +149,7 @@ func Run(ctx context.Context, cfg RunConfig) (Report, error) {
 			DBPath:          dbPathOrDefault(cfg.DBPath),
 			SetPath:         cfg.SetPath,
 			SetHash:         setHash,
-			TokenCounting:   tokenCountingState(cfg.TokenCounter),
+			TokenCounting:   tokenCountingState(cfg.TokenCounter, results),
 		},
 	}
 	if cfg.OutDir != "" {
@@ -183,6 +184,9 @@ func (cfg RunConfig) validate() error {
 	if cfg.CorpusDir == "" {
 		return errors.New("eval: CorpusDir is required")
 	}
+	if _, err := prompts.Get(cfg.TemplateVersion); err != nil {
+		return fmt.Errorf("eval: invalid TemplateVersion %q: %w", cfg.TemplateVersion, err)
+	}
 	return nil
 }
 
@@ -196,6 +200,10 @@ func (cfg RunConfig) resolveChatter() (agent.Chatter, error) {
 	if cfg.LLMConfig.APIKey == "" {
 		return nil, errors.New("eval: no Chatter injected and LLMConfig.APIKey is empty (real LLM run requires credentials)")
 	}
+	zero := 0.0
+	cfg.LLMConfig.Temperature = &zero
+	seed := cfg.Seed
+	cfg.LLMConfig.Seed = &seed
 	return llm.NewClient(cfg.LLMConfig), nil
 }
 
@@ -248,13 +256,22 @@ func ensureFreshIndex(ctx context.Context, idx *retrieval.Index, corpusDir strin
 	return nil
 }
 
-// runOnce 执行一次（任务 × repeat）：跑 agent.Run 全链路 → grader 判定 → 明细。
+// runOnce 执行一次（任务 × repeat）：跑 agent.RunWithOptions 全链路 → grader 判定 → 明细。
 func runOnce(ctx context.Context, cfg RunConfig, chatter agent.Chatter, reg *tool.Registry, task Task) (TaskResult, error) {
 	start := time.Now()
 	buf := agent.NewTraceBuffer(0)
 	// 判定数据源优先取工具返回全文；collector 无数据时才退回 trace（见下方 Grade）。
 	collector := &toolOutputCollector{}
-	answer, runErr := agent.Run(ctx, chatter, task.Prompt, registryWithCollector(reg, collector), buf.Append)
+	sysPrompt, _ := prompts.Get(cfg.TemplateVersion)
+	var promptTokens, completionTokens int
+	onUsage := func(u llm.Usage) {
+		promptTokens += u.PromptTokens
+		completionTokens += u.CompletionTokens
+	}
+	answer, runErr := agent.RunWithOptions(ctx, chatter, task.Prompt, registryWithCollector(reg, collector), buf.Append, agent.RunOptions{
+		SystemPrompt: sysPrompt,
+		OnUsage:      onUsage,
+	})
 	latencyMS := time.Since(start).Milliseconds()
 	trace := buf.Snapshot()
 
@@ -267,6 +284,14 @@ func runOnce(ctx context.Context, cfg RunConfig, chatter agent.Chatter, reg *too
 	if hits, ok := collector.hits(); ok {
 		g = GradeWithHits(task, hits, answer)
 	}
+	var resPromptTokens, resCompletionTokens int
+	if cfg.TokenCounter != nil {
+		resPromptTokens = countTokens(cfg.TokenCounter, task.Prompt, "")
+		resCompletionTokens = countTokens(cfg.TokenCounter, "", answer)
+	} else if promptTokens > 0 || completionTokens > 0 {
+		resPromptTokens = promptTokens
+		resCompletionTokens = completionTokens
+	}
 	return TaskResult{
 		TaskID:           task.ID,
 		Scope:            task.Scope,
@@ -275,8 +300,8 @@ func runOnce(ctx context.Context, cfg RunConfig, chatter agent.Chatter, reg *too
 		FirstError:       g.FirstError,
 		Steps:            len(trace),
 		LatencyMS:        latencyMS,
-		PromptTokens:     countTokens(cfg.TokenCounter, task.Prompt, ""),
-		CompletionTokens: countTokens(cfg.TokenCounter, "", answer),
+		PromptTokens:     resPromptTokens,
+		CompletionTokens: resCompletionTokens,
 		CitedSpans:       g.CitedSpans,
 		CitedDocs:        g.CitedDocs,
 	}, nil

@@ -193,6 +193,8 @@ func tokenCountingNote(state string) string {
 	switch state {
 	case "injected":
 		return "injected（已注入计数函数）"
+	case "llm-usage":
+		return "llm-usage（API 实测返回）"
 	case "not-wired":
 		return "not-wired（未接入，明细记 0）"
 	default:

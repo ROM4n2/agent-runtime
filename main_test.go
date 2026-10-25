@@ -377,7 +377,8 @@ func TestNewEmbedder_RequiresAllThreeCredentials(t *testing.T) {
 		{"base url only", config.Config{EmbedBaseURL: "https://emb.example.com"}},
 		{"api key only", config.Config{EmbedAPIKey: "k"}},
 		{"model only", config.Config{EmbedModel: "m"}},
-		{"url+key, model missing", config.Config{EmbedBaseURL: "https://emb.example.com", EmbedAPIKey: "k"}},
+		{"url+key, model missing", config.Config{EmbedBaseURL: "https://emb.example.com", EmbedAPIKey: "secret"}},
+		{"dim missing", config.Config{EmbedBaseURL: "https://emb.example.com", EmbedModel: "m", EmbedDim: 0}},
 	}
 	for _, tc := range partials {
 		t.Run(tc.name, func(t *testing.T) {
@@ -446,5 +447,42 @@ func TestRecoverAndEnqueue_PendingTasks(t *testing.T) {
 	}
 	if zombie.Status != store.StatusFailed || zombie.Error != store.ErrMsgServerRestart {
 		t.Errorf("zombie = %+v, want failed with %q", zombie, store.ErrMsgServerRestart)
+	}
+}
+
+func TestDefaultModel(t *testing.T) {
+	if got := defaultModel(""); got != "deepseek-chat" {
+		t.Errorf("defaultModel(\"\") = %q, want \"deepseek-chat\"", got)
+	}
+	if got := defaultModel("custom-model"); got != "custom-model" {
+		t.Errorf("defaultModel(\"custom-model\") = %q, want \"custom-model\"", got)
+	}
+}
+
+func TestNewEmbedder_KeylessAllowed(t *testing.T) {
+	emb := newEmbedder(config.Config{
+		EmbedBaseURL: "http://localhost:11434",
+		EmbedModel:   "nomic-embed-text",
+		EmbedDim:     768,
+	})
+	if emb == nil {
+		t.Fatal("newEmbedder with empty EmbedAPIKey = nil, want non-nil Embedder")
+	}
+}
+
+func TestParseFlags_ModelDefault(t *testing.T) {
+	f, code := parseFlags([]string{"-eval"})
+	if code != 0 {
+		t.Fatalf("parseFlags(-eval) code = %d, want 0", code)
+	}
+	if f.eval.model != "" {
+		t.Errorf("f.eval.model = %q, want empty (so it falls back to defaultModel)", f.eval.model)
+	}
+	f2, code2 := parseFlags([]string{"-eval", "-model", "custom"})
+	if code2 != 0 {
+		t.Fatalf("parseFlags(-eval -model custom) code = %d, want 0", code2)
+	}
+	if f2.eval.model != "custom" {
+		t.Errorf("f2.eval.model = %q, want \"custom\"", f2.eval.model)
 	}
 }

@@ -74,7 +74,7 @@ func runWithArgs(args []string) int {
 	cfg := llm.Config{
 		APIKey:       apiKey,
 		BaseURL:      "https://api.deepseek.com",
-		Model:        "deepseek-flash",
+		Model:        defaultModel(conf.Model),
 		EmbedBaseURL: conf.EmbedBaseURL,
 		EmbedAPIKey:  conf.EmbedAPIKey,
 		EmbedModel:   conf.EmbedModel,

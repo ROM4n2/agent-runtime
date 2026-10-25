@@ -110,12 +110,17 @@ func countTokens(fn func(prompt, completion string) int, prompt, completion stri
 	return fn(prompt, completion)
 }
 
-// tokenCountingState 把「计数函数在不在」翻译成报表用的口径标注。
-func tokenCountingState(fn func(prompt, completion string) int) string {
-	if fn == nil {
-		return "not-wired"
+// tokenCountingState 把「计数函数在不在或是否有实测 usage」翻译成报表用的口径标注。
+func tokenCountingState(fn func(prompt, completion string) int, results []TaskResult) string {
+	if fn != nil {
+		return "injected"
 	}
-	return "injected"
+	for _, r := range results {
+		if r.PromptTokens > 0 || r.CompletionTokens > 0 {
+			return "llm-usage"
+		}
+	}
+	return "not-wired"
 }
 
 // checkCorpusDir 校验语料目录存在且是目录。

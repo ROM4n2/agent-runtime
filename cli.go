@@ -38,7 +38,7 @@ func parseFlags(args []string) (cliFlags, int) {
 	fs.StringVar(&f.eval.group, "group", "", "评测组：baseline|lexical|hybrid（-eval，必填，无默认）")
 	fs.IntVar(&f.eval.repeat, "repeat", 3, "每任务重复次数 N（-eval，ADR-0018 决策 3 默认 N=3）")
 	fs.Int64Var(&f.eval.seed, "seed", 0, "评测随机种子（-eval，成对受控锁定量，对照组须同值）")
-	fs.StringVar(&f.eval.model, "model", "deepseek-flash", "评测记录所用模型（-eval，与服务路径同值）")
+	fs.StringVar(&f.eval.model, "model", "", "评测记录所用模型（-eval，与服务路径同值）")
 	fs.StringVar(&f.eval.template, "template", "eval-template-v1", "prompt 模板版本标识（-eval，成对受控锁定量）")
 	fs.StringVar(&f.eval.outDir, "out", "docs/eval", "报表输出目录（-eval）")
 	if err := fs.Parse(args); err != nil {
@@ -83,6 +83,14 @@ func evalCorpusDir(corpusDir string, explicit bool) string {
 		return "."
 	}
 	return corpusDir
+}
+
+// defaultModel 返回配置指定的模型名；为空时兜底 "deepseek-chat"。
+func defaultModel(confModel string) string {
+	if confModel != "" {
+		return confModel
+	}
+	return "deepseek-chat"
 }
 
 // indexPath 返回检索索引库路径：与 store 共享 conf.DbPath 文件；
@@ -144,6 +152,9 @@ func runIndexCmd(conf config.Config, corpusDir string) int {
 // 由 resolveChatter 显式报错，不静默降级成空跑。
 // 退出码语义（ADR-0018 决策 1）：0 = 跑完（不论业务结论）；1 = harness 故障。
 func runEvalCmd(conf config.Config, opts evalOpts) int {
+	if opts.model == "" {
+		opts.model = defaultModel(conf.Model)
+	}
 	report, err := eval.Run(context.Background(), eval.RunConfig{
 		SetPath:         opts.set,
 		CorpusDir:       opts.corpus,
@@ -181,18 +192,20 @@ func runEvalCmd(conf config.Config, opts evalOpts) int {
 }
 
 // newEmbedder 按配置构造向量通道 embedder（ADR-0017 决策 3「默认关闭」）：
-// EmbedBaseURL/EmbedAPIKey/EmbedModel 三者全非空才返回实现了 llm.Embedder 的
+// EmbedBaseURL/EmbedModel/EmbedDim 全有效才返回实现了 llm.Embedder 的
 // *llm.Client（其 Embed 方法即接口实现），缺任一即返回 nil（纯词法模式，禁静默半配）。
+// EmbedAPIKey 允许为空（如本地 Ollama 免密向量服务）。
 func newEmbedder(conf config.Config) llm.Embedder {
-	if conf.EmbedBaseURL == "" || conf.EmbedAPIKey == "" || conf.EmbedModel == "" {
+	if conf.EmbedBaseURL == "" || conf.EmbedModel == "" || conf.EmbedDim <= 0 {
 		return nil
 	}
 	return llm.NewClient(llm.Config{
-		APIKey:       conf.EmbedAPIKey,
+		APIKey:       conf.DeepSeekAPIKey,
 		BaseURL:      conf.EmbedBaseURL,
 		Model:        conf.EmbedModel,
 		EmbedBaseURL: conf.EmbedBaseURL,
 		EmbedAPIKey:  conf.EmbedAPIKey,
 		EmbedModel:   conf.EmbedModel,
+		EmbedDim:     conf.EmbedDim,
 	})
 }
