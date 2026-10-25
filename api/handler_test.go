@@ -61,6 +61,18 @@ func (f *fakeTaskRunner) Subscribe(id string) ([]agent.TraceStep, <-chan agent.T
 	return snapshot, events, cancel, true
 }
 
+func (f *fakeTaskRunner) SubscribeEvents(id string) ([]agent.TraceStep, <-chan agent.TraceEvent, func(), bool) {
+	if f.buffers == nil {
+		return nil, nil, func() {}, false
+	}
+	tb := f.buffers[id]
+	if tb == nil {
+		return nil, nil, func() {}, false
+	}
+	snapshot, events, cancel := tb.SubscribeEvents()
+	return snapshot, events, cancel, true
+}
+
 func TestHandler_WithMockTaskRunner(t *testing.T) {
 	s := store.NewStore()
 	fakeRunner := &fakeTaskRunner{

@@ -75,7 +75,7 @@ func (h *Handler) HandleEvents(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) streamEvents(w http.ResponseWriter, flusher http.Flusher, id string, task store.Task, ctx context.Context) {
 	var (
-		events      <-chan agent.TraceStep
+		events      <-chan agent.TraceEvent
 		unsubscribe func()
 		sent        int
 	)
@@ -89,7 +89,7 @@ func (h *Handler) streamEvents(w http.ResponseWriter, flusher http.Flusher, id s
 		if h.runner == nil || events != nil {
 			return
 		}
-		snapshot, ch, cancel, ok := h.runner.Subscribe(id)
+		snapshot, ch, cancel, ok := h.runner.SubscribeEvents(id)
 		if !ok {
 			return
 		}
@@ -129,15 +129,21 @@ func (h *Handler) streamEvents(w http.ResponseWriter, flusher http.Flusher, id s
 		case <-ctx.Done():
 			return
 
-		case s, ok := <-events:
+		case evt, ok := <-events:
 			if !ok {
 				events = nil // 已关闭，停止从该通道读取
 				continue
 			}
-			if err := writeSSE(w, flusher, "step", s); err != nil {
-				return
+			if evt.IsDelta {
+				if err := writeSSE(w, flusher, "delta", map[string]any{"step": evt.Step, "text": evt.Text}); err != nil {
+					return
+				}
+			} else {
+				if err := writeSSE(w, flusher, "step", evt.StepVal); err != nil {
+					return
+				}
+				sent++
 			}
-			sent++
 
 		case <-keepAlive.C:
 			if _, err := io.WriteString(w, ": keepalive\n\n"); err != nil {
@@ -164,14 +170,20 @@ func (h *Handler) streamEvents(w http.ResponseWriter, flusher http.Flusher, id s
 		drain:
 			for {
 				select {
-				case s, ok := <-events:
+				case evt, ok := <-events:
 					if !ok {
 						break drain
 					}
-					if err := writeSSE(w, flusher, "step", s); err != nil {
-						return
+					if evt.IsDelta {
+						if err := writeSSE(w, flusher, "delta", map[string]any{"step": evt.Step, "text": evt.Text}); err != nil {
+							return
+						}
+					} else {
+						if err := writeSSE(w, flusher, "step", evt.StepVal); err != nil {
+							return
+						}
+						sent++
 					}
-					sent++
 				default:
 					break drain
 				}

@@ -27,11 +27,11 @@ const DefaultMaxTraces = 1000
 // Pool 用固定数量的 worker goroutine 消费任务队列，
 // 以此限制同时在飞的 LLM 请求数——上游的限流和计费按并发量算。
 type Pool struct {
-	wakeUp           chan struct{} // 通知空闲 worker 有新任务可领的唤醒信号（容量 1 缓冲通道）
-	tasks            store.TaskStore
-	size             int
-	maxQueueSize     int           // 最大允许排队积压的任务数，超出回 ErrQueueFull
-	taskTimeout      time.Duration // 单次任务 LLM 调用上限，超时即失败
+	wakeUp       chan struct{} // 通知空闲 worker 有新任务可领的唤醒信号（容量 1 缓冲通道）
+	tasks        store.TaskStore
+	size         int
+	maxQueueSize int           // 最大允许排队积压的任务数，超出回 ErrQueueFull
+	taskTimeout  time.Duration // 单次任务 LLM 调用上限，超时即失败
 	// ctx/cancel 是关闭信号的广播机制：Stop 一次 cancel，
 	// 所有 worker 与派生出去的请求 ctx 同时收到通知。
 	ctx              context.Context
@@ -226,7 +226,9 @@ func (p *Pool) process(id string) {
 	p.traceOrder = append(p.traceOrder, id)
 	p.tracesMu.Unlock()
 
-	res, err := agent.Run(taskCtx, p.llm, task.Prompt, p.tools, tb.Append)
+	res, err := agent.RunWithOptions(taskCtx, p.llm, task.Prompt, p.tools, tb.Append, agent.RunOptions{
+		OnDelta: tb.AppendDelta,
+	})
 	if err != nil {
 		// 错误全文只进日志：它携带上游响应体，可能含配额、账单等内部信息。
 		// task.Error 会经 GET /tasks/{id} 原样返回给调用方，因此只存粗粒度分类。
@@ -312,6 +314,20 @@ func (p *Pool) Subscribe(id string) (snapshot []agent.TraceStep, events <-chan a
 		return nil, nil, func() {}, false
 	}
 	snapshot, events, cancel = tb.Subscribe()
+	return snapshot, events, cancel, true
+}
+
+// SubscribeEvents 订阅指定任务的步骤快照与后续实时事件流（含逐字增量文本与步骤记录）。
+// 供 SSE 端点推送 event: delta 与 event: step。任务未领单时 ok=false。
+func (p *Pool) SubscribeEvents(id string) (snapshot []agent.TraceStep, events <-chan agent.TraceEvent, cancel func(), ok bool) {
+	p.tracesMu.Lock()
+	tb := p.traces[id]
+	p.tracesMu.Unlock()
+
+	if tb == nil {
+		return nil, nil, func() {}, false
+	}
+	snapshot, events, cancel = tb.SubscribeEvents()
 	return snapshot, events, cancel, true
 }
 

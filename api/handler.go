@@ -25,6 +25,7 @@ type TaskRunner interface {
 	Cancel(id, reason string) error
 	// Subscribe 订阅任务实时步进；任务尚未被 worker 领单时 ok=false。
 	Subscribe(id string) (snapshot []agent.TraceStep, events <-chan agent.TraceStep, cancel func(), ok bool)
+	SubscribeEvents(id string) (snapshot []agent.TraceStep, events <-chan agent.TraceEvent, cancel func(), ok bool)
 }
 
 // Handler 持有处理请求所需的依赖，由 main 装配后注入。
@@ -225,4 +226,3 @@ func (h *Handler) HandleCancel(w http.ResponseWriter, r *http.Request) {
 		slog.Error("encode response", "error", err)
 	}
 }
-
