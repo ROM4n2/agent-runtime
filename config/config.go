@@ -23,8 +23,10 @@ type Config struct {
 	EmbedAPIKey  string
 	EmbedModel   string
 	EmbedDim     int    // 0 = 不建 vec0 表；>0 才启用混合召回；负值启动失败
-	Model        string // LLM 模型名称，默认空串由装配层兜底 "deepseek-chat"
-	MaxQueueSize int    // 最大允许积压的任务数，超出回 503，默认 10000
+	Model             string // LLM 模型名称，默认空串由装配层兜底 "deepseek-chat"
+	MaxQueueSize      int    // 最大允许积压的任务数，超出回 503，默认 10000
+	WorkerConcurrency int    // 默认 3；并发执行任务的 Worker 数量
+	MaxContextTokens  int    // 默认 16000；多轮对话会话上下文安全 Token 预算
 }
 
 // defaultPath 是约定俗成的配置文件位置，相对进程工作目录。
@@ -72,6 +74,32 @@ func Load(path string) (Config, error) {
 	if maxQueueSize <= 0 {
 		maxQueueSize = 10000
 	}
+	workerConcurrency := fileCfg.WorkerConcurrency
+	if envWorker := os.Getenv("WORKER_CONCURRENCY"); envWorker != "" {
+		v, err := strconv.Atoi(envWorker)
+		if err != nil {
+			return Config{}, fmt.Errorf("config: invalid WORKER_CONCURRENCY %q: %w", envWorker, err)
+		}
+		if v > 0 {
+			workerConcurrency = v
+		}
+	}
+	if workerConcurrency <= 0 {
+		workerConcurrency = 3
+	}
+	maxContextTokens := fileCfg.MaxContextTokens
+	if envTokens := os.Getenv("MAX_CONTEXT_TOKENS"); envTokens != "" {
+		v, err := strconv.Atoi(envTokens)
+		if err != nil {
+			return Config{}, fmt.Errorf("config: invalid MAX_CONTEXT_TOKENS %q: %w", envTokens, err)
+		}
+		if v > 0 {
+			maxContextTokens = v
+		}
+	}
+	if maxContextTokens <= 0 {
+		maxContextTokens = 16000
+	}
 	return Config{
 		DeepSeekAPIKey:     firstNonEmpty(os.Getenv("DEEPSEEK_API_KEY"), fileCfg.DeepSeekAPIKey),
 		APIAuthKey:         firstNonEmpty(os.Getenv("API_AUTH_KEY"), fileCfg.APIAuthKey),
@@ -83,6 +111,8 @@ func Load(path string) (Config, error) {
 		EmbedDim:           embedDim,
 		Model:              firstNonEmpty(os.Getenv("MODEL"), fileCfg.Model),
 		MaxQueueSize:       maxQueueSize,
+		WorkerConcurrency: workerConcurrency,
+		MaxContextTokens:  maxContextTokens,
 	}, nil
 }
 
@@ -165,8 +195,26 @@ func loadFile(path string) (Config, error) {
 				return cfg, fmt.Errorf("config: %s:%d max_queue_size 必须是整数：%q", path, lineNo, value)
 			}
 			cfg.MaxQueueSize = n
+		case "worker_concurrency":
+			n, err := strconv.Atoi(value)
+			if err != nil {
+				return cfg, fmt.Errorf("config: %s:%d worker_concurrency 必须是整数：%q", path, lineNo, value)
+			}
+			if n <= 0 {
+				return cfg, fmt.Errorf("config: %s:%d worker_concurrency 必须大于 0：%d", path, lineNo, n)
+			}
+			cfg.WorkerConcurrency = n
+		case "max_context_tokens":
+			n, err := strconv.Atoi(value)
+			if err != nil {
+				return cfg, fmt.Errorf("config: %s:%d max_context_tokens 必须是整数：%q", path, lineNo, value)
+			}
+			if n <= 0 {
+				return cfg, fmt.Errorf("config: %s:%d max_context_tokens 必须大于 0：%d", path, lineNo, n)
+			}
+			cfg.MaxContextTokens = n
 		default:
-			return cfg, fmt.Errorf("config: %s:%d 未知配置项 %q（只支持 deepseek_api_key、api_auth_key、db_path、task_timeout_seconds、embed_base_url、embed_api_key、embed_model、embed_dim、model、max_queue_size）", path, lineNo, key)
+			return cfg, fmt.Errorf("config: %s:%d 未知配置项 %q（只支持 deepseek_api_key、api_auth_key、db_path、task_timeout_seconds、embed_base_url、embed_api_key、embed_model、embed_dim、model、max_queue_size、worker_concurrency、max_context_tokens）", path, lineNo, key)
 		}
 	}
 	if err := sc.Err(); err != nil {
