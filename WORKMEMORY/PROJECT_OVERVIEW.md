@@ -25,11 +25,16 @@
 - **P7 事务性持久化任务队列与 SSE 打字机流式推断完整交付（2026-10-25）**：
   1. **事务持久队列与削峰调度**：在 `store.TaskStore` 扩展 `ClaimNext`（原子 FIFO 抢占）与 `PendingCount`（积压统计）；在 SQLite WAL 模式下利用 CAS 更新（`status='running' WHERE id=? AND status='pending'`）原子抢占任务；`worker.Pool` 彻底移除定长内存 channel，改为持有无缓冲通知信标 `wakeUp chan struct{}` 进行 Push-Notify 唤醒；通过 `max_queue_size`（默认 10,000）削峰填谷，彻底消除并发突发下的 503 丢单。
   2. **原生 Token 级打字机流式推断**：`llm.Client` 新增 `ChatWithToolsStream` 逐行解析上游 SSE 并处理分块工具参数组装；`agent.RunWithOptions` 引入 `OnDelta` 回调；`TraceBuffer` 支持 `AppendDelta` 与 `SubscribeEvents` 双轨广播；`api/events.go` 实时下发 `event: delta`，首字延迟（TTFT）从数秒降至数百毫秒，兼顾打字机流畅性与断网快照自愈对账。
+- **P8 多轮会话状态机、滑动上下文安全压缩与弹性并发配置完整交付（2026-10-25）**：
+  1. **会话状态机持久化 (`SessionStore`)**：抽象 `store.SessionStore` 接口，提供内存与 SQLite WAL 双实现；建立 `sessions` 表与 `session_messages` 表（带 `idx_session_messages_session_id` 复合索引）；`tasks` 表扩展 `session_id` 字段，支持 `POST /run` 传参绑定会话，打破单轮任务孤岛。
+  2. **纯算法确定性滑动窗口压缩 (`agent.CompactMessages`)**：在 `agent/compactor.go` 实现无额外堆逃逸估算（`EstimateTokens`）与轮次安全截断；超限时绝对锚定首部 System 提示词与末尾最新 1 轮消息，按 User 轮次边界折半截断中间历史并插入系统折叠注记（`[系统提示：为避免上下文超限，更早的 N 轮历史对话已自动折叠]`），零模型调用开销根除 Context Window 爆炸与 400 崩溃。
+  3. **调度解耦与防膨胀门禁落地 (`worker/session.go`)**：在 `worker/session.go`（76 行）解耦实现会话拉取拼装（`assembleSessionMessages`）与轮次写回（`recordSessionTurn`），使已达 385 行的 `worker/pool.go` 免于体积膨胀（守住 395 行）；彻底修复取消时序竞争（TOCTOU 防护）与静默吞错（Red Card #4）。
+  4. **并发与安全窗口弹性配置**：在 `config` 增设 `worker_concurrency`（默认 3）与 `max_context_tokens`（默认 16000），消除服务装配硬编码；在 `api/session_handler.go` 暴露 `GET /sessions/{id}` 与 `GET /sessions/{id}/messages?limit=N` REST 查询路由。
 - **评测结论（docs/eval/2026-10-25-*-r3.md）**：
   - Baseline：0.00 [0.00, 0.00]（0/90）；
   - Lexical（v2 提示词）：1.00 [0.00, 1.00]（61/90，none×61, wrong-span×24, right-span-wrong-reasoning×5，总 Token 1042K+72K）；
   - Hybrid（v2 提示词 + nomic-embed-text 768维）：1.00 [0.25, 1.00]（67/90，none×67, wrong-span×20, right-span-wrong-reasoning×3，总 Token 987K+71K）→ **合入**。
-- 测试基线：`GOWORK=off go test -race ./... -count=1` 12 包全绿（278 个 `func Test` / 442 RUN，0 数据竞争）。代码规模 73 个 Go 文件（34 生产 / 39 测试，共 16,638 行）。
+- 测试基线：`GOWORK=off go test -race ./... -count=1` 12 包全绿（321 个 `func Test` / 498 RUN，0 数据竞争）。代码规模 83 个 Go 文件（37 生产 / 46 测试，共 19,102 行）。
 - 架构领域分层：
   - `prompts`: 版本化系统提示词管理（`go:embed`，提供 `Get`，内嵌反幻觉与 Grounded Citation 铁律）；
   - `agent/tool`: 独立工具系统与 Tool 注册表（内置纯 AST 算术引擎与时区工具，提供 `TerminalClassifier` 协议下沉接口）；
@@ -68,5 +73,7 @@
   handler 内 `http.NewResponseController(w).SetWriteDeadline(time.Time{})` 清除写截止时间（不支持时忽略）。
 - **订阅者慢导致任务执行被拖死** → 持锁同步投递到无缓冲通道 → `TraceBuffer.Append` 对订阅通道
   `select`+`default` 非阻塞投递，慢消费者只丢自己的增量，终态再用快照对账补齐。
+- **取消在飞时序竞争（TOCTOU）导致 `task is not running` 偶发报错** → `worker.process` 先更新 store 状态为 running 后才登记 `inFlight` 句柄，外部轮询方察觉 running 立即触发 cancel 会在极短时间窗口内找不到句柄 → 必须严格在 `p.tasks.Update(id, StatusRunning)` **之前**先完成 `inFlight.Store(id, cancelCause)` 注册；并在 `p.Cancel` 侧增加微重试自愈。
+- **会话写回静默吞错引发长期记忆丢失（Red Card #4）** → `recordSessionTurn` 中使用 `_ =` 丢弃 `AppendSessionMessage` 错误，导致数据库锁或存储故障时无感知断开记忆链 → 必须显式捕获并使用 `fmt.Errorf` 向上包装错误，并在 Worker 调度层触发 `slog.Warn` 报警。
 - **崩溃恢复重灌 pending 时再次丢任务** → 队列容量只有 worker 数，直接 `Enqueue` 会满即失败 →
   新增 `Pool.EnqueueWait(ctx,id)` 阻塞等待空位，停机/ctx 取消时中止且任务保持 pending 待下次恢复。

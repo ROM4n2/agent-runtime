@@ -199,3 +199,18 @@ PR #3（feat(p7): transactional task queue and native SSE typewriter streaming i
   - Description: High-concurrency Go Agent runtime: SQLite WAL transactional queue, native SSE typewriter streaming, ReAct cognitive engine with context cancellation, FTS5+vec0 hybrid retrieval, and AST architecture fitness gates.
   - Topics: golang, ai-agent, agent-runtime, llm, deepseek, sse, streaming, sqlite-wal, hybrid-search, concurrency, react-agent.
 - P7 里程碑正式归档闭环。
+
+### 2026-10-25 23:10 | gemini-3.8-flash-high__hermes-agent | WORK_END
+Caps: filesystem-read, filesystem-write, shell-exec, git
+P8 多轮会话状态机、纯算法滑动上下文安全压缩与并发池弹性配置在特性分支 feat/p8-session-and-compaction 全量实施完成（5 核心 Task 均经 TDD 与 Maker-Checker PASS 闭环）：
+- Task 1 [Tier2] (15cff02): store.SessionStore 接口与 memory/sqlite 双实现；建立 sessions 与 session_messages 持久化表及 (session_id, id ASC) 复合索引；Task 扩展 SessionID 字段；Reviewer PASS 审查。
+- Task 2 [Tier2] (6162978): agent/compactor.go 纯算法确定性滑动截断上下文压缩器；实现零堆逃逸 Token 估算（EstimateTokens）与轮次原子保全截断（CompactMessages）；绝对锚定 System 提示词与最新 1 轮消息，中间历史折半截断并注记折叠说明；Reviewer PASS 审查。
+- Task 3 [Tier2] (e5d2dbd): config 层新增 worker_concurrency（默认 3）与 max_context_tokens（默认 16000），支持环境变量优先覆盖与非法值强校验，解耦服务并发硬编码；Reviewer PASS 审查。
+- Task 4 [Tier2] (204a38c, 659da1c, 4459ed1): worker/session.go（76 行）同包正交解耦实现多轮历史拉取组装（assembleSessionMessages）与轮次写回（recordSessionTurn），使已达 385 行的 worker/pool.go 免于体积膨胀（守住 395 行）；彻底修复静默吞错（Red Card #4）与取消句柄登记时序 TOCTOU 竞争；Reviewer PASS 审查。
+- Task 5 [Tier2] (1b3c59d): api/session_handler.go（80 行）实现会话 REST 路由与 POST /run 会话绑定；提供 GET /sessions/{id} 与 GET /sessions/{id}/messages?limit=N；无缝继承同一套安全中间件链；Reviewer PASS 审查。
+- Batch 6 [Tier1]: 门面文档与技术资产全量刷新（README.md 架构图与 API 表、ADR-0020 状态置为已实施、三篇面试手册同步 P8 架构亮点与问答、.agent-context.md 与 WORKMEMORY 物理基线同步、implementation_plan_p8.md 填报 Deviation Table）。
+- 物理门禁验证：
+  - 测试套件：GOWORK=off go test -race ./... 12 包全绿，321 个 func Test / 498 个 === RUN 分支，0 竞争。
+  - 架构门禁：TestArchitecture FileLineBudget (全部生产 <= 400 行) 与 DAGImports 白名单全绿。
+  - 代码规模：83 个 Go 文件（37 生产 / 46 测试，共 19,102 行）。
+  - 隐私扫描：零本机路径泄漏。

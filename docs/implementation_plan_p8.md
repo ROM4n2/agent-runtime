@@ -293,5 +293,7 @@
 ## [NOTE] Deviation Table (post-execution, filled before merge)
 
 | plan text | what was actually built | why |
-| --- | --- | --- |
-| *(待执行后据实填写；无偏差填「无偏差」)* | | |
+|---|---|---|
+| `worker/session.go` 计划 `_ = p.sessionStore.AppendSessionMessage(...)` | 经 Maker-Checker 独立审查发现 Red Card #4 缺陷，改为显式校验并包装 `error` 向上冒泡 | 坚守防御性工程红线，杜绝会话写入失败时静默丢记忆，在调度层以 `slog.Warn` 显式暴露 |
+| `worker/pool.go` 计划在 `process` 中途登记 `inFlight` 句柄 | 调整为在 `tasks.Update(id, store.StatusRunning)` **之前**先完成 `inFlight.Store(id, cancelCause)` 登记 | 消除外部快速轮询 cancel 触发的 TOCTOU 竞争（防止在外部已读到 `running` 时 cancel 报 `task is not running`） |
+| Task 5 测试文件命名 `api/session_test.go` | 实际创建为 `api/session_handler_test.go` | 与实现文件 `api/session_handler.go` 严格对应，提升代码可维护性与索引可读性 |
