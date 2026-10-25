@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -222,5 +223,58 @@ func TestTraceBuffer_SlidingWindowPreservesCapacity(t *testing.T) {
 	}
 	if snap[capacity-1].Step != 9 {
 		t.Errorf("expected newest step to be 9, got %d", snap[capacity-1].Step)
+	}
+}
+
+func TestTraceBuffer_SubscribeEvents(t *testing.T) {
+	tb := NewTraceBuffer(10)
+	snap, ch, cancel := tb.SubscribeEvents()
+	if len(snap) != 0 {
+		t.Fatalf("expected empty initial snapshot, got %d", len(snap))
+	}
+	defer cancel()
+
+	tb.Append(TraceStep{Step: 0, Kind: KindThink, Detail: "thinking"})
+	tb.AppendDelta(1, "hello")
+	tb.AppendDelta(1, " world")
+	tb.Append(TraceStep{Step: 1, Kind: KindFinal, Detail: "hello world"})
+
+	var received []TraceEvent
+	for i := 0; i < 4; i++ {
+		select {
+		case evt, ok := <-ch:
+			if !ok {
+				t.Fatalf("channel closed prematurely at index %d", i)
+			}
+			received = append(received, evt)
+		case <-time.After(time.Second):
+			t.Fatalf("timeout waiting for event %d", i)
+		}
+	}
+
+	if received[0].IsDelta != false || received[0].Step != 0 || received[0].StepVal.Kind != KindThink || received[0].StepVal.Detail != "thinking" {
+		t.Errorf("event 0 mismatch: %+v", received[0])
+	}
+	if received[1].IsDelta != true || received[1].Step != 1 || received[1].Text != "hello" {
+		t.Errorf("event 1 mismatch: %+v", received[1])
+	}
+	if received[2].IsDelta != true || received[2].Step != 1 || received[2].Text != " world" {
+		t.Errorf("event 2 mismatch: %+v", received[2])
+	}
+	if received[3].IsDelta != false || received[3].Step != 1 || received[3].StepVal.Kind != KindFinal || received[3].StepVal.Detail != "hello world" {
+		t.Errorf("event 3 mismatch: %+v", received[3])
+	}
+
+	// Verify cancel is idempotent and closes channel
+	cancel()
+	cancel()
+
+	select {
+	case _, ok := <-ch:
+		if ok {
+			t.Errorf("expected channel to be closed after cancel")
+		}
+	case <-time.After(time.Second):
+		t.Errorf("timeout waiting for closed channel")
 	}
 }
