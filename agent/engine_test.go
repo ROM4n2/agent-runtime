@@ -592,3 +592,117 @@ func TestRun_NilRegistryHandled(t *testing.T) {
 		t.Errorf("expected tools passed to Chatter to be nil, got: %+v", fc.receivedTools[0])
 	}
 }
+
+func TestRunWithOptions_SystemPromptInjection(t *testing.T) {
+	t.Run("with system prompt", func(t *testing.T) {
+		fc := &fakeChatter{
+			turns: []*llm.AssistantTurn{
+				{Content: "answer with sys"},
+			},
+		}
+		opts := RunOptions{
+			SystemPrompt: "You are a helpful assistant.",
+		}
+		res, err := RunWithOptions(context.Background(), fc, "hello", nil, nil, opts)
+		if err != nil {
+			t.Fatalf("expected nil error, got: %v", err)
+		}
+		if res != "answer with sys" {
+			t.Errorf("expected 'answer with sys', got %q", res)
+		}
+		if len(fc.receivedMsgs) == 0 || len(fc.receivedMsgs[0]) < 2 {
+			t.Fatalf("expected at least 2 messages, got: %+v", fc.receivedMsgs)
+		}
+		if fc.receivedMsgs[0][0].Role != "system" || fc.receivedMsgs[0][0].Content != "You are a helpful assistant." {
+			t.Errorf("expected messages[0] to be system with prompt, got %+v", fc.receivedMsgs[0][0])
+		}
+		if fc.receivedMsgs[0][1].Role != "user" || fc.receivedMsgs[0][1].Content != "hello" {
+			t.Errorf("expected messages[1] to be user with prompt, got %+v", fc.receivedMsgs[0][1])
+		}
+	})
+
+	t.Run("empty system prompt backward compatibility", func(t *testing.T) {
+		fc := &fakeChatter{
+			turns: []*llm.AssistantTurn{
+				{Content: "answer without sys"},
+			},
+		}
+		opts := RunOptions{
+			SystemPrompt: "",
+		}
+		res, err := RunWithOptions(context.Background(), fc, "hello", nil, nil, opts)
+		if err != nil {
+			t.Fatalf("expected nil error, got: %v", err)
+		}
+		if res != "answer without sys" {
+			t.Errorf("expected 'answer without sys', got %q", res)
+		}
+		if len(fc.receivedMsgs) == 0 || len(fc.receivedMsgs[0]) != 1 {
+			t.Fatalf("expected exactly 1 message, got: %+v", fc.receivedMsgs)
+		}
+		if fc.receivedMsgs[0][0].Role != "user" || fc.receivedMsgs[0][0].Content != "hello" {
+			t.Errorf("expected messages[0] to be user, got %+v", fc.receivedMsgs[0][0])
+		}
+	})
+}
+
+func TestRunWithOptions_OnUsageAccumulation(t *testing.T) {
+	fc := &fakeChatter{
+		turns: []*llm.AssistantTurn{
+			{
+				Content: "step 1 calling tool",
+				ToolCalls: []llm.ToolCall{
+					{
+						ID:   "call_calc",
+						Type: "function",
+						Function: llm.ToolCallFn{
+							Name:      "calculate",
+							Arguments: `{"expression":"1+1"}`,
+						},
+					},
+				},
+				Usage: llm.Usage{
+					PromptTokens:     10,
+					CompletionTokens: 5,
+					TotalTokens:      15,
+				},
+			},
+			{
+				Content: "final answer 2",
+				Usage: llm.Usage{
+					PromptTokens:     8,
+					CompletionTokens: 4,
+					TotalTokens:      12,
+				},
+			},
+		},
+	}
+
+	var recordedUsages []llm.Usage
+	opts := RunOptions{
+		OnUsage: func(u llm.Usage) {
+			recordedUsages = append(recordedUsages, u)
+		},
+	}
+
+	reg := tool.DefaultRegistry()
+	res, err := RunWithOptions(context.Background(), fc, "what is 1+1?", reg, nil, opts)
+	if err != nil {
+		t.Fatalf("expected nil error, got: %v", err)
+	}
+	if res != "final answer 2" {
+		t.Errorf("expected result 'final answer 2', got %q", res)
+	}
+
+	if len(recordedUsages) != 2 {
+		t.Fatalf("expected 2 usage events, got %d: %+v", len(recordedUsages), recordedUsages)
+	}
+	expectedFirst := llm.Usage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15}
+	if recordedUsages[0] != expectedFirst {
+		t.Errorf("usage[0] mismatch: got %+v, want %+v", recordedUsages[0], expectedFirst)
+	}
+	expectedSecond := llm.Usage{PromptTokens: 8, CompletionTokens: 4, TotalTokens: 12}
+	if recordedUsages[1] != expectedSecond {
+		t.Errorf("usage[1] mismatch: got %+v, want %+v", recordedUsages[1], expectedSecond)
+	}
+}
