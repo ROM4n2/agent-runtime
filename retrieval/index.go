@@ -129,11 +129,24 @@ func createSchema(db *sql.DB, embedDim int) error {
 	return nil
 }
 
+// indexMissingError 实现 tool.TerminalClassifier 接口，声明索引缺失对应的任务终态文案。
+// 作为无字段可比较结构体，不仅使 errors.Is(err, ErrIndexMissing) 的哨兵比对依然成立，
+// 也让 worker 层无需反向 import retrieval 即可经 errors.As 提取终态分类（解耦架构依赖）。
+type indexMissingError struct{}
+
+func (indexMissingError) Error() string {
+	return "retrieval: index not built"
+}
+
+func (indexMissingError) TerminalStatus() string {
+	return "index missing"
+}
+
 // 哨兵错误（ADR-0017 决策 5/6）：索引缺失与语料陈旧均为不可重试的显式失败，
 // 由上层（Task 7 工具层 / Task 8 装配层）映射为独立终态分类，绝不静默降级。
 var (
 	// ErrIndexMissing 表示索引尚未构建（corpus_meta 无记录）。
-	ErrIndexMissing = errors.New("retrieval: index not built")
+	ErrIndexMissing error = indexMissingError{}
 	// ErrCorpusStale 表示语料内容指纹与已建索引版本不符，需重建。
 	ErrCorpusStale = errors.New("retrieval: corpus version mismatch, rebuild required")
 )
