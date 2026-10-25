@@ -51,7 +51,9 @@ type Pool struct {
 	traceOrder []string
 	// inFlight 保存每个在飞任务的取消句柄（taskID -> context.CancelCauseFunc），
 	// 支撑外部 POST /tasks/{id}/cancel 主动抢占：直接物理中断上游 HTTP 调用。
-	inFlight sync.Map
+	inFlight         sync.Map
+	sessionStore     store.SessionStore
+	maxContextTokens int
 }
 
 // SetMaxQueueSize 设置最大允许排队积压的任务数，供测试和自定义配置使用。
@@ -78,6 +80,7 @@ func NewPool(size int, taskTimeout time.Duration, s store.TaskStore, client agen
 		traces:           make(map[string]*agent.TraceBuffer),
 		maxTraces:        DefaultMaxTraces,
 		traceOrder:       make([]string, 0, 64),
+		maxContextTokens: 16000,
 	}
 	return &p
 }
@@ -226,8 +229,12 @@ func (p *Pool) process(id string) {
 	p.traceOrder = append(p.traceOrder, id)
 	p.tracesMu.Unlock()
 
+	history, err := p.assembleSessionMessages(taskCtx, task.SessionID, task.Prompt, "")
+	if err != nil {
+		slog.Warn("worker: assemble session messages failed", "task_id", id, "session_id", task.SessionID, "error", err)
+	}
 	res, err := agent.RunWithOptions(taskCtx, p.llm, task.Prompt, p.tools, tb.Append, agent.RunOptions{
-		OnDelta: tb.AppendDelta,
+		HistoryMessages: history, OnDelta: tb.AppendDelta,
 	})
 	if err != nil {
 		// 错误全文只进日志：它携带上游响应体，可能含配额、账单等内部信息。
@@ -264,6 +271,11 @@ func (p *Pool) process(id string) {
 	}
 
 	metrics.IncDone() // 终态：在飞数 -1，完成数 +1
+	if task.SessionID != "" {
+		if rErr := p.recordSessionTurn(p.ctx, task.SessionID, task.Prompt, res); rErr != nil {
+			slog.Warn("worker: record session turn failed", "task_id", id, "session_id", task.SessionID, "error", rErr)
+		}
+	}
 	if err := p.tasks.Complete(id, res, nil); err != nil {
 		slog.Error("worker: task complete failed", "task_id", id, "error", err)
 	}

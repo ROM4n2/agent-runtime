@@ -39,15 +39,18 @@ func NewSQLStore(path string) (*SQLStore, error) {
 		return nil, err
 	}
 	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS tasks (
-		id     INTEGER PRIMARY KEY AUTOINCREMENT,
-		status TEXT NOT NULL,
-		prompt TEXT NOT NULL,
-		result TEXT NOT NULL DEFAULT '',
-		error  TEXT NOT NULL DEFAULT ''
+		id         INTEGER PRIMARY KEY AUTOINCREMENT,
+		status     TEXT NOT NULL,
+		prompt     TEXT NOT NULL,
+		result     TEXT NOT NULL DEFAULT '',
+		error      TEXT NOT NULL DEFAULT '',
+		session_id TEXT NOT NULL DEFAULT ''
 	)`); err != nil {
 		db.Close()
 		return nil, err
 	}
+	// 兼容已有数据库迁移，确保 session_id 列存在
+	_, _ = db.Exec("ALTER TABLE tasks ADD COLUMN session_id TEXT NOT NULL DEFAULT ''")
 	if err := initSessionSchema(db); err != nil {
 		db.Close()
 		return nil, err
@@ -60,18 +63,18 @@ func (s *SQLStore) Close() error {
 	return s.db.Close()
 }
 
-// Create 写入 pending 任务并由 SQLite 原生自增主键生成 id 返回。
+// CreateInSession 写入带会话关联的 pending 任务并由 SQLite 原生自增主键生成 id 返回。
 // 极端情况下写入失败返回空串，调用方会据此让该次提交失败而非静默丢失。
-func (s *SQLStore) Create(prompt string) string {
+func (s *SQLStore) CreateInSession(prompt, sessionID string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	res, err := s.db.Exec(
-		"INSERT INTO tasks (status, prompt) VALUES (?, ?)",
-		StatusPending, prompt,
+		"INSERT INTO tasks (status, prompt, session_id) VALUES (?, ?, ?)",
+		StatusPending, prompt, sessionID,
 	)
 	if err != nil {
-		slog.Error("sqlstore: create", "error", err)
+		slog.Error("sqlstore: create in session", "error", err)
 		return ""
 	}
 	lastID, err := res.LastInsertId()
@@ -82,13 +85,18 @@ func (s *SQLStore) Create(prompt string) string {
 	return strconv.FormatInt(lastID, 10)
 }
 
+// Create 写入独立 pending 任务并返回 id。
+func (s *SQLStore) Create(prompt string) string {
+	return s.CreateInSession(prompt, "")
+}
+
 // Get 按 id 读取任务；不存在返回 ErrNotFound（与内存实现语义一致）。
 // 读不加 mu，允许与写并发。
 func (s *SQLStore) Get(id string) (Task, error) {
 	var t Task
 	err := s.db.QueryRow(
-		"SELECT id, status, prompt, result, error FROM tasks WHERE id = ?", id,
-	).Scan(&t.ID, &t.Status, &t.Prompt, &t.Result, &t.Error)
+		"SELECT id, status, prompt, result, error, session_id FROM tasks WHERE id = ?", id,
+	).Scan(&t.ID, &t.Status, &t.Prompt, &t.Result, &t.Error, &t.SessionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Task{}, ErrNotFound
 	}
@@ -235,9 +243,9 @@ func (s *SQLStore) ClaimNext(ctx context.Context) (Task, error) {
 
 	var t Task
 	err := s.db.QueryRowContext(ctx,
-		"SELECT id, prompt, result, error FROM tasks WHERE status = ? ORDER BY id ASC LIMIT 1",
+		"SELECT id, prompt, result, error, session_id FROM tasks WHERE status = ? ORDER BY id ASC LIMIT 1",
 		StatusPending,
-	).Scan(&t.ID, &t.Prompt, &t.Result, &t.Error)
+	).Scan(&t.ID, &t.Prompt, &t.Result, &t.Error, &t.SessionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Task{}, ErrNoTaskAvailable
 	}

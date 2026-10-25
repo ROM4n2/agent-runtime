@@ -345,3 +345,36 @@ func TestSQLStore_ValidationAndContext(t *testing.T) {
 		t.Errorf("expected context cancellation error, got nil")
 	}
 }
+
+// TestSQLStore_CreateInSession 验证 SQLite 中任务绑定会话创建及 SessionID 字段持久化与获取。
+func TestSQLStore_CreateInSession(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test_session_task.db")
+	store, err := NewSQLStore(dbPath)
+	if err != nil {
+		t.Fatalf("NewSQLStore failed: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+	id := store.CreateInSession("sql prompt", "sess_sql_123")
+	if id == "" {
+		t.Fatal("expected non-empty task ID")
+	}
+
+	task, err := store.Get(id)
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if task.SessionID != "sess_sql_123" {
+		t.Errorf("task.SessionID = %q, want %q", task.SessionID, "sess_sql_123")
+	}
+
+	// 验证 ClaimNext 同样能扫描出 session_id
+	claimed, err := store.ClaimNext(ctx)
+	if err != nil {
+		t.Fatalf("ClaimNext failed: %v", err)
+	}
+	if claimed.SessionID != "sess_sql_123" {
+		t.Errorf("claimed.SessionID = %q, want %q", claimed.SessionID, "sess_sql_123")
+	}
+}

@@ -26,7 +26,7 @@ var allowedInternalImports = map[string][]string{
 	"agent-runtime/agent/tool": {"agent-runtime/llm"},
 	"agent-runtime/agent":      {"agent-runtime/agent/tool", "agent-runtime/llm"},
 	"agent-runtime/retrieval":  {"agent-runtime/agent/tool", "agent-runtime/llm"},
-	"agent-runtime/worker":     {"agent-runtime/agent", "agent-runtime/agent/tool", "agent-runtime/metrics", "agent-runtime/store"},
+	"agent-runtime/worker":     {"agent-runtime/agent", "agent-runtime/agent/tool", "agent-runtime/llm", "agent-runtime/metrics", "agent-runtime/store"},
 	"agent-runtime/api":        {"agent-runtime/agent", "agent-runtime/metrics", "agent-runtime/store"},
 	"agent-runtime/eval":       {"agent-runtime/agent", "agent-runtime/agent/tool", "agent-runtime/llm", "agent-runtime/prompts", "agent-runtime/retrieval"},
 	"agent-runtime":            {"agent-runtime/agent", "agent-runtime/agent/tool", "agent-runtime/api", "agent-runtime/config", "agent-runtime/eval", "agent-runtime/llm", "agent-runtime/metrics", "agent-runtime/prompts", "agent-runtime/retrieval", "agent-runtime/store", "agent-runtime/worker"},

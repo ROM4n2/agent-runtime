@@ -298,3 +298,29 @@ func TestStore_ConcurrentSessionAppends(t *testing.T) {
 		idSeen[m.ID] = true
 	}
 }
+
+// TestStore_CreateInSession 验证任务绑定会话创建及 SessionID 字段持久化与获取。
+func TestStore_CreateInSession(t *testing.T) {
+	s := NewStore()
+	id := s.CreateInSession("test prompt", "sess_abc")
+	if id == "" {
+		t.Fatal("expected non-empty task ID")
+	}
+
+	task, err := s.Get(id)
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if task.SessionID != "sess_abc" {
+		t.Errorf("task.SessionID = %q, want %q", task.SessionID, "sess_abc")
+	}
+
+	// 验证 ClaimNext 保留 SessionID
+	claimed, err := s.ClaimNext(context.Background())
+	if err != nil {
+		t.Fatalf("ClaimNext failed: %v", err)
+	}
+	if claimed.SessionID != "sess_abc" {
+		t.Errorf("claimed.SessionID = %q, want %q", claimed.SessionID, "sess_abc")
+	}
+}

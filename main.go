@@ -123,7 +123,12 @@ func runWithArgs(args []string) int {
 		taskTimeout = 30 * time.Second
 	}
 	cfg.HTTPTimeout = taskTimeout
-	p := worker.NewPool(3, taskTimeout, s, llm.NewClient(cfg))
+	p := worker.NewPool(conf.WorkerConcurrency, taskTimeout, s, llm.NewClient(cfg))
+	p.SetMaxQueueSize(conf.MaxQueueSize)
+	p.SetMaxContextTokens(conf.MaxContextTokens)
+	if ss, ok := s.(store.SessionStore); ok {
+		p.SetSessionStore(ss)
+	}
 	// search_docs 进 pool：必须在 Start 前注册，worker 消费任务时才看得到工具 spec。
 	p.RegisterTool(retrieval.SearchTool(idx, f.corpusDir))
 
