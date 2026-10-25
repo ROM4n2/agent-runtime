@@ -48,6 +48,10 @@ func NewSQLStore(path string) (*SQLStore, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := initSessionSchema(db); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return &SQLStore{db: db, path: path}, nil
 }
 

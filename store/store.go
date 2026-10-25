@@ -57,9 +57,12 @@ type TaskStore interface {
 // map 本身不支持并发写（会直接 panic），且 Update/Complete 都是
 // 读-改-写的复合操作，必须整段加锁才不会丢更新。
 type Store struct {
-	tasks  map[string]Task
-	mu     sync.Mutex
-	nextID int
+	tasks       map[string]Task
+	mu          sync.Mutex
+	nextID      int
+	sessions    map[string]Session
+	sessionMsgs map[string][]SessionMessage
+	nextMsgID   int64
 }
 
 // Task 是一个异步任务的全部状态。
@@ -83,6 +86,8 @@ type Task struct {
 func NewStore() *Store {
 	var store Store
 	store.tasks = make(map[string]Task)
+	store.sessions = make(map[string]Session)
+	store.sessionMsgs = make(map[string][]SessionMessage)
 	return &store
 }
 
