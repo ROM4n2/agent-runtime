@@ -57,15 +57,13 @@ type Pool struct {
 }
 
 // SetMaxQueueSize 设置最大允许排队积压的任务数，供测试和自定义配置使用。
-func (p *Pool) SetMaxQueueSize(n int) {
-	p.maxQueueSize = n
-}
+func (p *Pool) SetMaxQueueSize(n int) { p.maxQueueSize = n }
 
 func NewPool(size int, taskTimeout time.Duration, s store.TaskStore, client agent.Chatter) *Pool {
 	ctx, cancel := context.WithCancel(context.Background())
 	stopWorkerCtx, stopWorkerCancel := context.WithCancel(context.Background())
 
-	p := Pool{
+	return &Pool{
 		size:             size,
 		maxQueueSize:     10000,
 		taskTimeout:      taskTimeout,
@@ -82,7 +80,6 @@ func NewPool(size int, taskTimeout time.Duration, s store.TaskStore, client agen
 		traceOrder:       make([]string, 0, 64),
 		maxContextTokens: 16000,
 	}
-	return &p
 }
 
 func (p *Pool) Start() {
@@ -106,11 +103,9 @@ func (p *Pool) RegisterTool(t tool.Tool) {
 }
 
 func (p *Pool) Stop(ctxs ...context.Context) error {
-	var ctx context.Context
+	ctx := context.Background()
 	if len(ctxs) > 0 && ctxs[0] != nil {
 		ctx = ctxs[0]
-	} else {
-		ctx = context.Background()
 	}
 	p.stopping.Store(true)
 	p.stopWorkerCancel() // 通知空闲 worker 退出循环，正在 process 的 worker 会跑完当前任务
@@ -183,6 +178,17 @@ func (p *Pool) worker() {
 // process 执行单个任务：取 prompt → 调 LLM → 写回结果。
 // 任何错误都在这里终结——worker 是 goroutine，没有调用方可以把 error 返回给谁。
 func (p *Pool) process(id string) {
+	// 从 p.ctx 派生：继承停机广播，同时携带可归因的取消 cause。
+	// 在状态更新为 running 前先登记 inFlight 句柄，消除 TOCTOU 竞态。
+	parentCtx, cancelCause := context.WithCancelCause(p.ctx)
+	p.inFlight.Store(id, cancelCause)
+	taskCtx, cancelTimeout := context.WithTimeout(parentCtx, p.taskTimeout)
+	defer func() {
+		p.inFlight.Delete(id)
+		cancelTimeout()
+		cancelCause(nil)
+	}()
+
 	// 先置 running，让轮询方立刻看到状态推进
 	if err := p.tasks.Update(id, store.StatusRunning); err != nil {
 		slog.Error("worker: update task to running failed", "task_id", id, "error", err)
@@ -203,20 +209,6 @@ func (p *Pool) process(id string) {
 		}
 		return
 	}
-
-	// 从 p.ctx 派生：继承停机广播，同时携带可归因的取消 cause。
-	// 外层 WithCancelCause 让「用户主动取消」与「停机取消 / 超时」可精确区分，
-	// 内层 WithTimeout 保留单次任务期限（子 ctx 超时优先暴露 DeadlineExceeded）。
-	parentCtx, cancelCause := context.WithCancelCause(p.ctx)
-	// 先登记句柄再派生超时子 ctx：即使取消请求落在两行之间，
-	// 超时子 ctx 也会从已带 cause 的父 ctx 继承取消原因，不丢抢占。
-	p.inFlight.Store(id, cancelCause)
-	taskCtx, cancelTimeout := context.WithTimeout(parentCtx, p.taskTimeout)
-	defer func() {
-		p.inFlight.Delete(id)
-		cancelTimeout()
-		cancelCause(nil) // 释放资源；不覆盖已完成任务的既有取消原因
-	}()
 
 	tb := agent.NewTraceBuffer(agent.MaxTraceSteps)
 	p.tracesMu.Lock()
@@ -348,18 +340,24 @@ type userCancelCause struct {
 	reason string
 }
 
-func (c *userCancelCause) Error() string {
-	return "user canceled: " + c.reason
-}
+func (c *userCancelCause) Error() string { return "user canceled: " + c.reason }
 
 // Cancel 主动抢占指定在飞任务：通过 context 因果链物理中断正在进行的上游调用。
 // 任务不在飞（未开始、已终态或不存在）时返回 ErrTaskNotRunning，由 API 层映射为 409。
 func (p *Pool) Cancel(id, reason string) error {
 	v, ok := p.inFlight.Load(id)
 	if !ok {
-		return ErrTaskNotRunning
+		for i := 0; i < 20; i++ {
+			if tk, err := p.tasks.Get(id); err != nil || tk.Status != store.StatusRunning {
+				break
+			}
+			time.Sleep(time.Millisecond)
+			if v, ok = p.inFlight.Load(id); ok {
+				break
+			}
+		}
 	}
-	cancel, ok := v.(context.CancelCauseFunc)
+	cancel, _ := v.(context.CancelCauseFunc)
 	if !ok || cancel == nil {
 		return ErrTaskNotRunning
 	}
