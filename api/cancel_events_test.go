@@ -191,3 +191,89 @@ func TestHandleEvents_StreamsLiveSteps(t *testing.T) {
 		t.Errorf("missing live step payload, body=%q", body.String())
 	}
 }
+
+// TestHandleEvents_StreamsLiveDeltas 验证 SSE 流式推送逐字增量文本（打字机效果）与步骤完成事件。
+func TestHandleEvents_StreamsLiveDeltas(t *testing.T) {
+	s := store.NewStore()
+	id := s.Create("live delta task")
+	tb := agent.NewTraceBuffer(16)
+	fr := &fakeTaskRunner{
+		traces:  make(map[string][]agent.TraceStep),
+		buffers: map[string]*agent.TraceBuffer{id: tb},
+	}
+	srv := httptest.NewServer(NewHandler(s, fr, "").Routes())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/tasks/" + id + "/events")
+	if err != nil {
+		t.Fatalf("GET events: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if ct := resp.Header.Get("Content-Type"); !strings.Contains(ct, "text/event-stream") {
+		t.Fatalf("Content-Type = %q, want text/event-stream", ct)
+	}
+
+	time.Sleep(50 * time.Millisecond)
+
+	tb.Append(agent.TraceStep{Step: 0, Kind: agent.KindThink, Detail: "thinking"})
+	tb.AppendDelta(1, "calculating ")
+	tb.AppendDelta(1, "2+3")
+	tb.Append(agent.TraceStep{Step: 1, Kind: agent.KindFinal, Detail: "5"})
+	if err := s.Complete(id, "5", nil); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+
+	var (
+		body        strings.Builder
+		stepEvents  int
+		deltaEvents []string
+		sawDone     bool
+		deadline    = time.Now().Add(3 * time.Second)
+	)
+	scanner := bufio.NewScanner(resp.Body)
+	var currentEvent string
+	for scanner.Scan() {
+		line := scanner.Text()
+		body.WriteString(line + "\n")
+		if strings.HasPrefix(line, "event: ") {
+			currentEvent = strings.TrimPrefix(line, "event: ")
+			if currentEvent == "step" {
+				stepEvents++
+			} else if currentEvent == "done" {
+				sawDone = true
+				break
+			}
+		} else if strings.HasPrefix(line, "data: ") && currentEvent == "delta" {
+			deltaEvents = append(deltaEvents, strings.TrimPrefix(line, "data: "))
+			currentEvent = ""
+		}
+		if time.Now().After(deadline) {
+			break
+		}
+	}
+
+	if stepEvents != 2 {
+		t.Errorf("step frames = %d, want 2 (body=%q)", stepEvents, body.String())
+	}
+	if len(deltaEvents) != 2 {
+		t.Errorf("delta frames = %d, want 2 (body=%q)", len(deltaEvents), body.String())
+	}
+	wantDelta1 := `{"step":1,"text":"calculating "}`
+	wantDelta2 := `{"step":1,"text":"2+3"}`
+	if len(deltaEvents) >= 1 && deltaEvents[0] != wantDelta1 {
+		t.Errorf("delta[0] = %q, want %q", deltaEvents[0], wantDelta1)
+	}
+	if len(deltaEvents) >= 2 && deltaEvents[1] != wantDelta2 {
+		t.Errorf("delta[1] = %q, want %q", deltaEvents[1], wantDelta2)
+	}
+	if !sawDone {
+		t.Errorf("did not receive done frame, body=%q", body.String())
+	}
+	if !strings.Contains(body.String(), `"detail":"thinking"`) {
+		t.Errorf("missing step 0 thinking payload, body=%q", body.String())
+	}
+	if !strings.Contains(body.String(), `"detail":"5"`) {
+		t.Errorf("missing step 1 final payload, body=%q", body.String())
+	}
+}

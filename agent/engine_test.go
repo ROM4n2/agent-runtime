@@ -706,3 +706,65 @@ func TestRunWithOptions_OnUsageAccumulation(t *testing.T) {
 		t.Errorf("usage[1] mismatch: got %+v, want %+v", recordedUsages[1], expectedSecond)
 	}
 }
+
+type mockStreamingChatter struct {
+	streamCalls, chatCalls int
+	streamDeltas           []string
+	turn                   *llm.AssistantTurn
+}
+
+func (m *mockStreamingChatter) ChatWithTools(ctx context.Context, msgs []llm.Message, tools []llm.Tool) (*llm.AssistantTurn, error) {
+	m.chatCalls++
+	return m.turn, nil
+}
+
+func (m *mockStreamingChatter) ChatWithToolsStream(ctx context.Context, msgs []llm.Message, tools []llm.Tool, onDelta llm.DeltaHandler) (*llm.AssistantTurn, error) {
+	m.streamCalls++
+	for _, d := range m.streamDeltas {
+		if onDelta != nil {
+			onDelta(d)
+		}
+	}
+	return m.turn, nil
+}
+
+func TestRunWithOptions_StreamingChatterInvocation(t *testing.T) {
+	t.Run("streaming chatter used when OnDelta provided", func(t *testing.T) {
+		mc := &mockStreamingChatter{
+			streamDeltas: []string{"Hello", " world"},
+			turn:         &llm.AssistantTurn{Content: "Hello world"},
+		}
+		type deltaRec struct {
+			step int
+			text string
+		}
+		var received []deltaRec
+		opts := RunOptions{
+			OnDelta: func(step int, text string) {
+				received = append(received, deltaRec{step: step, text: text})
+			},
+		}
+		res, err := RunWithOptions(context.Background(), mc, "hi", nil, nil, opts)
+		if err != nil || res != "Hello world" {
+			t.Fatalf("expected 'Hello world' with nil error, got res=%q, err=%v", res, err)
+		}
+		if mc.streamCalls != 1 || mc.chatCalls != 0 {
+			t.Errorf("expected 1 stream call and 0 chat call, got stream=%d, chat=%d", mc.streamCalls, mc.chatCalls)
+		}
+		if len(received) != 2 || received[0] != (deltaRec{0, "Hello"}) || received[1] != (deltaRec{0, " world"}) {
+			t.Errorf("unexpected deltas: %+v", received)
+		}
+	})
+
+	t.Run("standard ChatWithTools used when OnDelta is nil", func(t *testing.T) {
+		mc := &mockStreamingChatter{turn: &llm.AssistantTurn{Content: "standard response"}}
+		opts := RunOptions{OnDelta: nil}
+		res, err := RunWithOptions(context.Background(), mc, "hi", nil, nil, opts)
+		if err != nil || res != "standard response" {
+			t.Fatalf("expected 'standard response' with nil error, got res=%q, err=%v", res, err)
+		}
+		if mc.streamCalls != 0 || mc.chatCalls != 1 {
+			t.Errorf("expected 0 stream call and 1 chat call, got stream=%d, chat=%d", mc.streamCalls, mc.chatCalls)
+		}
+	})
+}

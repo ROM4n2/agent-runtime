@@ -2,7 +2,7 @@
 
 异步任务 + Worker Pool + LLM Agent 的 Go 后端服务。客户端提交 prompt，服务异步调用 DeepSeek：
 worker 以 **think → call tool → observe** 的多步认知循环执行 agent（内置 `calculate` / `current_time` / `search_docs` 工具），
-通过轮询或 SSE 获取结果。支持用户主动取消、掉电崩溃恢复与 FTS5+vec0 RRF 混合知识检索。
+通过轮询或 SSE 获取结果。支持用户主动取消、掉电崩溃恢复、FTS5+vec0 RRF 混合知识检索、SQLite WAL 事务持久队列削峰与 SSE 原生打字机流式推断。
 
 ## Architecture
 
@@ -11,18 +11,21 @@ worker 以 **think → call tool → observe** 的多步认知循环执行 agent
   │ POST /run (prompt)     │
   │───────────────────────→│ api: store.Create(prompt) → task_id (202)
   │                         │         ▼
-  │                         │   queue(chan string)
+  │                         │   Transactional Queue (SQLite / Memory)
+  │                         │   Push-Notify (wakeUp beacon)
   │                         │         ▼
   │                         │  [worker 1][worker 2][worker 3]
-  │                         │   store.Update(running)
+  │                         │   tasks.ClaimNext (atomic pending→running)
   │                         │         ▼
-  │                         │   runAgent: llm.ChatWithTools ⇄ 执行工具(calc/time/search_docs)
+  │                         │   runAgent: ChatWithToolsStream ⇄ 工具(calc/time/search_docs)
+  │                         │         │      ▼ onDelta
+  │                         │         │   TraceBuffer.AppendDelta
   │                         │         ▼
   │                         │   store.Complete → done / failed
   │ GET /tasks/{id} 轮询    │
   │───────────────────────→│ api: store.Get(id) → Task JSON (200)
   │ GET /tasks/{id}/events  │
-  │───────────────────────→│ SSE: agent.TraceBuffer 实时步进 + done
+  │───────────────────────→│ SSE: event: delta (打字机) + step + done
   │ POST /tasks/{id}/cancel │
   │───────────────────────→│ api: Pool.Cancel → context 物理中断上游
 ```
@@ -54,7 +57,7 @@ Copy-Item config.yaml.example config.yaml   # 然后填真实值
 go run .
 ```
 
-`config.yaml` 已被 `.gitignore` 忽略。只支持扁平的 `key: value`，解析到嵌套或未知 key 会直接启动失败，不静默忽略。已支持 9 项配置：`deepseek_api_key`、`api_auth_key`、`model`、`db_path`、`task_timeout_seconds`、`embed_base_url`、`embed_api_key`、`embed_model`、`embed_dim`：
+`config.yaml` 已被 `.gitignore` 忽略。只支持扁平的 `key: value`，解析到嵌套或未知 key 会直接启动失败，不静默忽略。已支持 10 项配置：`deepseek_api_key`、`api_auth_key`、`model`、`db_path`、`task_timeout_seconds`、`embed_base_url`、`embed_api_key`、`embed_model`、`embed_dim`、`max_queue_size`：
 
 ```yaml
 deepseek_api_key: "sk-你的key"
@@ -62,6 +65,7 @@ api_auth_key: "你的服务端密钥"
 model: "deepseek-chat"   # 可选：默认 deepseek-chat，环境变量 MODEL 优先级更高
 db_path: ""   # 可选：填 SQLite 文件路径（如 agent-runtime.db）即启用持久化，留空用内存存储
 task_timeout_seconds: 30   # 可选：单次任务 LLM 调用超时（正整数，0=默认 30s）
+max_queue_size: 10000   # 可选：最大允许排队积压的任务数（超出返回 503），默认 10000
 # embed_* 四项为检索功能的向量通道配置（ADR-0017），全部留空 = 纯词法检索（lexical）
 # 本地 Ollama 等免密向量引擎无需鉴权时，embed_api_key 可以留空
 embed_base_url: "http://localhost:11434/v1"   # OpenAI 兼容 embeddings 端点
@@ -123,14 +127,14 @@ Invoke-RestMethod -Uri http://localhost:8080/metrics
 | POST | `/run` | 提交任务 | `{"prompt":"..."}` | `202 {"task_id":"1"}` |
 | GET | `/tasks/{id}` | 查询状态（轮询） | - | `{"id":"1","status":"done","prompt":"...","result":"...","error":""}` |
 | POST | `/tasks/{id}/cancel` | 主动取消在飞任务 | `{"reason":"user_aborted"}`（可选） | `202 {"id":"1","status":"canceling"}`；任务不在飞返回 `409` |
-| GET | `/tasks/{id}/events` | SSE 实时步进 | - | `text/event-stream`：`event: step` / `event: done` |
+| GET | `/tasks/{id}/events` | SSE 实时流式推送 | - | `text/event-stream`：`event: delta` (打字机增量) / `event: step` / `event: done` |
 | GET | `/healthz` | 存活探针 | - | `200 ok`（纯文本） |
 | GET | `/metrics` | Prometheus 指标 | - | `agent_tasks_*` 文本格式 |
 | GET | `/` | 单页 Demo | - | `text/html` 页面 |
 
 Status 取值：`pending` → `running` → `done` / `failed`
 
-并发上限 3 个任务同时执行，超出部分排队等待。
+并发上限 3 个任务同时执行，超出部分排队（基于 SQLite WAL 事务队列削峰，默认支撑 10,000+ 任务排队）。
 
 ## Observability
 
@@ -160,7 +164,7 @@ Token 框填一次就会存进浏览器 `localStorage`，下次打开自动回�
 ## Testing
 
 ```powershell
-GOWORK=off go test -race ./... -count=1  # 260 个测试用例 / 422 个测试分支全绿，零 race
+GOWORK=off go test -race ./... -count=1  # 278 个测试用例 / 442 个测试分支全绿，零 race
 go test -bench=. -benchmem ./worker/     # 基准测试
 ```
 
@@ -206,7 +210,7 @@ agent-runtime/
 │       ├── calculate.go  # AST 递归下降算术求值器（防代码注入）
 │       └── time.go       # IANA 时区解析时间工具
 ├── worker/               # 任务调度执行层（Worker Pool，纯化并发池）
-│   └── pool.go           # 信号量并发池、两阶段停机、崩溃恢复重灌、取消树管理
+│   └── pool.go           # Push-Notify 事务性抢占并发池、两阶段停机、排队排空、取消树管理
 ├── retrieval/            # 混合检索即工具（独立领域包，零反向依赖）
 │   ├── index.go          # 索引生命周期：Open、Close、CheckFresh、Rebuild
 │   ├── schema.go         # SQLite DDL、FTS5 表结构与版本指纹
@@ -227,9 +231,10 @@ agent-runtime/
 │   └── eval-template-v2.md # Grounded Citation 铁律与反幻觉拒答规范
 ├── store/                # 任务状态存储（TaskStore 接口，消除数据竞争）
 │   ├── store.go          # 内存原子存储（默认）
-│   └── sql.go            # modernc SQLite WAL 持久化与崩溃补偿
+│   └── sql.go            # modernc SQLite WAL 持久化、原子 CAS 抢占与崩溃补偿
 ├── llm/                  # 模型适配层（OpenAI 兼容协议封装）
-│   └── client.go         # ChatWithTools、幂等 joinEndpoint、Usage 解析
+│   ├── client.go         # ChatWithTools、幂等 joinEndpoint、Usage 解析
+│   └── stream.go         # ChatWithToolsStream 原生 SSE 流式解析与工具分块组装
 ├── metrics/              # 监控度量（sync/atomic 零依赖 Prometheus 格式）
 ├── config/               # 扁平配置解析器（环境变量 > config.yaml > 默认值）
 ├── docs/                 # ADR 决策记录、设计规格、实施计划与实测报表

@@ -173,3 +173,18 @@ PR #2（feat(p6): production alignment, architecture AST gates, and empirical hy
 - 远端与本地分支 feat/p6-production-alignment 已全量清理。
 - master 分支本地同步至最新 HEAD @ aba1eba，工作树 clean。
 - 全仓物理验收：GOWORK=off go test -race ./... 12 包全绿（260 测试 / 422 分支，0 竞争）；构建与 vet 0 警告；TestArchitecture AST DAG 与体积预算硬门禁通过。P6 生产级闭环正式归档。
+
+### 2026-10-25 20:25 | gemini-3.8-flash-high__hermes-agent | WORK_END
+Caps: filesystem-read, filesystem-write, shell-exec, git
+P7 事务性任务队列与打字机流式推断在特性分支 feat/p7-queue-and-streaming 全量实施完成（5 核心 Task 均经 TDD 与 Maker-Checker PASS 闭环）：
+- Task 1 [Tier2] (9ac7ac3): store.TaskStore 扩展 ClaimNext 与 PendingCount 接口；Store 内存实现严格 FIFO 抢占；SQLStore 实现原子 CAS 事务抢占（WHERE id=? AND status='pending'）；通过 10-worker 并发压测与 Reviewer PASS 审查。
+- Task 2 [Tier2] (426baf8): worker.Pool 调度器全面升级为 Push-Notify 事务性拉单模型；彻底移除内存通道 queue chan string，替换为容量为 1 的通知信标 wakeUp chan struct{}；config.MaxQueueSize（默认 10000）支持削峰防爆，彻底根除 503 丢单；Stop 优雅停机排空剩余 pending 任务。Reviewer PASS 审查。
+- Task 3 [Tier2] (d0a25f6): llm/stream.go 原生 SSE 流式推断与分块工具调用组装（ChatWithToolsStream）；逐行安全解析 SSE 帧、忽略注释与换行、多 chunk 拼接 tool_calls 参数并按 index 排序；提取 Usage。Reviewer PASS 审查。
+- Task 4 [Tier2] (0c52c2e): agent/engine.go 引入 OnDelta 回调并在 Chatter 支持 StreamingChatter 时调用流式方法；TraceBuffer 支持 TraceEvent 双轨广播，AppendDelta 实时推送文本增量且不污染 steps 历史缓冲，SubscribeEvents 支持长连接实时增量消费与幂等退订。Reviewer PASS 审查。
+- Task 5 [Tier2] (2d3885b): API 层 SSE 实时流式传输与削峰背压集成；TaskRunner 与 worker/pool.go 对齐 SubscribeEvents；worker/pool.go:process 将 LLM 流式增量直连 TraceBuffer.AppendDelta；api/events.go 下发 event: delta 与 event: step 帧；集成测试验证打字机与终态流。Reviewer PASS 审查。
+- Batch 6 [Tier1]: 门面文档与技术资产全量刷新（README.md 架构图与 API 表、ADR-0019 状态置为已实施、三篇面试手册同步 P7 架构亮点与问答、.agent-context.md 与 WORKMEMORY 物理基线同步）。
+- 物理门禁验证：
+  - 测试套件：GOWORK=off go test -race ./... 12 包全绿，278 个 func Test / 442 个 === RUN 分支，0 竞争。
+  - 架构门禁：TestArchitecture FileLineBudget (全部 <= 400 行) 与 DAGImports 白名单全绿。
+  - 代码规模：73 个 Go 文件（34 生产 / 39 测试，共 16,638 行）。
+  - 隐私扫描：零本机路径泄漏。

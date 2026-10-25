@@ -23,6 +23,9 @@ const (
 // 调用方应当用 errors.Is 判断，而不是比较字符串。
 var ErrNotFound = errors.New("task not found")
 
+// ErrNoTaskAvailable 表示当前无处于 pending 状态的任务可供抢占。
+var ErrNoTaskAvailable = errors.New("store: no pending task available")
+
 // ErrMsgServerRestart 是崩溃恢复时为「僵尸 running」写入的终态文案，
 // 与优雅停机的 "server shutdown" 区分：它代表上次进程非正常死亡。
 const ErrMsgServerRestart = "server restarted unexpectedly"
@@ -42,6 +45,11 @@ type TaskStore interface {
 	// 僵尸 running（进程非正常死亡的残留）批量标记为 failed。
 	// 返回的 recoveredRunning 是被标记失败的任务数。
 	RecoverTasks(ctx context.Context) (pendingIDs []string, recoveredRunning int, err error)
+	// ClaimNext 原子抢占并返回最老的一个 pending 任务，并将其状态迁移为 running。
+	// 若当前无 pending 任务，返回 ErrNoTaskAvailable。
+	ClaimNext(ctx context.Context) (Task, error)
+	// PendingCount 返回当前处于 pending 状态的任务积压数。
+	PendingCount(ctx context.Context) (int64, error)
 }
 
 // Store 是任务的并发安全容器。
@@ -207,4 +215,59 @@ func (s *Store) RecoverTasks(ctx context.Context) ([]string, int, error) {
 	})
 
 	return pending, recovered, nil
+}
+
+// PendingCount 返回当前处于 pending 状态的任务积压数。
+// 用于入队背压检查以及指标度量，加锁遍历防止读写竞争。
+func (s *Store) PendingCount(ctx context.Context) (int64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var count int64
+	for _, task := range s.tasks {
+		if task.Status == StatusPending {
+			count++
+		}
+	}
+	return count, nil
+}
+
+// ClaimNext 原子抢占并返回最老的一个 pending 任务，并将其状态迁移为 running。
+// 遵循 FIFO 调度契约（按自增 ID 排序），若无待处理任务则返回 ErrNoTaskAvailable。
+func (s *Store) ClaimNext(ctx context.Context) (Task, error) {
+	if err := ctx.Err(); err != nil {
+		return Task{}, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var pending []Task
+	for _, task := range s.tasks {
+		if task.Status == StatusPending {
+			pending = append(pending, task)
+		}
+	}
+	if len(pending) == 0 {
+		return Task{}, ErrNoTaskAvailable
+	}
+
+	sort.Slice(pending, func(i, j int) bool {
+		a, errA := strconv.Atoi(pending[i].ID)
+		b, errB := strconv.Atoi(pending[j].ID)
+		if errA != nil || errB != nil {
+			return pending[i].ID < pending[j].ID
+		}
+		return a < b
+	})
+
+	oldest := pending[0]
+	oldest.Status = StatusRunning
+	s.tasks[oldest.ID] = oldest
+
+	return oldest, nil
 }

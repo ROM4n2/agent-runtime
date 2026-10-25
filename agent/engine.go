@@ -53,6 +53,7 @@ func waitBackoff(ctx context.Context, d time.Duration) bool {
 type RunOptions struct {
 	SystemPrompt string
 	OnUsage      func(llm.Usage)
+	OnDelta      func(step int, text string)
 }
 
 // RunWithOptions 使用可选参数执行认知循环。
@@ -108,7 +109,19 @@ func RunWithOptions(ctx context.Context, c Chatter, prompt string, reg *tool.Reg
 	}
 
 	for ; step < MaxAgentSteps; step++ {
-		resp, err := c.ChatWithTools(ctx, turns, tools)
+		var (
+			resp *llm.AssistantTurn
+			err  error
+		)
+		// 若 Chatter 支持流式增量推断且调用方注入了 OnDelta 回调，
+		// 则走流式推断以实时广播逐字增量；否则平滑回退到标准全量调用。
+		if sc, ok := c.(llm.StreamingChatter); ok && opts.OnDelta != nil {
+			resp, err = sc.ChatWithToolsStream(ctx, turns, tools, func(delta string) {
+				opts.OnDelta(step, delta)
+			})
+		} else {
+			resp, err = c.ChatWithTools(ctx, turns, tools)
+		}
 		if err != nil {
 			emit(KindError, "", "upstream error", "")
 			return "", err

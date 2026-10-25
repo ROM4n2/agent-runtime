@@ -21,10 +21,11 @@
 
 ### Q3：如果任务队列满了，[`Enqueue`](../../worker/pool.go#L114) 会发生什么？会有什么影响？该如何修复？
 *   **标准回答**：
-    > **影响**：如果队列满，`Enqueue` 会在 [`HandleRun`](../../api/handler.go#L42) 中发生阻塞。这会直接**挂起 net/http 派生的处理该 HTTP 请求的 Goroutine**，导致响应无法发回，用户请求持续转圈。同时会产生僵尸任务（Store 中已 Create，但用户拿不到 TaskID）。
-    > **修复方案**：
-    > 1. **短期（快速失败）**：在 Handler 中使用 `select` + `default` 改造成非阻塞通道写入。一旦队列满了，立即清理 Store 中的待执行记录，并返回 **`HTTP 503 Service Unavailable`** 响应。
-    > 2. **长期（持久化队列）**：引入 SQLite 或 Redis 等外部存储组件，将内存队列持久化，在隔离内存压力的同时，防止进程重启导致任务丢失。
+    > **演进背景**：早期版本中，如果队列满，`Enqueue` 是定长 channel 裸发送，会在 [`HandleRun`](../../api/handler.go#L42) 中发生阻塞，导致 HTTP Goroutine 挂起，异步退化为同步。
+    > **P7 终极方案（事务持久队列 + Push-Notify 抢占）**：
+    > 1. **落库即入队**：`store.Create` 写入即为 `pending` 状态，进入持久化存储；
+    > 2. **削峰背压**：通过 `max_queue_size`（默认 10,000）控制积压上限，`Enqueue` 仅非阻塞投递给容量为 1 的 `wakeUp` 信标。未超载时快速返回 `202 Accepted`，超载时才快速返回 **`HTTP 503 Service Unavailable`** + `Retry-After: 1` 并清理孤儿记录；
+    > 3. **原子事务抢占**：Worker 在 `ClaimNext` 中通过原子 CAS 事务（`UPDATE tasks SET status='running' WHERE id=? AND status='pending'`）主动拉单，彻底根治并发丢单与停机孤儿任务。
 
 ### Q4：`worker` 包需要调用大模型，却并没有导入 `llm` 包；在接入检索后，也没有导入 `retrieval` 包，这是怎么实现的？为什么要这么设计？
 *   **标准回答**：
@@ -48,3 +49,10 @@
     > *   若成功：状态必为 `done`，且只有 `Result` 有值。
     > *   若失败：状态必为 `failed`，且只有 `Error` 有值。
     > 如果只提供通用的 `Update` 接口，外部 Worker 调用时可能会拼出矛盾的状态（如“done”却带 error）。因此我们通过 [`Complete`](../../store/store.go#L96) 方法收归这个逻辑：传入 `err` 是否为 `nil` 决定终态和数据写入，在 Store 内部完成规则闭环，防止外部逻辑写坏数据。
+
+### Q6：SSE 流式接口是如何同时兼顾逐字打字机推断与断连自愈的？
+*   **标准回答**：
+    > **双轨分层设计（Dual-Track Event Model）**：
+    > 1. **原生流式推断**：`llm.Client` 实现 `ChatWithToolsStream` 逐行解析上游 SSE，通过回调将增量 token 实时上浮至 `agent.RunWithOptions` 的 `OnDelta`。
+    > 2. **事件分层广播**：`TraceBuffer` 维护完整的步进历史切片 `steps`（容量 32），同时向流式订阅通道推送 `event: delta`（逐字增量）与 `event: step`（步骤完成）。
+    > 3. **优雅自愈与降级**：客户端断网重连时，`SubscribeEvents` 首先原子地返回历史步骤快照，重放历史，再接入后续实时增量；任务终态前排空增量队列，最后下发 `event: done`，兼顾打字机流畅感与离线对账可靠性。

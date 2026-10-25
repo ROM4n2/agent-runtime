@@ -1,8 +1,11 @@
 package store
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -133,5 +136,194 @@ func TestSQLStore_AutoIncrementID(t *testing.T) {
 	id4 := s.Create("task 4")
 	if id4 != "4" {
 		t.Fatalf("expected AUTOINCREMENT ID 4 after deleting max id 3, got %q (old code reused max+1)", id4)
+	}
+}
+
+func TestSQLStore_ClaimNext_FIFO(t *testing.T) {
+	ctx := context.Background()
+	s := newSQLStore(t)
+
+	// 空库时返回 ErrNoTaskAvailable
+	_, err := s.ClaimNext(ctx)
+	if !errors.Is(err, ErrNoTaskAvailable) {
+		t.Fatalf("ClaimNext on empty SQLStore = %v, want ErrNoTaskAvailable", err)
+	}
+
+	id1 := s.Create("task 1")
+	id2 := s.Create("task 2")
+	id3 := s.Create("task 3")
+
+	t1, err := s.ClaimNext(ctx)
+	if err != nil {
+		t.Fatalf("ClaimNext 1 failed: %v", err)
+	}
+	if t1.ID != id1 || t1.Status != StatusRunning || t1.Prompt != "task 1" {
+		t.Errorf("unexpected t1: %+v", t1)
+	}
+
+	t2, err := s.ClaimNext(ctx)
+	if err != nil {
+		t.Fatalf("ClaimNext 2 failed: %v", err)
+	}
+	if t2.ID != id2 || t2.Status != StatusRunning || t2.Prompt != "task 2" {
+		t.Errorf("unexpected t2: %+v", t2)
+	}
+
+	t3, err := s.ClaimNext(ctx)
+	if err != nil {
+		t.Fatalf("ClaimNext 3 failed: %v", err)
+	}
+	if t3.ID != id3 || t3.Status != StatusRunning || t3.Prompt != "task 3" {
+		t.Errorf("unexpected t3: %+v", t3)
+	}
+
+	_, err = s.ClaimNext(ctx)
+	if !errors.Is(err, ErrNoTaskAvailable) {
+		t.Fatalf("ClaimNext on exhausted SQLStore = %v, want ErrNoTaskAvailable", err)
+	}
+}
+
+func TestSQLStore_PendingCount(t *testing.T) {
+	ctx := context.Background()
+	s := newSQLStore(t)
+
+	count, err := s.PendingCount(ctx)
+	if err != nil {
+		t.Fatalf("PendingCount error: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("initial PendingCount = %d, want 0", count)
+	}
+
+	id1 := s.Create("task 1")
+	id2 := s.Create("task 2")
+
+	count, err = s.PendingCount(ctx)
+	if err != nil {
+		t.Fatalf("PendingCount: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("PendingCount = %d, want 2", count)
+	}
+
+	_, err = s.ClaimNext(ctx)
+	if err != nil {
+		t.Fatalf("ClaimNext: %v", err)
+	}
+
+	count, err = s.PendingCount(ctx)
+	if err != nil {
+		t.Fatalf("PendingCount after claim = %d, want 1", count)
+	}
+	if count != 1 {
+		t.Fatalf("PendingCount = %d, want 1", count)
+	}
+
+	if err := s.Complete(id2, "done", nil); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	_ = id1 // claimed as running
+
+	count, err = s.PendingCount(ctx)
+	if err != nil {
+		t.Fatalf("PendingCount: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("PendingCount = %d, want 0", count)
+	}
+}
+
+func TestSQLStore_ClaimNext_Concurrency(t *testing.T) {
+	ctx := context.Background()
+	s := newSQLStore(t)
+
+	const totalTasks = 20
+	createdIDs := make(map[string]bool)
+	for i := 1; i <= totalTasks; i++ {
+		id := s.Create(fmt.Sprintf("prompt-%d", i))
+		if id == "" {
+			t.Fatalf("Create returned empty id for task %d", i)
+		}
+		createdIDs[id] = true
+	}
+
+	pending, err := s.PendingCount(ctx)
+	if err != nil {
+		t.Fatalf("PendingCount: %v", err)
+	}
+	if pending != totalTasks {
+		t.Fatalf("initial pending = %d, want %d", pending, totalTasks)
+	}
+
+	var mu sync.Mutex
+	claimedIDs := make([]string, 0, totalTasks)
+
+	const numWorkers = 10
+	var wg sync.WaitGroup
+	wg.Add(numWorkers)
+
+	for i := 0; i < numWorkers; i++ {
+		go func() {
+			defer wg.Done()
+			for {
+				task, err := s.ClaimNext(ctx)
+				if errors.Is(err, ErrNoTaskAvailable) {
+					// 队列已被全部抢占完毕，Worker 退出
+					return
+				}
+				if err != nil {
+					t.Errorf("ClaimNext unexpected error: %v", err)
+					return
+				}
+				mu.Lock()
+				claimedIDs = append(claimedIDs, task.ID)
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	// 断言总抢占数严格等于 20
+	if len(claimedIDs) != totalTasks {
+		t.Fatalf("claimed count = %d, want %d", len(claimedIDs), totalTasks)
+	}
+
+	// 断言每个 task ID 只被唯一抢占一次，无碰撞、无遗漏
+	seen := make(map[string]int)
+	for _, id := range claimedIDs {
+		seen[id]++
+		if !createdIDs[id] {
+			t.Errorf("claimed unknown task id: %s", id)
+		}
+	}
+	if len(seen) != totalTasks {
+		t.Errorf("unique claimed tasks = %d, want %d", len(seen), totalTasks)
+	}
+	for id, count := range seen {
+		if count != 1 {
+			t.Errorf("task %s was claimed %d times, want 1", id, count)
+		}
+	}
+
+	// 验证所有任务在 SQLite 中状态均为 StatusRunning
+	for id := range createdIDs {
+		task, err := s.Get(id)
+		if err != nil {
+			t.Errorf("Get(%s) error: %v", id, err)
+			continue
+		}
+		if task.Status != StatusRunning {
+			t.Errorf("task %s status = %q, want %q", id, task.Status, StatusRunning)
+		}
+	}
+
+	// 最终 PendingCount 应为 0
+	pending, err = s.PendingCount(ctx)
+	if err != nil {
+		t.Fatalf("PendingCount: %v", err)
+	}
+	if pending != 0 {
+		t.Errorf("final pending count = %d, want 0", pending)
 	}
 }

@@ -18,6 +18,7 @@ func isolateEnv(t *testing.T) {
 	t.Setenv("EMBED_MODEL", "")
 	t.Setenv("EMBED_DIM", "")
 	t.Setenv("MODEL", "")
+	t.Setenv("MAX_QUEUE_SIZE", "")
 }
 
 func writeCfg(t *testing.T, content string) string {
@@ -35,8 +36,9 @@ func TestLoad_MissingFileIsNotAnError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("配置文件可选，不应报错：%v", err)
 	}
-	if cfg != (Config{}) {
-		t.Errorf("cfg = %+v, want zero", cfg)
+	want := Config{MaxQueueSize: 10000}
+	if cfg != want {
+		t.Errorf("cfg = %+v, want %+v", cfg, want)
 	}
 }
 
@@ -253,7 +255,7 @@ func TestLoad_UnknownKeyErrorListsAllKeys(t *testing.T) {
 	msg := err.Error()
 	for _, key := range []string{
 		"deepseek_api_key", "api_auth_key", "db_path", "task_timeout_seconds",
-		"embed_base_url", "embed_api_key", "embed_model", "embed_dim", "model",
+		"embed_base_url", "embed_api_key", "embed_model", "embed_dim", "model", "max_queue_size",
 	} {
 		if !strings.Contains(msg, key) {
 			t.Errorf("错误文案应列举合法 key %q：%s", key, msg)
@@ -285,5 +287,41 @@ func TestLoad_EnvOverridesModel(t *testing.T) {
 	}
 	if cfg.Model != "custom-model-from-env" {
 		t.Errorf("Model = %q, want custom-model-from-env (环境变量优先)", cfg.Model)
+	}
+}
+
+func TestLoad_MaxQueueSizeFromFile(t *testing.T) {
+	isolateEnv(t)
+	p := writeCfg(t, "max_queue_size: 500\n")
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MaxQueueSize != 500 {
+		t.Errorf("MaxQueueSize = %d, want 500", cfg.MaxQueueSize)
+	}
+}
+
+func TestLoad_MaxQueueSizeEnvPriority(t *testing.T) {
+	isolateEnv(t)
+	t.Setenv("MAX_QUEUE_SIZE", "200")
+	p := writeCfg(t, "max_queue_size: 500\n")
+	cfg, err := Load(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MaxQueueSize != 200 {
+		t.Errorf("MaxQueueSize = %d, want 200 (环境变量优先)", cfg.MaxQueueSize)
+	}
+}
+
+func TestLoad_MaxQueueSizeDefault(t *testing.T) {
+	isolateEnv(t)
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MaxQueueSize != 10000 {
+		t.Errorf("MaxQueueSize = %d, want default 10000", cfg.MaxQueueSize)
 	}
 }
