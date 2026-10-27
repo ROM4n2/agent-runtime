@@ -74,19 +74,23 @@ func (c *Client) ChatWithToolsStream(ctx context.Context, msgs []Message, tools 
 		return nil, fmt.Errorf("llm: marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, joinEndpoint(c.baseURL, chatCompletionsPath), bytes.NewReader(body))
+	// 流式发送同样走 doWithRetry，但不变式不同：只在「响应体尚未被消费」时重试。
+	// 一旦 delta 已经下发给客户端，任何重试都会把同一段文本再打一遍，
+	// 打字机体验直接崩坏。doWithRetry 仅在拿到非 200 响应或连接建立失败时重试，
+	// 天然满足该约束；200 之后的中途断流不重试，按失败处理（ADR-0021）。
+	resp, err := c.doWithRetry(ctx, func() (*http.Request, error) {
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, joinEndpoint(c.baseURL, chatCompletionsPath), bytes.NewReader(body))
+		if err != nil {
+			return nil, fmt.Errorf("llm: create request: %w", err)
+		}
+		// 显式指定 Accept: text/event-stream，告知中间反向代理和上游网关保持非缓冲流式下发
+		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("Accept", "text/event-stream")
+		return httpReq, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("llm: create request: %w", err)
-	}
-
-	// 显式指定 Accept: text/event-stream，告知中间反向代理和上游网关保持非缓冲流式下发
-	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Accept", "text/event-stream")
-
-	resp, err := c.http.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("llm: send request: %w", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 

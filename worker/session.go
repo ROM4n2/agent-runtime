@@ -18,6 +18,14 @@ func (p *Pool) SetMaxContextTokens(tokens int) {
 	p.maxContextTokens = tokens
 }
 
+// SetSessionHistoryLimit 设置组装会话历史时拉取的最大消息条数（ADR-0021 决策 3）。
+// 必须与 SetMaxContextTokens 一样在 Start 之前调用：worker 消费任务时读取该值。
+func (p *Pool) SetSessionHistoryLimit(n int) {
+	if n > 0 {
+		p.sessionHistoryLimit = n
+	}
+}
+
 // assembleSessionMessages 拉取指定 sessionID 的历史消息，与系统提示词和当前 prompt 组装，
 // 并通过 agent.CompactMessages 执行滑动窗口压缩，返回符合大模型上下文预算的消息列表。
 func (p *Pool) assembleSessionMessages(ctx context.Context, sessionID, prompt, sysPrompt string) ([]llm.Message, error) {
@@ -25,7 +33,11 @@ func (p *Pool) assembleSessionMessages(ctx context.Context, sessionID, prompt, s
 		return nil, nil
 	}
 
-	msgs, err := p.sessionStore.GetSessionMessages(ctx, sessionID, 100)
+	limit := p.sessionHistoryLimit
+	if limit <= 0 {
+		limit = 100
+	}
+	msgs, err := p.sessionStore.GetSessionMessages(ctx, sessionID, limit)
 	if err != nil {
 		return nil, err
 	}

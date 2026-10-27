@@ -140,6 +140,7 @@ func TestEmbed_Success(t *testing.T) {
 }
 
 // TestEmbed_APIError 验证非 2xx → *APIError 且带 StatusCode。
+// Retry 显式设为 1 次尝试：本测试断言的是错误映射，不应依赖退避节奏（重试行为见 retry_test.go）。
 func TestEmbed_APIError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -147,7 +148,7 @@ func TestEmbed_APIError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(Config{EmbedBaseURL: srv.URL, EmbedAPIKey: "k", EmbedModel: "m"})
+	c := NewClient(Config{EmbedBaseURL: srv.URL, EmbedModel: "m", Retry: RetryPolicy{MaxAttempts: 1}})
 	_, err := c.Embed(context.Background(), []string{"x"})
 	if err == nil {
 		t.Fatal("expected error, got nil")

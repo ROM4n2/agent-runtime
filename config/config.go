@@ -27,6 +27,10 @@ type Config struct {
 	MaxQueueSize      int    // 最大允许积压的任务数，超出回 503，默认 10000
 	WorkerConcurrency int    // 默认 3；并发执行任务的 Worker 数量
 	MaxContextTokens  int    // 默认 16000；多轮对话会话上下文安全 Token 预算
+	// SessionHistoryLimit 默认 100；组装会话历史时拉取的最大消息条数（ADR-0021 决策 3）。
+	SessionHistoryLimit int
+	// PprofAddr 非空则在独立端口暴露 /debug/pprof（ADR-0021 决策 4）；空 = 不启用。
+	PprofAddr string
 }
 
 // defaultPath 是约定俗成的配置文件位置，相对进程工作目录。
@@ -100,19 +104,35 @@ func Load(path string) (Config, error) {
 	if maxContextTokens <= 0 {
 		maxContextTokens = 16000
 	}
+	sessionHistoryLimit := fileCfg.SessionHistoryLimit
+	if envHistory := os.Getenv("SESSION_HISTORY_LIMIT"); envHistory != "" {
+		v, err := strconv.Atoi(envHistory)
+		if err != nil {
+			return Config{}, fmt.Errorf("config: invalid SESSION_HISTORY_LIMIT %q: %w", envHistory, err)
+		}
+		if v <= 0 {
+			return Config{}, fmt.Errorf("config: SESSION_HISTORY_LIMIT must be positive: %d", v)
+		}
+		sessionHistoryLimit = v
+	}
+	if sessionHistoryLimit <= 0 {
+		sessionHistoryLimit = 100
+	}
 	return Config{
-		DeepSeekAPIKey:     firstNonEmpty(os.Getenv("DEEPSEEK_API_KEY"), fileCfg.DeepSeekAPIKey),
-		APIAuthKey:         firstNonEmpty(os.Getenv("API_AUTH_KEY"), fileCfg.APIAuthKey),
-		DbPath:             firstNonEmpty(os.Getenv("DB_PATH"), fileCfg.DbPath),
-		TaskTimeoutSeconds: timeoutSec,
-		EmbedBaseURL:       firstNonEmpty(os.Getenv("EMBED_BASE_URL"), fileCfg.EmbedBaseURL),
-		EmbedAPIKey:        firstNonEmpty(os.Getenv("EMBED_API_KEY"), fileCfg.EmbedAPIKey),
-		EmbedModel:         firstNonEmpty(os.Getenv("EMBED_MODEL"), fileCfg.EmbedModel),
-		EmbedDim:           embedDim,
-		Model:              firstNonEmpty(os.Getenv("MODEL"), fileCfg.Model),
-		MaxQueueSize:       maxQueueSize,
-		WorkerConcurrency:  workerConcurrency,
-		MaxContextTokens:   maxContextTokens,
+		DeepSeekAPIKey:      firstNonEmpty(os.Getenv("DEEPSEEK_API_KEY"), fileCfg.DeepSeekAPIKey),
+		APIAuthKey:          firstNonEmpty(os.Getenv("API_AUTH_KEY"), fileCfg.APIAuthKey),
+		DbPath:              firstNonEmpty(os.Getenv("DB_PATH"), fileCfg.DbPath),
+		TaskTimeoutSeconds:  timeoutSec,
+		EmbedBaseURL:        firstNonEmpty(os.Getenv("EMBED_BASE_URL"), fileCfg.EmbedBaseURL),
+		EmbedAPIKey:         firstNonEmpty(os.Getenv("EMBED_API_KEY"), fileCfg.EmbedAPIKey),
+		EmbedModel:          firstNonEmpty(os.Getenv("EMBED_MODEL"), fileCfg.EmbedModel),
+		EmbedDim:            embedDim,
+		Model:               firstNonEmpty(os.Getenv("MODEL"), fileCfg.Model),
+		MaxQueueSize:        maxQueueSize,
+		WorkerConcurrency:   workerConcurrency,
+		MaxContextTokens:    maxContextTokens,
+		SessionHistoryLimit: sessionHistoryLimit,
+		PprofAddr:           firstNonEmpty(os.Getenv("PPROF_ADDR"), fileCfg.PprofAddr),
 	}, nil
 }
 
@@ -213,8 +233,19 @@ func loadFile(path string) (Config, error) {
 				return cfg, fmt.Errorf("config: %s:%d max_context_tokens 必须大于 0：%d", path, lineNo, n)
 			}
 			cfg.MaxContextTokens = n
+		case "session_history_limit":
+			n, err := strconv.Atoi(value)
+			if err != nil {
+				return cfg, fmt.Errorf("config: %s:%d session_history_limit 必须是整数：%q", path, lineNo, value)
+			}
+			if n <= 0 {
+				return cfg, fmt.Errorf("config: %s:%d session_history_limit 必须大于 0：%d", path, lineNo, n)
+			}
+			cfg.SessionHistoryLimit = n
+		case "pprof_addr":
+			cfg.PprofAddr = value
 		default:
-			return cfg, fmt.Errorf("config: %s:%d 未知配置项 %q（只支持 deepseek_api_key、api_auth_key、db_path、task_timeout_seconds、embed_base_url、embed_api_key、embed_model、embed_dim、model、max_queue_size、worker_concurrency、max_context_tokens）", path, lineNo, key)
+			return cfg, fmt.Errorf("config: %s:%d 未知配置项 %q（只支持 deepseek_api_key、api_auth_key、db_path、task_timeout_seconds、embed_base_url、embed_api_key、embed_model、embed_dim、model、max_queue_size、worker_concurrency、max_context_tokens、session_history_limit、pprof_addr）", path, lineNo, key)
 		}
 	}
 	if err := sc.Err(); err != nil {

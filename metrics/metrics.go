@@ -19,6 +19,11 @@ var (
 	failed    atomic.Int64
 	recovered atomic.Int64
 
+	// 上游重试与 Token 成本（ADR-0021）：前者说明上游稳不稳，后者是账单口径。
+	retries          atomic.Int64
+	promptTokens     atomic.Int64
+	completionTokens atomic.Int64
+
 	// pendingSource 由装配层注入（见 SetPendingSource），在 scrape 时刻回调取积压数。
 	// 用回调而不是让 metrics import store：architecture_test.go 的 AST DAG 白名单
 	// 里 metrics 的允许 import 集为空，反向依赖会直接让架构门禁失败。
@@ -74,6 +79,23 @@ func IncRecovered(n int) {
 	recovered.Add(int64(n))
 }
 
+// IncLLMRetry 在 llm 层决定退避重试时调用（由装配层经 llm.Config.OnRetry 注入）。
+// 它衡量的是「上游现在稳不稳」：持续上涨说明该查配额或降并发，而不是加 worker。
+func IncLLMRetry() {
+	retries.Add(1)
+}
+
+// AddTokens 累加一次任务消耗的 Token 数（ADR-0021）。
+// 失败的调用同样计费，因此调用方应在拿到 usage 后立即累加，而不是等任务成功。
+func AddTokens(prompt, completion int) {
+	if prompt > 0 {
+		promptTokens.Add(int64(prompt))
+	}
+	if completion > 0 {
+		completionTokens.Add(int64(completion))
+	}
+}
+
 // Handler 返回 Prometheus 文本格式的指标端点（text/plain; version=0.0.4）。
 // 请求上下文会传给 pendingSource，使 scrape 能随客户端断连及时释放。
 func Handler() http.Handler {
@@ -91,6 +113,9 @@ func expose(ctx context.Context) string {
 	b = appendMetric(b, "agent_tasks_done", "counter", "Tasks completed successfully", done.Load())
 	b = appendMetric(b, "agent_tasks_failed", "counter", "Tasks that failed", failed.Load())
 	b = appendMetric(b, "agent_tasks_recovered", "counter", "Tasks rehydrated after restart", recovered.Load())
+	b = appendMetric(b, "agent_llm_retries_total", "counter", "Upstream LLM retries performed", retries.Load())
+	b = appendMetric(b, "agent_llm_prompt_tokens_total", "counter", "Prompt tokens consumed by upstream LLM calls", promptTokens.Load())
+	b = appendMetric(b, "agent_llm_completion_tokens_total", "counter", "Completion tokens consumed by upstream LLM calls", completionTokens.Load())
 	if v, ok := pendingValue(ctx); ok {
 		b = appendMetric(b, "agent_tasks_pending", "gauge", "Tasks waiting in the queue", v)
 	}

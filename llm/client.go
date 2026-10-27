@@ -77,6 +77,10 @@ type Client struct {
 	seed        *int64
 	http        *http.Client // 复用连接，且用来设超时
 
+	// retry 控制上游限流/瞬时故障的重试节奏；OnRetry 在每次退避前回调（ADR-0021）。
+	retry   RetryPolicy
+	OnRetry RetryFunc
+
 	// 向量通道独立凭证（与 chat 分离，ADR-0017 决策 3）：
 	// embedBaseURL 或 embedModel 为空 → Embed 返回 ErrEmbedderNotConfigured。
 	embedBaseURL string
@@ -91,6 +95,9 @@ type Config struct {
 	Temperature *float64
 	Seed        *int64
 	HTTPTimeout time.Duration
+	// Retry 零值即生产默认（3 次尝试 / 500ms 起 / 5s 封顶）；OnRetry 可为 nil。
+	Retry   RetryPolicy
+	OnRetry RetryFunc
 	// 向量通道独立凭证：默认全空 = 仅词法检索（lexical only，ADR-0017 决策 3）。
 	EmbedBaseURL string
 	EmbedAPIKey  string
@@ -110,6 +117,8 @@ func NewClient(cfg Config) *Client {
 		temperature:  cfg.Temperature,
 		seed:         cfg.Seed,
 		http:         &http.Client{Timeout: timeout},
+		retry:        cfg.Retry,
+		OnRetry:      cfg.OnRetry,
 		embedBaseURL: cfg.EmbedBaseURL,
 		embedAPIKey:  cfg.EmbedAPIKey,
 		embedModel:   cfg.EmbedModel,
@@ -132,20 +141,19 @@ func (c *Client) Chat(ctx context.Context, prompt string) (string, error) {
 		return "", fmt.Errorf("llm: marshal request: %w", err)
 	}
 
-	// 3. http.NewRequestWithContext 建请求（POST、URL、body）
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, joinEndpoint(c.baseURL, chatCompletionsPath), bytes.NewReader(chatReqJSON))
+	// 3~5. 构造请求 → 发送 → 检查 StatusCode。发送统一走 doWithRetry：
+	// 429/5xx 按 Retry-After 与指数退避重试，退避期间可被 ctx 打断（ADR-0021）。
+	resp, err := c.doWithRetry(ctx, func() (*http.Request, error) {
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, joinEndpoint(c.baseURL, chatCompletionsPath), bytes.NewReader(chatReqJSON))
+		if err != nil {
+			return nil, fmt.Errorf("llm: create request: %w", err)
+		}
+		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+		httpReq.Header.Set("Content-Type", "application/json")
+		return httpReq, nil
+	})
 	if err != nil {
-		return "", fmt.Errorf("llm: create request: %w", err)
-	}
-
-	// 4. 设两个 header：Authorization、Content-Type
-	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	// 5. c.http.Do(req) 发送；检查 StatusCode
-	resp, err := c.http.Do(httpReq)
-	if err != nil {
-		return "", fmt.Errorf("llm: send request: %w", err)
+		return "", err
 	}
 
 	defer resp.Body.Close()
@@ -191,18 +199,20 @@ func (c *Client) Embed(ctx context.Context, texts []string) ([][]float32, error)
 		return nil, fmt.Errorf("llm: marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, joinEndpoint(c.embedBaseURL, embeddingsPath), bytes.NewReader(reqJSON))
+	// 发送同样走 doWithRetry：嵌入端点被限流时整批重试，而不是让检索静默退化。
+	resp, err := c.doWithRetry(ctx, func() (*http.Request, error) {
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, joinEndpoint(c.embedBaseURL, embeddingsPath), bytes.NewReader(reqJSON))
+		if err != nil {
+			return nil, fmt.Errorf("llm: create request: %w", err)
+		}
+		if c.embedAPIKey != "" {
+			httpReq.Header.Set("Authorization", "Bearer "+c.embedAPIKey)
+		}
+		httpReq.Header.Set("Content-Type", "application/json")
+		return httpReq, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("llm: create request: %w", err)
-	}
-	if c.embedAPIKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+c.embedAPIKey)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.http.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("llm: send request: %w", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 	limited := io.LimitReader(resp.Body, maxResponseBytes)
@@ -299,16 +309,18 @@ func (c *Client) ChatWithTools(ctx context.Context, msgs []Message, tools []Tool
 		return nil, fmt.Errorf("llm: marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, joinEndpoint(c.baseURL, chatCompletionsPath), bytes.NewReader(body))
+	// 发送走 doWithRetry（ADR-0021）：429/5xx 退避重试，请求体每次重建。
+	resp, err := c.doWithRetry(ctx, func() (*http.Request, error) {
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, joinEndpoint(c.baseURL, chatCompletionsPath), bytes.NewReader(body))
+		if err != nil {
+			return nil, fmt.Errorf("llm: create request: %w", err)
+		}
+		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+		httpReq.Header.Set("Content-Type", "application/json")
+		return httpReq, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("llm: create request: %w", err)
-	}
-	httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.http.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("llm: send request: %w", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 	limited := io.LimitReader(resp.Body, maxResponseBytes)

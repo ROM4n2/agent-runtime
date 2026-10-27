@@ -51,6 +51,10 @@ type TaskStore interface {
 	ClaimNext(ctx context.Context) (Task, error)
 	// PendingCount 返回当前处于 pending 状态的任务积压数。
 	PendingCount(ctx context.Context) (int64, error)
+	// RecordUsage 记录该任务消耗的上游 Token 数（ADR-0021 成本可观测）。
+	// 与 Complete 分离：状态机终态裁决与计量是两个关注点，
+	// 且失败任务同样计费，不应被终态语义绑架。id 不存在时返回 ErrNotFound。
+	RecordUsage(id string, promptTokens, completionTokens int) error
 }
 
 // Store 是任务的并发安全容器。
@@ -81,6 +85,9 @@ type Task struct {
 	Result    string `json:"result"` // 仅 done 时有值
 	Error     string `json:"error"`  // 仅 failed 时有值，且必须是脱敏后的粗粒度分类
 	SessionID string `json:"session_id,omitempty"`
+	// 上游 Token 消耗（ADR-0021）。失败任务也可能非零——失败的调用照样计费。
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
 }
 
 // NewStore 返回一个可用的空 Store。
@@ -161,6 +168,23 @@ func (s *Store) Complete(ID string, result string, err error) error {
 
 	s.tasks[ID] = task
 
+	return nil
+}
+
+// RecordUsage 记录该任务消耗的上游 Token 数；id 不存在返回 ErrNotFound。
+// 与 Complete 分离的理由见 TaskStore 接口注释：失败任务同样计费，
+// 计量不应被「终态裁决」的语义绑架。
+func (s *Store) RecordUsage(id string, promptTokens, completionTokens int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	task, ok := s.tasks[id]
+	if !ok {
+		return ErrNotFound
+	}
+	task.PromptTokens = promptTokens
+	task.CompletionTokens = completionTokens
+	s.tasks[id] = task
 	return nil
 }
 
