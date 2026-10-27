@@ -36,11 +36,18 @@
   3. **修复 `running` gauge 语义缺陷**：`IncSubmitted` 曾同时 +1，使 `running` 实际等于「已提交未终态」总数——`worker_concurrency=1` 提交 5 个任务报 `running=4`，排障者会误判并发打满。改为 `IncClaimed` 只在抢占成功时 +1，与终态 -1 严格成对；`IncRecovered` 不再计入 `running`（恢复的任务回到 pending 排队）。新增不变式 `submitted - done - failed = running + pending`。
   4. **CI 门禁落地**：新增 `.github/workflows/ci.yml`（build / vet / 架构门禁单列一步 / `go test -race` / gofmt），仓库此前从未有过 workflow，`architecture_test.go` 机械闸从「本地手动」升级为「每次 push 强制」。
   5. **gofmt 漂移清理**：9 个文件存在旧版注释列表缩进与文件尾空行漂移（经 `git ls-files --eol` 确认全为 LF，**非** CRLF 误报）；已 `gofmt -w`，行尾未变。
+- **P10 上游限流退避、Token 成本可观测与诊断端口加固（2026-10-27）**：
+  1. **上游限流指数退避与 Retry-After 尊重 (`llm/retry.go`)**：`llm.Client` 发送入口（`Chat`/`Embed`/`ChatWithTools`/`ChatWithToolsStream`）接入 `doWithRetry`；白名单重试 429 与 5xx，不重试 400/401/403/404/422；解析秒数与 HTTP-date 的 Retry-After 并受 MaxDelay 封顶；退避挂钩上下文取消；流式仅在首包前可重试，产出后断流禁重试以防打字机文本重复。
+  2. **Token 成本双通道度量与持久化**：`metrics` 暴露 `agent_llm_retries_total`、`agent_llm_prompt_tokens_total`、`agent_llm_completion_tokens_total`；`store.TaskStore` 扩展 `RecordUsage` 接口（内存与 SQLite WAL 双实现）；`tasks` 表通过幂等迁移新增 `prompt_tokens`/`completion_tokens` 字段；`worker/usage.go` 在任务成功与失败双路径统一落盘计量。
+  3. **会话历史窗口解耦与配置化**：`config.SessionHistoryLimit`（默认 100，环境变量 `SESSION_HISTORY_LIMIT` 优先覆盖，非法值启动拒绝）注入 `worker.Pool.SetSessionHistoryLimit`。
+  4. **独立诊断端口与暴露面防线 (`pprof.go`)**：支持 `config.PprofAddr`（默认空关闭），在独立端口与独立 mux 上挂载 `/debug/pprof/*`，防公网 Demo 路由混用；非回环地址监听打印安全告警。
+  5. **架构防线同包解耦**：从贴近 400 行红线的 `worker/pool.go` 中正交拆分出 `worker/cancel.go`（抢占取消）与 `worker/usage.go`（计量累加），测试桩拆分出 `worker/mock_store_test.go`，严格守住生产 ≤ 400 行、测试 ≤ 800 行硬门禁。
+  6. **端到端压测实证 (`api/loadtest_test.go`)**：32 并发 2000 任务提交，实测 100% 达成 202 响应（0 丢单），P95 < 1ms，单机提交吞吐达 170k+ req/s。
 - **评测结论（docs/eval/2026-10-25-*-r3.md）**：
   - Baseline：0.00 [0.00, 0.00]（0/90）；
   - Lexical（v2 提示词）：1.00 [0.00, 1.00]（61/90，none×61, wrong-span×24, right-span-wrong-reasoning×5，总 Token 1042K+72K）；
   - Hybrid（v2 提示词 + nomic-embed-text 768维）：1.00 [0.25, 1.00]（67/90，none×67, wrong-span×20, right-span-wrong-reasoning×3，总 Token 987K+71K）→ **合入**。
-- 测试基线：`GOWORK=off go test -race ./... -count=1` 12 包全绿（P9 后为 329 个 `func Test` / 506 RUN，0 数据竞争）。代码规模 88 个 Go 文件（40 生产 / 48 测试，共 19,479 行）。
+- 测试基线：`GOWORK=off go test -race ./... -count=1` 12 包全绿（P10 后为 360 个 `func Test` / 545 RUN，0 数据竞争）。代码规模 99 个 Go 文件（44 生产 / 55 测试，共 20,851 行）。
 - 架构领域分层：
   - `prompts`: 版本化系统提示词管理（`go:embed`，提供 `Get`，内嵌反幻觉与 Grounded Citation 铁律）；
   - `agent/tool`: 独立工具系统与 Tool 注册表（内置纯 AST 算术引擎与时区工具，提供 `TerminalClassifier` 协议下沉接口）；

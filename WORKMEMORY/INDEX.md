@@ -27,6 +27,7 @@
 | 文件 | 主题 | 对应事件 |
 | --- | --- | --- |
 | `notes/NOTES-2026-10-27-1805-p9-observability.md` | P9 可观测性与积压查询缺陷加固（索引 / pending gauge / running 语义 / CI / gofmt） | work.log 2026-10-27 18:05 |
+| `notes/NOTES-2026-10-27-1900-p10-upstream-retry-cost.md` | P10 上游限流退避 / Token 成本可观测 / 诊断端口 / 压测实证 / 本轮踩坑 | work.log 2026-10-27 19:00 |
 
 ## Active handoffs
 

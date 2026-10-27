@@ -67,7 +67,7 @@ Copy-Item config.yaml.example config.yaml   # 然后填真实值
 go run .
 ```
 
-`config.yaml` 已被 `.gitignore` 忽略。只支持扁平的 `key: value`，解析到嵌套或未知 key 会直接启动失败，不静默忽略。已支持 12 项配置：`deepseek_api_key`、`api_auth_key`、`model`、`db_path`、`task_timeout_seconds`、`embed_base_url`、`embed_api_key`、`embed_model`、`embed_dim`、`max_queue_size`、`worker_concurrency`、`max_context_tokens`：
+`config.yaml` 已被 `.gitignore` 忽略。只支持扁平的 `key: value`，解析到嵌套或未知 key 会直接启动失败，不静默忽略。已支持 14 项配置：`deepseek_api_key`、`api_auth_key`、`model`、`db_path`、`task_timeout_seconds`、`embed_base_url`、`embed_api_key`、`embed_model`、`embed_dim`、`max_queue_size`、`worker_concurrency`、`max_context_tokens`、`session_history_limit`、`pprof_addr`：
 
 ```yaml
 deepseek_api_key: "sk-你的key"
@@ -78,6 +78,8 @@ task_timeout_seconds: 30   # 可选：单次任务 LLM 调用超时（正整数�
 max_queue_size: 10000   # 可选：最大允许排队积压的任务数（超出返回 503），默认 10000
 worker_concurrency: 3   # 可选：后台并发 Worker 数量（正整数，默认 3），环境变量 WORKER_CONCURRENCY 优先级更高
 max_context_tokens: 16000 # 可选：会话多轮对话上下文 Token 预算上限（正整数，默认 16000），环境变量 MAX_CONTEXT_TOKENS 优先级更高
+session_history_limit: 100 # 可选：组装会话历史时拉取的最大消息条数（正整数，默认 100），环境变量 SESSION_HISTORY_LIMIT 优先级更高
+pprof_addr: ""   # 可选：非空则在独立端口暴露 /debug/pprof（如 127.0.0.1:6060）；空 = 关闭，环境变量 PPROF_ADDR 优先级更高
 # embed_* 四项为检索功能的向量通道配置（ADR-0017），全部留空 = 纯词法检索（lexical）
 # 本地 Ollama 等免密向量引擎无需鉴权时，embed_api_key 可以留空
 embed_base_url: "http://localhost:11434/v1"   # OpenAI 兼容 embeddings 端点
@@ -137,13 +139,13 @@ Invoke-RestMethod -Uri http://localhost:8080/metrics
 | Method | Path | 说明 | Request Body | Response |
 |--------|------|------|-------------|----------|
 | POST | `/run` | 提交任务（支持可选绑定会话） | `{"prompt":"...","session_id":"..."}` | `202 {"task_id":"1","session_id":"..."}` |
-| GET | `/tasks/{id}` | 查询状态（轮询） | - | `{"id":"1","status":"done","prompt":"...","result":"...","error":""}` |
+| GET | `/tasks/{id}` | 查询状态（轮询） | - | `{"id":"1","status":"done","prompt":"...","result":"...","error":"","prompt_tokens":11,"completion_tokens":5}` |
 | POST | `/tasks/{id}/cancel` | 主动取消在飞任务 | `{"reason":"user_aborted"}`（可选） | `202 {"id":"1","status":"canceling"}`；任务不在飞返回 `409` |
 | GET | `/tasks/{id}/events` | SSE 实时流式推送 | - | `text/event-stream`：`event: delta` (打字机增量) / `event: step` / `event: done` |
 | GET | `/sessions/{id}` | 获取会话元数据 | - | `200 {"id":"sess_1","created_at":"...","updated_at":"..."}` |
 | GET | `/sessions/{id}/messages` | 获取会话多轮历史 | `?limit=N`（可选，默认 100） | `200 [{"id":1,"role":"user","content":"..."},...]` |
 | GET | `/healthz` | 存活探针 | - | `200 ok`（纯文本） |
-| GET | `/metrics` | Prometheus 指标 | - | `agent_tasks_*` 文本格式 |
+| GET | `/metrics` | Prometheus 指标 | - | `agent_tasks_*` / `agent_llm_*` 文本格式 |
 | GET | `/` | 单页 Demo | - | `text/html` 页面 |
 
 Status 取值：`pending` → `running` → `done` / `failed`
@@ -162,6 +164,9 @@ Status 取值：`pending` → `running` → `done` / `failed`
 | `agent_tasks_done` | counter | 累计成功完成数 |
 | `agent_tasks_failed` | counter | 累计失败数 |
 | `agent_tasks_recovered` | counter | 崩溃恢复重灌的 pending 任务数（回到 pending 排队，不计入 running） |
+| `agent_llm_retries_total` | counter | 累计上游 LLM 限流/5xx 重试次数（衡量上游稳定性） |
+| `agent_llm_prompt_tokens_total` | counter | 累计消耗的 Prompt Token 数 |
+| `agent_llm_completion_tokens_total` | counter | 累计消耗的 Completion Token 数 |
 
 不变式：`submitted - done - failed = running + pending`。`running` 恒 `<= worker_concurrency`；
 若 `running` 接近并发上限而 `pending` 持续增长，说明消费者不足而非上游卡死。
@@ -183,16 +188,17 @@ Token 框填一次就会存进浏览器 `localStorage`，下次打开自动回�
 ## Testing
 
 ```powershell
-GOWORK=off go test -race ./... -count=1  # 321 个测试用例 / 498 个测试分支全绿，零 race
-go test -bench=. -benchmem ./worker/     # 基准测试
+GOWORK=off go test -race ./... -count=1  # 360 个测试用例 / 545 个测试分支全绿，零 race
+go test -bench=. -benchmem ./worker/ ./api/ # 基准测试
 ```
 
 - **单测体系**：涵盖 12 个分层包，覆盖 store 状态机与 SessionStore 会话流、worker 并发与取消树、agent 认知循环与滑动窗口压缩、tool 注册表与 AST 算术求解器、retrieval 词法/向量/RRF 融合召回、eval 自动化判题器。
 - **静态架构与体积门禁**（`architecture_test.go`）：
   - **AST DAG 白名单**：用 `go/parser` 扫描全包 import 关系，严格锁死单向分层，杜绝跨层反向依赖（如 worker 严禁 import retrieval，api 严禁 import worker）；
   - **代码体积预算（Line Budget）**：强制生产 `.go` 文件 ≤ 400 行、测试文件 ≤ 800 行，多版本迭代防腐化。
-- **集成测试**：`api/integration_test.go` 用 `httptest` 端到端验证 `POST /run → 轮询 → done`、SSE 流式事件与 Session 多轮交互。
+- **集成测试与压测实证**：`api/integration_test.go` 用 `httptest` 端到端验证 `POST /run → 轮询 → done`、SSE 流式事件与 Session 多轮交互；`api/loadtest_test.go`（32 并发 2000 提交）实测验证提交路径零丢单与亚毫秒分位延迟。
 - **Benchmark**：
+  - `BenchmarkSubmit` ≈ 5.8 µs/op（入队提交纯开销；单机并发压测达 170k+ req/s，P95 < 1ms）
   - `BenchmarkPoolEnqueue` ≈ 1.5 µs/op（Worker 调度吞吐）
   - `BenchmarkRunAgent` ≈ 84 ns/op（单步 agent 循环开销）
 
@@ -213,6 +219,7 @@ go test -bench=. -benchmem ./worker/     # 基准测试
 ```
 agent-runtime/
 ├── main.go               # 守护进程入口：配置加载 → 依赖组装 → 优雅停机
+├── pprof.go              # 诊断端点：/debug/pprof/*（独立端口与 mux，默认关闭）
 ├── cli.go                # 运维 CLI：-index 索引构建、-eval 对照评测子命令
 ├── architecture_test.go  # 根级架构守卫：AST DAG 白名单 + 400 行体积预算门禁
 ├── api/                  # HTTP 传输层（依赖 agent、metrics、store）
@@ -231,7 +238,9 @@ agent-runtime/
 │       ├── calculate.go  # AST 递归下降算术求值器（防代码注入）
 │       └── time.go       # IANA 时区解析时间工具
 ├── worker/               # 任务调度执行层（Worker Pool，纯化并发池）
-│   ├── pool.go           # Push-Notify 事务性抢占并发池、两阶段停机、排队排空、取消树管理
+│   ├── pool.go           # Push-Notify 事务性抢占并发池、两阶段停机、排队排空
+│   ├── cancel.go         # POST /tasks/{id}/cancel 抢占取消（解耦 pool.go 防体积膨胀）
+│   ├── usage.go          # Token 成本累加与持久化回写（无论任务成败均记录）
 │   ├── session.go        # 会话多轮组装（历史拉取+上下文压缩）与轮次写回（防 pool.go 膨胀）
 │   └── metrics.go        # 在飞 gauge 语义（抢占 +1，与终态 -1 严格成对）
 ├── retrieval/            # 混合检索即工具（独立领域包，零反向依赖）
@@ -259,7 +268,8 @@ agent-runtime/
 │   └── sql_session.go    # SQLite 会话与历史消息持久化（复合索引优化）
 ├── llm/                  # 模型适配层（OpenAI 兼容协议封装）
 │   ├── client.go         # ChatWithTools、幂等 joinEndpoint、Usage 解析
-│   └── stream.go         # ChatWithToolsStream 原生 SSE 流式解析与工具分块组装
+│   ├── retry.go          # 429/5xx 指数退避与 Retry-After 解析（请求体逐次重建）
+│   └── stream.go         # ChatWithToolsStream 原生 SSE 流式解析（首包前可重试、产出后禁重试）
 ├── metrics/              # 监控度量（sync/atomic 零依赖 Prometheus 格式；pending 由装配层注入）
 ├── config/               # 扁平配置解析器（环境变量 > config.yaml > 默认值）
 ├── docs/                 # ADR 决策记录、设计规格、实施计划与实测报表
