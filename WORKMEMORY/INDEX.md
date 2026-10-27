@@ -22,6 +22,12 @@
 | `cold/` | COLD 层（按月 digest，仅用户显式要求时生成） |
 | `handoff_*.md` | 跨 agent 交接包：活跃的放顶层，closed 的 MUST 移入 `archive/` |
 
+## 超限事件正文（notes/）
+
+| 文件 | 主题 | 对应事件 |
+| --- | --- | --- |
+| `notes/NOTES-2026-10-27-1805-p9-observability.md` | P9 可观测性与积压查询缺陷加固（索引 / pending gauge / running 语义 / CI / gofmt） | work.log 2026-10-27 18:05 |
+
 ## Active handoffs
 
 （无）

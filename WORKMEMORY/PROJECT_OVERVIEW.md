@@ -19,7 +19,7 @@
 - P1/P2/P3/P4 完整交付（ADR-0012 轨迹可观测性、ADR-0013 架构解耦、P4 生产级审计缺陷加固全部落地）。
 - P5 检索即工具随 PR #1 合入 `master`（b5f8b97，2026-10-23）。
 - **P6 生产级对齐与混合检索实证完整落地（2026-10-25）**：
-  1. **工业级契约闭环**：`llm.joinEndpoint` 幂等防 `/v1/v1` 404；允许空 `EmbedAPIKey` 支持本地 Ollama 免密嵌入；`ChatWithTools` 透传 `Temperature=0` 与 `Seed`；解析 `llm.Usage` 并在 `agent.RunWithOptions` 支持多步 Token 累加；`config.Model` 9 项配置支持。
+  1. **生产对齐的接口契约**：`llm.joinEndpoint` 幂等防 `/v1/v1` 404；允许空 `EmbedAPIKey` 支持本地 Ollama 免密嵌入；`ChatWithTools` 透传 `Temperature=0` 与 `Seed`；解析 `llm.Usage` 并在 `agent.RunWithOptions` 支持多步 Token 累加；`config.Model` 9 项配置支持。
   2. **结构熵增治理三件套**：在 `agent/tool` 下沉 `TerminalClassifier` 接口，`retrieval.ErrIndexMissing` 实现协议，`worker/pool.go` 面向接口做 `errors.As` 提取终态，彻底移除 `worker → retrieval` 反向依赖；在不引入外部子包的前提下同包正交拆分 5 个巨型文件（`main.go → cli.go`、`api/handler.go → api/events.go`、`retrieval/search.go → retrieval/vector_search.go`、`retrieval/index.go → retrieval/schema.go`、`eval/run.go → eval/collector.go`）；新增根级 `architecture_test.go`，用 `go/parser` 扫描全仓建立 12 包 AST DAG 白名单与生产 ≤ 400 行 / 测试 ≤ 800 行代码体积预算机械闸。
   3. **版本化 Prompt 与实证评测闭环**：创建 `prompts/` 包（`go:embed` 内嵌 `eval-template-v1`、`eval-template-v2`、`default-v1`），在本地 Ollama `nomic-embed-text:latest`（768 维）与 DeepSeek-V3 下完成 30 题 × 3 重复（每组 90 轮）实跑。实证验证混合检索将跨文档综合题（`cross-chunk`）成功率提升至 100%，平均步数下降至 11.84 步，单轮评测节省 54,608 个 Prompt Context Tokens，端到端延迟仅微增 188ms。
 - **P7 事务性持久化任务队列与 SSE 打字机流式推断完整交付（2026-10-25）**：
@@ -30,11 +30,17 @@
   2. **纯算法确定性滑动窗口压缩 (`agent.CompactMessages`)**：在 `agent/compactor.go` 实现无额外堆逃逸估算（`EstimateTokens`）与轮次安全截断；超限时绝对锚定首部 System 提示词与末尾最新 1 轮消息，按 User 轮次边界折半截断中间历史并插入系统折叠注记（`[系统提示：为避免上下文超限，更早的 N 轮历史对话已自动折叠]`），零模型调用开销根除 Context Window 爆炸与 400 崩溃。
   3. **调度解耦与防膨胀门禁落地 (`worker/session.go`)**：在 `worker/session.go`（76 行）解耦实现会话拉取拼装（`assembleSessionMessages`）与轮次写回（`recordSessionTurn`），使已达 385 行的 `worker/pool.go` 免于体积膨胀（守住 395 行）；彻底修复取消时序竞争（TOCTOU 防护）与静默吞错（Red Card #4）。
   4. **并发与安全窗口弹性配置**：在 `config` 增设 `worker_concurrency`（默认 3）与 `max_context_tokens`（默认 16000），消除服务装配硬编码；在 `api/session_handler.go` 暴露 `GET /sessions/{id}` 与 `GET /sessions/{id}/messages?limit=N` REST 查询路由。
+- **P9 可观测性与积压查询缺陷加固（2026-10-27）**：
+  1. **积压查询全表扫描修复**：`tasks` 表此前只有主键索引，`ClaimNext`（每次抢占）与 `PendingCount`（每次 Enqueue 及 10ms 轮询）均为 `SCAN tasks`。新增 `idx_tasks_status(status, id)` 复合索引——列序同时服务 `WHERE status=?` 与 `ORDER BY id ASC`，实测 `ClaimNext` 走 `SEARCH ... USING INDEX`、`PendingCount` 走 `SEARCH ... USING COVERING INDEX`（免回表）。`store/query_plan_test.go` 用 `EXPLAIN QUERY PLAN` 断言锁死，防止后续 DDL 改动静默移除索引。
+  2. **补 `agent_tasks_pending` gauge**：此前 `/metrics` 只有 `running`（在飞），无任何积压信号。`metrics` 包在架构门禁中允许的 import 集为空，故用 `SetPendingSource` 回调做依赖倒置（`main.go` 装配，scrape 时实时读存储），零反向依赖；读取失败退化为 `-1`（未知）且不拖垮整页。
+  3. **修复 `running` gauge 语义缺陷**：`IncSubmitted` 曾同时 +1，使 `running` 实际等于「已提交未终态」总数——`worker_concurrency=1` 提交 5 个任务报 `running=4`，排障者会误判并发打满。改为 `IncClaimed` 只在抢占成功时 +1，与终态 -1 严格成对；`IncRecovered` 不再计入 `running`（恢复的任务回到 pending 排队）。新增不变式 `submitted - done - failed = running + pending`。
+  4. **CI 门禁落地**：新增 `.github/workflows/ci.yml`（build / vet / 架构门禁单列一步 / `go test -race` / gofmt），仓库此前从未有过 workflow，`architecture_test.go` 机械闸从「本地手动」升级为「每次 push 强制」。
+  5. **gofmt 漂移清理**：9 个文件存在旧版注释列表缩进与文件尾空行漂移（经 `git ls-files --eol` 确认全为 LF，**非** CRLF 误报）；已 `gofmt -w`，行尾未变。
 - **评测结论（docs/eval/2026-10-25-*-r3.md）**：
   - Baseline：0.00 [0.00, 0.00]（0/90）；
   - Lexical（v2 提示词）：1.00 [0.00, 1.00]（61/90，none×61, wrong-span×24, right-span-wrong-reasoning×5，总 Token 1042K+72K）；
   - Hybrid（v2 提示词 + nomic-embed-text 768维）：1.00 [0.25, 1.00]（67/90，none×67, wrong-span×20, right-span-wrong-reasoning×3，总 Token 987K+71K）→ **合入**。
-- 测试基线：`GOWORK=off go test -race ./... -count=1` 12 包全绿（321 个 `func Test` / 498 RUN，0 数据竞争）。代码规模 83 个 Go 文件（37 生产 / 46 测试，共 19,102 行）。
+- 测试基线：`GOWORK=off go test -race ./... -count=1` 12 包全绿（P9 后为 329 个 `func Test` / 506 RUN，0 数据竞争）。代码规模 88 个 Go 文件（40 生产 / 48 测试，共 19,479 行）。
 - 架构领域分层：
   - `prompts`: 版本化系统提示词管理（`go:embed`，提供 `Get`，内嵌反幻觉与 Grounded Citation 铁律）；
   - `agent/tool`: 独立工具系统与 Tool 注册表（内置纯 AST 算术引擎与时区工具，提供 `TerminalClassifier` 协议下沉接口）；

@@ -240,3 +240,11 @@ push + 归档收尾：
 - 归档：`handoff-agent-api.md` → `WORKMEMORY/archive/handoff-agent-api.md`（`git mv` 因未纳入版本控制失败，改用 mv）。文件仍被 .gitignore 的 `handoff-agent-api.md` 规则覆盖，**不入库**——内容含本机路径（C:\Users\Haoyu）与个人信息，符合零 PII 要求。
 - 归档前置处理：文件头加「[ARCHIVED 2026-10-27 — 历史文档，勿作现状读取]」块，声明其描述的是改名前的旧仓 agent-api（2026-08-23，M1–M3），包职责/覆盖率/技术债清单均已过期，仅保留面试与八股历史价值，并指向当前权威锚点（ARCHITECTURE.md + PROJECT_OVERVIEW.md + .agent-context.md）。
 - 索引登记：`WORKMEMORY/INDEX.md` 的「已归档 handoffs」由占位行改为该文件的登记行（含 closed 日期、保留理由、gitignored 说明）。
+
+### 2026-10-27 18:05 | deepseek-v4.1-flash__hermes-agent | WORK_END
+Caps: filesystem-read, filesystem-write, shell-exec, git
+P9 可观测性与积压查询缺陷加固（正文超 4KB，按 PROTOCOL §1.4 独立成文）：见 `WORKMEMORY/notes/NOTES-2026-10-27-1805-p9-observability.md`
+摘要：① `tasks` 表补 `(status, id)` 复合索引，修掉 `ClaimNext`/`PendingCount` 的全表扫描（实测转 INDEX / COVERING INDEX），并用 `EXPLAIN QUERY PLAN` 断言锁死；② 补 `agent_tasks_pending` gauge（`SetPendingSource` 回调注入，不用镜像计数以免漂移）；③ 修复既有的 `running` gauge 语义错误（`IncSubmitted` 曾同时 +1，使 running 等于「已提交未终态」总数；改为 `IncClaimed` 仅抢占据 +1）；④ 新增 CI workflow（仓库首次）；⑤ 清理 gofmt 漂移（经 eol 核实非 CRLF 误报）。
+验证：build / vet 通过；`go test -race ./...` 506 passed / 12 包 / 0 竞争（基线 498）；架构门禁 2 passed。端到端实测 `/metrics` 三项自洽。
+不做范围：多智能体 SpawnAgent、Overlay 钩子、会话树、Redis/MQ（ADR-0004 YAGNI 主动取舍）。
+本次被纠正：文档里凭估算填派生计数（337/86/约19500），实测为（329/88/19479）后即改。
