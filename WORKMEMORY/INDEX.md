@@ -28,4 +28,4 @@
 
 ## 已归档 handoffs
 
-（closed 的交接包移入 `archive/` 后在此登记一行，注明关闭日期与最终去向）
+- `archive/handoff-agent-api.md` — 旧仓库 `agent-api`（2026-08-23，改名前的 M1–M3 阶段）交接包；2026-10-27 归档并加过期标注，仅保留面试/八股历史上下文。**本地文件（gitignored，含本机路径与个人信息，不入库）**。当前权威锚点见根级 `ARCHITECTURE.md`。

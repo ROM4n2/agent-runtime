@@ -232,3 +232,11 @@ Caps: filesystem-read, filesystem-write, shell-exec, git
 - 清理：删除 `store.out` / `worker.out` 两个 coverage profile 残留——其内部路径指向改名前的模块 `agent-api/*`，与现模块 `agent-runtime` 不符，已失效且被 `.gitignore` 的 `*.out` 覆盖。
 - 基线复核（master @ a138825 + 本次文档改动后）：`GOWORK=off go test -race ./... -count=1` 12 包全绿 498 RUN 0 race。
 - 未动（用户资产）：`agent-runtime.db`（3.3M，检索索引库：doc_chunk 606 / embed_cache 232，无 tasks 表，`config.yaml` 的 db_path 指向它，非任务库）、`handoff-agent-api.md`（2026-08-23 旧仓 agent-api 交接包，gitignored 本地文件）、`config.yaml`（含密钥，gitignored）。
+
+### 2026-10-27 16:32 | deepseek-v4.1-flash__hermes-agent | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec, git
+push + 归档收尾：
+- push：`git push origin master` → a138825..eb4b5af，本地 master 与 origin/master 同步（ahead 0 / behind 0）。
+- 归档：`handoff-agent-api.md` → `WORKMEMORY/archive/handoff-agent-api.md`（`git mv` 因未纳入版本控制失败，改用 mv）。文件仍被 .gitignore 的 `handoff-agent-api.md` 规则覆盖，**不入库**——内容含本机路径（C:\Users\Haoyu）与个人信息，符合零 PII 要求。
+- 归档前置处理：文件头加「[ARCHIVED 2026-10-27 — 历史文档，勿作现状读取]」块，声明其描述的是改名前的旧仓 agent-api（2026-08-23，M1–M3），包职责/覆盖率/技术债清单均已过期，仅保留面试与八股历史价值，并指向当前权威锚点（ARCHITECTURE.md + PROJECT_OVERVIEW.md + .agent-context.md）。
+- 索引登记：`WORKMEMORY/INDEX.md` 的「已归档 handoffs」由占位行改为该文件的登记行（含 closed 日期、保留理由、gitignored 说明）。
