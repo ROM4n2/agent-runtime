@@ -4,7 +4,7 @@
 - **状态**：已实施（P8 里程碑通过，2026-10-25）
 - **上游依赖**：ADR-0002（异步任务与并发池）、ADR-0010（SQLite 持久化）、ADR-0013（分层解耦）、ADR-0017（检索工具）、ADR-0019（事务性任务队列与打字机流式推断）
 - **下游影响**：`store.SessionStore` 接口及双实现、`agent.CompactMessages` 纯算法滑动截断、`worker/session.go` 组装解耦、`config.WorkerConcurrency` & `config.MaxContextTokens` 配置项、`api/session_handler.go` REST 路由
-- **上位规范**：vault `01-Rules/LAYERED-ARCHITECTURE.md`（同包文件拆分与行数门禁）、`01-Rules/AGENT-HARNESS-ARCHITECTURE.md`（无依赖认知循环）
+- **上位规范**：vault `01-Rules/LAYERED-ARCHITECTURE.md`（同包文件拆分与行数门禁）、`01-Rules/AGENT-SDK-PATTERNS.md`（无依赖认知循环 / Agent Loop 模式）
 
 ---
 
