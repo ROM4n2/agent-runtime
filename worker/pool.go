@@ -54,6 +54,10 @@ type Pool struct {
 	inFlight         sync.Map
 	sessionStore     store.SessionStore
 	maxContextTokens int
+	// sessionHistoryLimit 是组装会话历史时拉取的最大消息条数（ADR-0021 决策 3）。
+	// 这是「模型窗口」参数而非代码常量：128k 窗口配 100 条是浪费，
+	// 16k 窗口配 100 条则会被 CompactMessages 反复折叠、白跑压缩。
+	sessionHistoryLimit int
 }
 
 // SetMaxQueueSize 设置最大允许排队积压的任务数，供测试和自定义配置使用。
@@ -64,21 +68,22 @@ func NewPool(size int, taskTimeout time.Duration, s store.TaskStore, client agen
 	stopWorkerCtx, stopWorkerCancel := context.WithCancel(context.Background())
 
 	return &Pool{
-		size:             size,
-		maxQueueSize:     10000,
-		taskTimeout:      taskTimeout,
-		tasks:            s,
-		wakeUp:           make(chan struct{}, 1),
-		ctx:              ctx,
-		cancel:           cancel,
-		stopWorkerCtx:    stopWorkerCtx,
-		stopWorkerCancel: stopWorkerCancel,
-		llm:              client,
-		tools:            tool.DefaultRegistry(),
-		traces:           make(map[string]*agent.TraceBuffer),
-		maxTraces:        DefaultMaxTraces,
-		traceOrder:       make([]string, 0, 64),
-		maxContextTokens: 16000,
+		size:                size,
+		maxQueueSize:        10000,
+		taskTimeout:         taskTimeout,
+		tasks:               s,
+		wakeUp:              make(chan struct{}, 1),
+		ctx:                 ctx,
+		cancel:              cancel,
+		stopWorkerCtx:       stopWorkerCtx,
+		stopWorkerCancel:    stopWorkerCancel,
+		llm:                 client,
+		tools:               tool.DefaultRegistry(),
+		traces:              make(map[string]*agent.TraceBuffer),
+		maxTraces:           DefaultMaxTraces,
+		traceOrder:          make([]string, 0, 64),
+		maxContextTokens:    16000,
+		sessionHistoryLimit: 100,
 	}
 }
 
@@ -229,9 +234,12 @@ func (p *Pool) process(id string) {
 	if err != nil {
 		slog.Warn("worker: assemble session messages failed", "task_id", id, "session_id", task.SessionID, "error", err)
 	}
+	var usage usageAccumulator
 	res, err := agent.RunWithOptions(taskCtx, p.llm, task.Prompt, p.tools, tb.Append, agent.RunOptions{
-		HistoryMessages: history, OnDelta: tb.AppendDelta,
+		HistoryMessages: history, OnDelta: tb.AppendDelta, OnUsage: usage.add,
 	})
+	// 用量无论成败都要落：失败的步进同样计费（ADR-0021）。
+	p.recordUsage(id, &usage)
 	if err != nil {
 		// 错误全文只进日志：它携带上游响应体，可能含配额、账单等内部信息。
 		// task.Error 会经 GET /tasks/{id} 原样返回给调用方，因此只存粗粒度分类。
@@ -337,36 +345,6 @@ func (p *Pool) SubscribeEvents(id string) (snapshot []agent.TraceStep, events <-
 	}
 	snapshot, events, cancel = tb.SubscribeEvents()
 	return snapshot, events, cancel, true
-}
-
-// userCancelCause 是用户主动取消的因果标记，用于与超时/停机取消精确区分。
-type userCancelCause struct {
-	reason string
-}
-
-func (c *userCancelCause) Error() string { return "user canceled: " + c.reason }
-
-// Cancel 主动抢占指定在飞任务：通过 context 因果链物理中断正在进行的上游调用。
-// 任务不在飞（未开始、已终态或不存在）时返回 ErrTaskNotRunning，由 API 层映射为 409。
-func (p *Pool) Cancel(id, reason string) error {
-	v, ok := p.inFlight.Load(id)
-	if !ok {
-		for i := 0; i < 20; i++ {
-			if tk, err := p.tasks.Get(id); err != nil || tk.Status != store.StatusRunning {
-				break
-			}
-			time.Sleep(time.Millisecond)
-			if v, ok = p.inFlight.Load(id); ok {
-				break
-			}
-		}
-	}
-	cancel, _ := v.(context.CancelCauseFunc)
-	if !ok || cancel == nil {
-		return ErrTaskNotRunning
-	}
-	cancel(&userCancelCause{reason: reason})
-	return nil
 }
 
 // EnqueueWait 阻塞式入队，用于崩溃恢复时重灌 pending 积压：

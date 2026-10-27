@@ -248,3 +248,12 @@ P9 可观测性与积压查询缺陷加固（正文超 4KB，按 PROTOCOL §1.4 
 验证：build / vet 通过；`go test -race ./...` 506 passed / 12 包 / 0 竞争（基线 498）；架构门禁 2 passed。端到端实测 `/metrics` 三项自洽。
 不做范围：多智能体 SpawnAgent、Overlay 钩子、会话树、Redis/MQ（ADR-0004 YAGNI 主动取舍）。
 本次被纠正：文档里凭估算填派生计数（337/86/约19500），实测为（329/88/19479）后即改。
+
+### 2026-10-27 19:00 | deepseek-v4.1-flash__hermes-agent | WORK_END
+Caps: filesystem-read, filesystem-write, shell-exec, git
+P10 上游限流退避、Token 成本可观测与诊断端口加固（正文超 4KB，按 PROTOCOL §1.4 独立成文）：见 `WORKMEMORY/notes/NOTES-2026-10-27-1900-p10-upstream-retry-cost.md`
+摘要：① `llm/retry.go` 统一四条发送路径的 429/5xx 指数退避，尊重 Retry-After 并受 MaxDelay 封顶，退避挂钩 ctx 取消，流式仅首包前可重试（产出 delta 后断流禁重试防重复打印），`OnRetry` 回调注入指标（llm 包 import 集为空，依赖倒置）；② Token 成本双通道：`agent_llm_*` 三个 counter + `store.Task` 两列（幂等 `ensureTaskColumn` 迁移老库）+ `TaskStore.RecordUsage`，`worker/usage.go` 在成功与失败双路径落盘；③ `config.SessionHistoryLimit`（默认 100）替代 `worker/session.go:28` 硬编码；④ 根级 `pprof.go` 独立端口独立 mux，默认关闭，非回环打 WARN；⑤ 架构门禁压力：`pool.go` 401 行 → 拆 `worker/cancel.go`，`pool_test.go` 810 行 → 拆 `worker/mock_store_test.go`，不抬预算；⑥ `api/loadtest_test.go` 压测实证。
+验证：gofmt 空 / build / vet 通过；`go test -race ./...` 545 passed（P9 基线 506）/ 12 包 / 0 race；架构门禁 2 passed。压测 2000 请求 @ 32 并发：0 非 202，p95=525µs p99=1.05ms，172k req/s。规模 99 Go 文件 = 44 生产 / 55 测试 / 20,851 行；360 个 func Test。
+本轮踩坑（已写入 notes 与 .agent-context）：`go vet` 是第一个能看见陈旧测试桩的关卡（`go build` 全绿时它报 mockTaskStore 缺 RecordUsage）；新增非零默认 config 字段打爆整结构体相等断言；patch 工具把带密钥的结构体字面量写成 `***` 致语法错，改用拼接片段 sed 修复。
+不做范围：端到端含 LLM 延迟的 p99（需真实 key，成本与波动不可控）；多智能体 SpawnAgent / Overlay 钩子 / 会话树 / Redis（ADR-0004 YAGNI，ADR-0021 已列被否决方案表）。
+遗留：vault `08-Projects/agent-runtime/INTERVIEW-TRIGGERS.md` Q3/Q17 话术需按实测改写，属用户备考材料，待确认。

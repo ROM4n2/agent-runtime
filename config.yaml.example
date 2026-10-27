@@ -27,3 +27,5 @@ max_queue_size: 10000
 
 worker_concurrency: 3   # 可选：后台并发 Worker 数量（正整数，默认 3）。环境变量 WORKER_CONCURRENCY 优先级更高。
 max_context_tokens: 16000 # 可选：会话多轮对话上下文 Token 预算上限（正整数，默认 16000）。环境变量 MAX_CONTEXT_TOKENS 优先级更高。
+session_history_limit: 100 # 可选：组装会话历史时拉取的最大消息条数（正整数，默认 100）。环境变量 SESSION_HISTORY_LIMIT 优先级更高。
+pprof_addr: ""          # 可选：非空则在独立端口暴露 /debug/pprof（如 127.0.0.1:6060）；空 = 关闭。环境变量 PPROF_ADDR 优先级更高。

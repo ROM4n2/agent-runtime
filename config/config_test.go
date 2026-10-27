@@ -21,6 +21,8 @@ func isolateEnv(t *testing.T) {
 	t.Setenv("MAX_QUEUE_SIZE", "")
 	t.Setenv("WORKER_CONCURRENCY", "")
 	t.Setenv("MAX_CONTEXT_TOKENS", "")
+	t.Setenv("SESSION_HISTORY_LIMIT", "")
+	t.Setenv("PPROF_ADDR", "")
 }
 
 func writeCfg(t *testing.T, content string) string {
@@ -38,7 +40,7 @@ func TestLoad_MissingFileIsNotAnError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("配置文件可选，不应报错：%v", err)
 	}
-	want := Config{MaxQueueSize: 10000, WorkerConcurrency: 3, MaxContextTokens: 16000}
+	want := Config{MaxQueueSize: 10000, WorkerConcurrency: 3, MaxContextTokens: 16000, SessionHistoryLimit: 100}
 	if cfg != want {
 		t.Errorf("cfg = %+v, want %+v", cfg, want)
 	}

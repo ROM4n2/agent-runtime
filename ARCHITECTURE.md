@@ -2,7 +2,7 @@
 
 > 架构总览文档。回答三个核心问题：**实现了什么 Agent**、**基于什么架构**、**借鉴了什么**。
 > 维护规则：随架构演进更新；重大变更须同步对应 ADR 与 `README.md`。
-> 适用范围：当前主线（`master`，P1–P8 全部交付）。
+> 适用范围：当前主线（`master`，P1–P10 全部交付）。
 
 ---
 
@@ -25,7 +25,7 @@
 | **内置工具** | `calculate`（自研递归下降 AST 算术求值，**不用 eval**，防代码注入）、`current_time`（IANA 时区）；P5 起增加 `search_docs`（混合检索即工具） |
 | **执行形态** | 被 Worker Pool 并发调度的**后端服务**智能体，而非交互式 CLI / 本地 Agent |
 | **对外契约** | 任务状态机 `pending → running → done/failed`；`POST /run` 提交、`GET /tasks/{id}` 轮询、`GET /tasks/{id}/events` SSE 流式 |
-| **生产级能力** | 用户主动取消（context 物理中断上游）、掉电崩溃恢复、SSE 原生 token 级打字机、多轮会话状态机、滑动窗口上下文压缩 |
+| **生产级能力** | 用户主动取消（context 物理中断上游）、掉电崩溃恢复、SSE 原生 token 级打字机、多轮会话状态机、滑动窗口上下文压缩、上游限流指数退避与 Retry-After 尊重、Token 成本计量持久化、独立诊断端口（pprof） |
 
 **最小可信定义**：多步工具调用循环即 agent 的实质（ADR-0008 双镜论证）——区别于"LLM 聊天的异步封装"，使 "agent" 名副其实。
 
@@ -97,8 +97,7 @@
   `POST /run` 可绑定 `session_id`，打破单轮任务孤岛。
 - **纯算法滑动窗口压缩**：`agent.CompactMessages` 无堆逃逸 Token 估算，首尾强锚定（System 提示 + 最新一轮），
   中间轮次按 User 边界折半截断并插入系统折叠注记，**零 LLM 调用开销**根除 Context Window 爆炸。
-- **可观测性**：`/metrics` 以 Prometheus 文本格式暴露 `agent_tasks_*`（`sync/atomic` 实现，零依赖）；
-  `/healthz` 探活；指标仅暴露聚合计数，不含任务内容或上游响应体。
+- **可观测性与诊断**：`/metrics` 以 Prometheus 文本格式暴露 `agent_tasks_*` 任务生命周期指标与 `agent_llm_*` 上游重试与 Token 成本指标（`sync/atomic` 实现，零依赖）；`tasks` 表持久化单任务 `prompt_tokens`/`completion_tokens`；`/healthz` 存活探针；独立端口/mux 提供 `/debug/pprof/*` 性能分析；指标仅暴露聚合计数，不含任务内容或上游响应体。
 
 ---
 
@@ -132,7 +131,7 @@
 
 - 决策记录：`docs/adr/0001`（项目定位）、`0002`（Worker Pool）、`0008`（Agent 工具循环）、
   `0013`（分层解耦，Pi 哲学）、`0015`（崩溃恢复）、`0016`（SSE 流式）、`0017/0018`（检索与评测）、
-  `0019`（事务队列与流式推断）、`0020`（会话状态机与压缩）。
+  `0019`（事务队列与流式推断）、`0020`（会话状态机与压缩）、`0021`（上游限流退避、Token 成本可观测与诊断端口）。
 - 实现计划：`docs/implementation_plan_p1.md` … `p8.md`。
 - 评测实证：`docs/eval/2026-10-25-hybrid-r3.md` 等。
 - 运行与 API 契约详见 `README.md`。

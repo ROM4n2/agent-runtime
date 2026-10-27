@@ -46,7 +46,9 @@ func NewSQLStore(path string) (*SQLStore, error) {
 		prompt     TEXT NOT NULL,
 		result     TEXT NOT NULL DEFAULT '',
 		error      TEXT NOT NULL DEFAULT '',
-		session_id TEXT NOT NULL DEFAULT ''
+		session_id TEXT NOT NULL DEFAULT '',
+		prompt_tokens     INTEGER NOT NULL DEFAULT 0,
+		completion_tokens INTEGER NOT NULL DEFAULT 0
 	)`); err != nil {
 		db.Close()
 		return nil, err
@@ -60,16 +62,33 @@ func NewSQLStore(path string) (*SQLStore, error) {
 		db.Close()
 		return nil, fmt.Errorf("sqlstore: create idx_tasks_status: %w", err)
 	}
-	// 兼容已有数据库迁移，确保 session_id 列存在
-	if _, err := db.Exec("ALTER TABLE tasks ADD COLUMN session_id TEXT NOT NULL DEFAULT ''"); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+	// 兼容已有数据库迁移：老库缺列时补列（ADR-0021 的 token 计量列同此路径）。
+	if err := ensureTaskColumn(db, "ALTER TABLE tasks ADD COLUMN session_id TEXT NOT NULL DEFAULT ''", "session_id"); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("sqlstore: migrate tasks session_id: %w", err)
+		return nil, err
+	}
+	if err := ensureTaskColumn(db, "ALTER TABLE tasks ADD COLUMN prompt_tokens INTEGER NOT NULL DEFAULT 0", "prompt_tokens"); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if err := ensureTaskColumn(db, "ALTER TABLE tasks ADD COLUMN completion_tokens INTEGER NOT NULL DEFAULT 0", "completion_tokens"); err != nil {
+		db.Close()
+		return nil, err
 	}
 	if err := initSessionSchema(db); err != nil {
 		db.Close()
 		return nil, err
 	}
 	return &SQLStore{db: db, path: path}, nil
+}
+
+// ensureTaskColumn 幂等补列：老库升级时列已存在会被 SQLite 报 duplicate column name，
+// 那是预期状态而非错误；其余错误一律上抛（不静默吞掉迁移失败）。
+func ensureTaskColumn(db *sql.DB, ddl, column string) error {
+	if _, err := db.Exec(ddl); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		return fmt.Errorf("sqlstore: migrate tasks.%s: %w", column, err)
+	}
+	return nil
 }
 
 // Close 释放底层数据库连接。进程停机时调用。
@@ -109,8 +128,8 @@ func (s *SQLStore) Create(prompt string) string {
 func (s *SQLStore) Get(id string) (Task, error) {
 	var t Task
 	err := s.db.QueryRow(
-		"SELECT id, status, prompt, result, error, session_id FROM tasks WHERE id = ?", id,
-	).Scan(&t.ID, &t.Status, &t.Prompt, &t.Result, &t.Error, &t.SessionID)
+		"SELECT id, status, prompt, result, error, session_id, prompt_tokens, completion_tokens FROM tasks WHERE id = ?", id,
+	).Scan(&t.ID, &t.Status, &t.Prompt, &t.Result, &t.Error, &t.SessionID, &t.PromptTokens, &t.CompletionTokens)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Task{}, ErrNotFound
 	}
@@ -230,6 +249,25 @@ func (s *SQLStore) RecoverTasks(ctx context.Context) ([]string, int, error) {
 	return pending, int(n), nil
 }
 
+// RecordUsage 记录该任务消耗的上游 Token 数；id 不存在返回 ErrNotFound。
+// 写操作走 mu 串行化（SQLite 单写者），与 Complete 同一纪律。
+func (s *SQLStore) RecordUsage(id string, promptTokens, completionTokens int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	res, err := s.db.Exec(
+		"UPDATE tasks SET prompt_tokens = ?, completion_tokens = ? WHERE id = ?",
+		promptTokens, completionTokens, id,
+	)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // PendingCount 返回处于 pending 状态的任务积压数。
 // 纯只读统计，WAL 模式下并发安全且不阻塞写操作。
 func (s *SQLStore) PendingCount(ctx context.Context) (int64, error) {
@@ -257,9 +295,9 @@ func (s *SQLStore) ClaimNext(ctx context.Context) (Task, error) {
 
 	var t Task
 	err := s.db.QueryRowContext(ctx,
-		"SELECT id, prompt, result, error, session_id FROM tasks WHERE status = ? ORDER BY id ASC LIMIT 1",
+		"SELECT id, prompt, result, error, session_id, prompt_tokens, completion_tokens FROM tasks WHERE status = ? ORDER BY id ASC LIMIT 1",
 		StatusPending,
-	).Scan(&t.ID, &t.Prompt, &t.Result, &t.Error, &t.SessionID)
+	).Scan(&t.ID, &t.Prompt, &t.Result, &t.Error, &t.SessionID, &t.PromptTokens, &t.CompletionTokens)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Task{}, ErrNoTaskAvailable
 	}

@@ -79,6 +79,12 @@ func runWithArgs(args []string) int {
 		EmbedAPIKey:  conf.EmbedAPIKey,
 		EmbedModel:   conf.EmbedModel,
 		EmbedDim:     conf.EmbedDim,
+		// 重试信号注入指标（ADR-0021）：llm 包在架构门禁里不允许 import metrics，
+		// 因此用回调做依赖倒置，与 metrics.SetPendingSource 同一手法。
+		OnRetry: func(attempt, status int, delay time.Duration) {
+			metrics.IncLLMRetry()
+			slog.Warn("llm: upstream retry", "attempt", attempt, "status", status, "delay", delay.String())
+		},
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -133,6 +139,7 @@ func runWithArgs(args []string) int {
 	p := worker.NewPool(conf.WorkerConcurrency, taskTimeout, s, llm.NewClient(cfg))
 	p.SetMaxQueueSize(conf.MaxQueueSize)
 	p.SetMaxContextTokens(conf.MaxContextTokens)
+	p.SetSessionHistoryLimit(conf.SessionHistoryLimit)
 	if ss, ok := s.(store.SessionStore); ok {
 		p.SetSessionStore(ss)
 	}
@@ -151,6 +158,10 @@ func runWithArgs(args []string) int {
 	}
 
 	p.Start()
+	// 诊断端口（ADR-0021 决策 4）：默认关闭；开启时独立端口，停机一并关闭。
+	if pprofSrv := startPprof(conf.PprofAddr); pprofSrv != nil {
+		defer func() { _ = pprofSrv.Close() }()
+	}
 	// pending 可能超过队列容量，阻塞式重灌放到后台，不阻塞 HTTP 监听启动。
 	enqueueRecovered(ctx, p, pendingIDs)
 
