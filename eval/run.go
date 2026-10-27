@@ -306,4 +306,3 @@ func runOnce(ctx context.Context, cfg RunConfig, chatter agent.Chatter, reg *too
 		CitedDocs:        g.CitedDocs,
 	}, nil
 }
-

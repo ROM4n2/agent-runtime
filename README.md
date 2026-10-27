@@ -1,5 +1,7 @@
 # Agent Runtime
 
+[![CI](https://github.com/ROM4n2/agent-runtime/actions/workflows/ci.yml/badge.svg)](https://github.com/ROM4n2/agent-runtime/actions/workflows/ci.yml)
+
 异步任务 + Worker Pool + LLM Agent 的 Go 后端服务。客户端提交 prompt，服务异步调用 DeepSeek：
 worker 以 **think → call tool → observe** 的多步认知循环执行 agent（内置 `calculate` / `current_time` / `search_docs` 工具），
 通过轮询或 SSE 获取结果。支持用户主动取消、掉电崩溃恢复、FTS5+vec0 RRF 混合知识检索、SQLite WAL 事务持久队列削峰、SSE 原生打字机流式推断、多轮会话状态机与纯算法滑动上下文安全压缩。
@@ -146,7 +148,7 @@ Invoke-RestMethod -Uri http://localhost:8080/metrics
 
 Status 取值：`pending` → `running` → `done` / `failed`
 
-并发执行数量通过 `worker_concurrency`（默认 3）弹性调节，超出部分排队（基于 SQLite WAL 事务队列削峰，默认支撑 10,000+ 任务排队）。多轮对话自动基于 `max_context_tokens` 触发滑动窗口折半压缩。
+并发执行数量通过 `worker_concurrency`（默认 3）弹性调节，超出部分排队（基于 SQLite WAL 事务队列削峰，`max_queue_size` 默认 10,000；`tasks(status, id)` 复合索引保证 `ClaimNext` 与 `PendingCount` 在积压时仍是索引查找而非全表扫描）。多轮对话自动基于 `max_context_tokens` 触发滑动窗口折半压缩。
 
 ## Observability
 
@@ -155,10 +157,15 @@ Status 取值：`pending` → `running` → `done` / `failed`
 | 指标 | 类型 | 含义 |
 |------|------|------|
 | `agent_tasks_submitted` | counter | 累计提交任务数 |
-| `agent_tasks_running` | gauge | 当前在飞任务数（提交 +1，终态 -1） |
+| `agent_tasks_running` | gauge | 当前在飞任务数（**抢占 +1，终态 -1**；上限为 `worker_concurrency`） |
+| `agent_tasks_pending` | gauge | 当前排队积压数（scrape 时实时读存储；未装配数据源时不输出） |
 | `agent_tasks_done` | counter | 累计成功完成数 |
 | `agent_tasks_failed` | counter | 累计失败数 |
-| `agent_tasks_recovered` | counter | 崩溃恢复重灌的 pending 任务数（同时补回 running gauge） |
+| `agent_tasks_recovered` | counter | 崩溃恢复重灌的 pending 任务数（回到 pending 排队，不计入 running） |
+
+不变式：`submitted - done - failed = running + pending`。`running` 恒 `<= worker_concurrency`；
+若 `running` 接近并发上限而 `pending` 持续增长，说明消费者不足而非上游卡死。
+`agent_tasks_pending` 读取失败时取 `-1`（未知），此时其余指标仍正常输出。
 
 `GET /healthz` 返回 `200 ok`，仅表示进程存活，不涉及任务状态。
 
@@ -225,7 +232,8 @@ agent-runtime/
 │       └── time.go       # IANA 时区解析时间工具
 ├── worker/               # 任务调度执行层（Worker Pool，纯化并发池）
 │   ├── pool.go           # Push-Notify 事务性抢占并发池、两阶段停机、排队排空、取消树管理
-│   └── session.go        # 会话多轮组装（历史拉取+上下文压缩）与轮次写回（防 pool.go 膨胀）
+│   ├── session.go        # 会话多轮组装（历史拉取+上下文压缩）与轮次写回（防 pool.go 膨胀）
+│   └── metrics.go        # 在飞 gauge 语义（抢占 +1，与终态 -1 严格成对）
 ├── retrieval/            # 混合检索即工具（独立领域包，零反向依赖）
 │   ├── index.go          # 索引生命周期：Open、Close、CheckFresh、Rebuild
 │   ├── schema.go         # SQLite DDL、FTS5 表结构与版本指纹
@@ -252,9 +260,10 @@ agent-runtime/
 ├── llm/                  # 模型适配层（OpenAI 兼容协议封装）
 │   ├── client.go         # ChatWithTools、幂等 joinEndpoint、Usage 解析
 │   └── stream.go         # ChatWithToolsStream 原生 SSE 流式解析与工具分块组装
-├── metrics/              # 监控度量（sync/atomic 零依赖 Prometheus 格式）
+├── metrics/              # 监控度量（sync/atomic 零依赖 Prometheus 格式；pending 由装配层注入）
 ├── config/               # 扁平配置解析器（环境变量 > config.yaml > 默认值）
 ├── docs/                 # ADR 决策记录、设计规格、实施计划与实测报表
+├── .github/workflows/    # CI 门禁：build / vet / 架构门禁 / test -race / gofmt
 └── Dockerfile            # 生产多阶段镜像构建
 ```
 

@@ -1,0 +1,51 @@
+name: CI
+
+# 门禁三件套：编译、静态检查、-race 全量测试。
+# architecture_test.go（AST DAG 白名单 + 体积预算）与 EXPLAIN QUERY PLAN 断言
+# 都跑在 go test 里，因此本 workflow 是它们唯一的强制执行点 —— 本地不跑就等于不存在。
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: build / vet / test -race
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          # 与 go.mod 的 go 指令对齐；go.mod 要求的版本高于此处时由 GOTOOLCHAIN 自动升级。
+          go-version-file: go.mod
+          check-latest: true
+
+      # GOWORK=off：本仓不含 go.work，显式关闭避免父目录 go.work 干扰。
+      - name: Build
+        run: GOWORK=off go build ./...
+
+      - name: Vet
+        run: GOWORK=off go vet ./...
+
+      # 架构门禁单列一步：它失败时在 CI 摘要里一眼可见，
+      # 不会被淹没在 500 个测试的滚动日志里。
+      - name: Architecture gates (AST DAG + line budget)
+        run: GOWORK=off go test . -run 'TestArchitecture_' -v -count=1
+
+      - name: Test with race detector
+        run: GOWORK=off go test -race ./... -count=1
+
+      - name: Gofmt check
+        run: |
+          unformatted="$(gofmt -l . | grep -v '^$' || true)"
+          if [ -n "$unformatted" ]; then
+            echo "以下文件未格式化："
+            echo "$unformatted"
+            exit 1
+          fi

@@ -58,12 +58,12 @@ func (c *Client) ChatWithToolsStream(ctx context.Context, msgs []Message, tools 
 			IncludeUsage bool `json:"include_usage"`
 		} `json:"stream_options,omitempty"`
 	}{
-		Model:         c.model,
-		Messages:      msgs,
-		Tools:         tools,
-		Temperature:   c.temperature,
-		Seed:          c.seed,
-		Stream:        true,
+		Model:       c.model,
+		Messages:    msgs,
+		Tools:       tools,
+		Temperature: c.temperature,
+		Seed:        c.seed,
+		Stream:      true,
 		StreamOptions: &struct {
 			IncludeUsage bool `json:"include_usage"`
 		}{IncludeUsage: true},

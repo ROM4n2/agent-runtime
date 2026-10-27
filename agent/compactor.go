@@ -43,12 +43,12 @@ func EstimateTokens(msgs []llm.Message, ratio float64) int {
 // CompactMessages 对消息历史执行安全滑动窗口压缩：
 // 1. 若估算总 Token <= cfg.MaxContextTokens，原样返回输入切片。
 // 2. 若超限：
-//    - 绝对保留开头的 System 消息（若第一个消息 Role=="system"）；
-//    - 绝对保留末尾最近的 1 轮消息（最后一条 User 消息以及紧随其后的内容）；
-//    - 对中间的历史消息，按 cfg.CompactionRatio 折半截断丢弃较早轮次，
-//      并在截断处插入一条包含省略标记的系统级消息：
-//      `[系统提示：为避免上下文超限，更早的 N 轮历史对话已自动折叠]`；
-//    - 确保压缩后返回的消息切片有效且符合大模型交互时序。
+//   - 绝对保留开头的 System 消息（若第一个消息 Role=="system"）；
+//   - 绝对保留末尾最近的 1 轮消息（最后一条 User 消息以及紧随其后的内容）；
+//   - 对中间的历史消息，按 cfg.CompactionRatio 折半截断丢弃较早轮次，
+//     并在截断处插入一条包含省略标记的系统级消息：
+//     `[系统提示：为避免上下文超限，更早的 N 轮历史对话已自动折叠]`；
+//   - 确保压缩后返回的消息切片有效且符合大模型交互时序。
 func CompactMessages(msgs []llm.Message, cfg CompactionConfig) []llm.Message {
 	if len(msgs) <= 1 {
 		return msgs

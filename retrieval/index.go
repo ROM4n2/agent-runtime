@@ -332,4 +332,3 @@ func insertChunkVec(ctx context.Context, tx *sql.Tx, rowid int64, vec []float32)
 	_, err := tx.ExecContext(ctx, "INSERT INTO doc_vec(rowid, embedding) VALUES (?, ?)", rowid, encodeVec(vec))
 	return err
 }
-

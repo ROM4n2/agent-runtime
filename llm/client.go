@@ -70,12 +70,12 @@ type choice struct {
 
 // Client 调用 OpenAI 兼容的 chat completions 接口。
 type Client struct {
-	apiKey       string
-	baseURL      string
-	model        string
-	temperature  *float64
-	seed         *int64
-	http         *http.Client // 复用连接，且用来设超时
+	apiKey      string
+	baseURL     string
+	model       string
+	temperature *float64
+	seed        *int64
+	http        *http.Client // 复用连接，且用来设超时
 
 	// 向量通道独立凭证（与 chat 分离，ADR-0017 决策 3）：
 	// embedBaseURL 或 embedModel 为空 → Embed 返回 ErrEmbedderNotConfigured。

@@ -19,10 +19,10 @@ type Config struct {
 	DbPath             string // 非空则启用 SQLite 持久化（重启不丢），空则用内存存储
 	TaskTimeoutSeconds int    // 单次任务 LLM 调用超时（秒），0 表示用默认 30s
 	// 向量通道独立凭证：默认空 = 仅词法检索（lexical only，ADR-0017 决策 3）。
-	EmbedBaseURL string
-	EmbedAPIKey  string
-	EmbedModel   string
-	EmbedDim     int    // 0 = 不建 vec0 表；>0 才启用混合召回；负值启动失败
+	EmbedBaseURL      string
+	EmbedAPIKey       string
+	EmbedModel        string
+	EmbedDim          int    // 0 = 不建 vec0 表；>0 才启用混合召回；负值启动失败
 	Model             string // LLM 模型名称，默认空串由装配层兜底 "deepseek-chat"
 	MaxQueueSize      int    // 最大允许积压的任务数，超出回 503，默认 10000
 	WorkerConcurrency int    // 默认 3；并发执行任务的 Worker 数量
@@ -111,8 +111,8 @@ func Load(path string) (Config, error) {
 		EmbedDim:           embedDim,
 		Model:              firstNonEmpty(os.Getenv("MODEL"), fileCfg.Model),
 		MaxQueueSize:       maxQueueSize,
-		WorkerConcurrency: workerConcurrency,
-		MaxContextTokens:  maxContextTokens,
+		WorkerConcurrency:  workerConcurrency,
+		MaxContextTokens:   maxContextTokens,
 	}, nil
 }
 

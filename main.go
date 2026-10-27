@@ -117,6 +117,13 @@ func runWithArgs(args []string) int {
 	}
 	s := backend
 
+	// /metrics 的 agent_tasks_pending 由装配层注入数据源：
+	// metrics 包不 import store（架构门禁白名单里它的允许 import 集为空），
+	// 因此用回调做依赖倒置，scrape 时实时读积压数而非维护一份易漂移的镜像计数。
+	metrics.SetPendingSource(func(ctx context.Context) (int64, error) {
+		return s.PendingCount(ctx)
+	})
+
 	// 单次任务 LLM 调用上限：可配置，缺省 30s（远比原 60s 短，避免慢上游长期占住 worker）。
 	taskTimeout := time.Duration(conf.TaskTimeoutSeconds) * time.Second
 	if taskTimeout <= 0 {
@@ -225,4 +232,3 @@ func shutdown(srv *http.Server, p *worker.Pool) int {
 	}
 	return exitCode
 }
-

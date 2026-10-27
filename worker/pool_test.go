@@ -209,9 +209,9 @@ type mockTaskStore struct {
 	completeCalled  bool
 }
 
-func (m *mockTaskStore) Create(prompt string) string { return "mock-id" }
+func (m *mockTaskStore) Create(prompt string) string                     { return "mock-id" }
 func (m *mockTaskStore) CreateInSession(prompt, sessionID string) string { return m.Create(prompt) }
-func (m *mockTaskStore) Update(id, status string) error { return m.updateErr }
+func (m *mockTaskStore) Update(id, status string) error                  { return m.updateErr }
 func (m *mockTaskStore) Get(id string) (store.Task, error) {
 	if m.getErr != nil {
 		return store.Task{}, m.getErr
@@ -225,7 +225,7 @@ func (m *mockTaskStore) Complete(id, result string, err error) error {
 	m.completedErr = err
 	return m.completeErr
 }
-func (m *mockTaskStore) Delete(id string) error { return nil }
+func (m *mockTaskStore) Delete(id string) error                                  { return nil }
 func (m *mockTaskStore) RecoverTasks(ctx context.Context) ([]string, int, error) { return nil, 0, nil }
 func (m *mockTaskStore) ClaimNext(ctx context.Context) (store.Task, error) {
 	return store.Task{}, store.ErrNoTaskAvailable

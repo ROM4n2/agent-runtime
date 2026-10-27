@@ -132,6 +132,8 @@ func (p *Pool) Stop(ctxs ...context.Context) error {
 		if err != nil {
 			break
 		}
+		// 排空同样是一次抢占：与下方 IncFailed 成对，避免 running 负向漂移。
+		markClaimed()
 		metrics.IncFailed()
 		if err := p.tasks.Complete(task.ID, "", errors.New("server shutdown")); err != nil {
 			slog.Error("worker: complete drained task failed", "task_id", task.ID, "error", err)
@@ -154,6 +156,8 @@ func (p *Pool) worker() {
 		// 主动从 store 抢占任务
 		task, err := p.tasks.ClaimNext(p.ctx)
 		if err == nil {
+			// 抢占成功即在飞：running gauge 的唯一入口。
+			markClaimed()
 			p.process(task.ID)
 			continue // 连续抢占直到无待执行任务
 		}

@@ -51,6 +51,15 @@ func NewSQLStore(path string) (*SQLStore, error) {
 		db.Close()
 		return nil, err
 	}
+	// idx_tasks_status 支撑 ClaimNext 的「最老 pending 一条」与 PendingCount 的聚合计数。
+	// 缺此索引时两者都是全表 SCAN：ClaimNext 每抢一条扫一次全表，
+	// PendingCount 被 Enqueue 与 10ms 轮询反复调用，代价按轮询频率放大。
+	// 复合列顺序 (status, id) 同时服务 WHERE status=? 与 ORDER BY id ASC，
+	// 使「按 id 升序取第一条」直接沿索引游标读取，无需额外排序。
+	if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, id)"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("sqlstore: create idx_tasks_status: %w", err)
+	}
 	// 兼容已有数据库迁移，确保 session_id 列存在
 	if _, err := db.Exec("ALTER TABLE tasks ADD COLUMN session_id TEXT NOT NULL DEFAULT ''"); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
 		db.Close()
