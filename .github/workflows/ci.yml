@@ -17,10 +17,11 @@ jobs:
     name: build / vet / test -race
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # 固定主版本标签（v6）：Node.js 20 运行时已弃用，v4/v5 会触发弃用告警。
+      - uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           # 与 go.mod 的 go 指令对齐；go.mod 要求的版本高于此处时由 GOTOOLCHAIN 自动升级。
           go-version-file: go.mod
