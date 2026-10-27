@@ -214,3 +214,21 @@ P8 多轮会话状态机、纯算法滑动上下文安全压缩与并发池弹�
   - 架构门禁：TestArchitecture FileLineBudget (全部生产 <= 400 行) 与 DAGImports 白名单全绿。
   - 代码规模：83 个 Go 文件（37 生产 / 46 测试，共 19,102 行）。
   - 隐私扫描：零本机路径泄漏。
+
+### 2026-10-27 16:05 | deepseek-v4.1-flash__hermes-agent | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec, git
+DFS-ONBOARD re-onboard（diff-verify，非重建）。分支 feat/p8-session-and-compaction，无未闭合 WORK_START。
+- 基线复跑：`GOWORK=off go test -race ./... -count=1` → 12 包全绿，321 func Test / 498 RUN，0 race；`go build ./...` + `go vet ./...` 干净；`TestArchitecture` 2 通过（AST DAG + 400/800 行预算）。规模 83 Go 文件 = 39 生产 / 44 测试，7427 + 11647 = 19074 行。
+- `.agent-context.md` 漂移修正（4 处，全部 file:line 实证）：① Data Flow 锚点 handler.go:94→:100、pool.go:165→:180、engine.go:53→:181（原文指向 RunOptions 结构体，非 Run 函数）；② 装配入口 `worker.NewPool(3, …)` → `conf.WorkerConcurrency`（main.go:126）；③ retrieval 包清单补齐 chunk.go / fingerprint.go；④ 项目文档段 0001..0018 → 0001..0020 并补 ARCHITECTURE.md；⑤ 基线日期与 LOC 刷新至 2026-10-27。
+- 新增红线：Pool 的 SetMaxQueueSize / SetMaxContextTokens / SetSessionStore / RegisterTool 必须在 p.Start() 之前（main.go:126-141），Start 后 worker 已在消费。
+- 三类必录坑在位（CRLF 假 diff / 终端编码 / exit 0≠正确），本次未发现新坑。
+- 工作树预存改动非本次产生：`docs/adr/0020-…md`（上位规范改为 AGENT-SDK-PATTERNS.md，目标文件已核实存在）与未跟踪 `ARCHITECTURE.md`（138 行，根级架构总览）——保持原状未动。
+
+### 2026-10-27 16:20 | deepseek-v4.1-flash__hermes-agent | NOTE
+Caps: filesystem-read, filesystem-write, shell-exec, git
+工作区整理与分支收编（PR #4 合入后）：
+- 分支：本地 master 落后 origin/master 10 提交且可快进 → `git fetch origin master:master` 快进至 a138825；`feat/p8-session-and-compaction` 树内容与 origin/master 零差异（merge-base --is-ancestor 通过），已 `git branch -D` 删除；远端分支已由 PR #4 自动清理。现存分支仅 master，无 stash，无 `.worktrees/` 残留（目录保留为约定隔离位），`git worktree prune -v` 无输出。
+- 提交 362ac9a（docs）：新增根级 ARCHITECTURE.md（138 行）并修正 ADR-0020 上位规范引用。提交前修正 ARCHITECTURE.md 两处事实错误：组合根由 `cmd/main`（目录不存在）改为 `main`；Go 版本由「1.24+」改为 `go.mod` 实际声明的 1.26.5（Dockerfile 仍用 golang:1.24-alpine + GOTOOLCHAIN=auto 自动升版，已在文中注明）。
+- 清理：删除 `store.out` / `worker.out` 两个 coverage profile 残留——其内部路径指向改名前的模块 `agent-api/*`，与现模块 `agent-runtime` 不符，已失效且被 `.gitignore` 的 `*.out` 覆盖。
+- 基线复核（master @ a138825 + 本次文档改动后）：`GOWORK=off go test -race ./... -count=1` 12 包全绿 498 RUN 0 race。
+- 未动（用户资产）：`agent-runtime.db`（3.3M，检索索引库：doc_chunk 606 / embed_cache 232，无 tasks 表，`config.yaml` 的 db_path 指向它，非任务库）、`handoff-agent-api.md`（2026-08-23 旧仓 agent-api 交接包，gitignored 本地文件）、`config.yaml`（含密钥，gitignored）。
